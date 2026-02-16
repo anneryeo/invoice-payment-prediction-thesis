@@ -1,0 +1,89 @@
+{
+  "ada_boost": [
+    {"learning_rate": 0.01, "n_estimators": 50},
+    {"learning_rate": 0.01, "n_estimators": 150},
+    {"learning_rate": 0.1, "n_estimators": 50},
+    {"learning_rate": 0.1, "n_estimators": 150},
+    {"learning_rate": 0.5, "n_estimators": 50},
+    {"learning_rate": 1.0, "n_estimators": 50},
+    {"learning_rate": 1.0, "n_estimators": 150}
+  ],
+  "decision_tree": [
+    {"max_depth": 10, "min_samples_leaf": 1},
+    {"max_depth": 10, "min_samples_leaf": 3},
+    {"max_depth": 10, "min_samples_leaf": 5},
+    {"max_depth": 20, "min_samples_leaf": 1},
+    {"max_depth": 20, "min_samples_leaf": 3},
+    {"max_depth": 20, "min_samples_leaf": 5}
+  ],
+  "gaussian_naive_bayes": [
+    {"var_smoothing": "1e-2"},
+    {"var_smoothing": "1e-3"},
+    {"var_smoothing": "1e-4"},
+    {"var_smoothing": "1e-5"},
+    {"var_smoothing": "1e-6"},
+    {"var_smoothing": "1e-7"},
+    {"var_smoothing": "1e-8"},
+    {"var_smoothing": "1e-9"}
+  ],
+  "knn": [
+    {"n_neighbours": 3, "weights": "uniform"},
+    {"n_neighbours": 3, "weights": "distance"},
+    {"n_neighbours": 5, "weights": "uniform"},
+    {"n_neighbours": 5, "weights": "distance"},
+    {"n_neighbours": 7, "weights": "uniform"},
+    {"n_neighbours": 7, "weights": "distance"}
+  ],
+  "nn_mlp": [
+    {"hidden_layers": [100, 50], "activation": "relu", "optimizer": "adam"},
+    {"hidden_layers": [100], "activation": "relu", "optimizer": "adam"},
+    {"hidden_layers": [200, 100], "activation": "tanh", "optimizer": "sgd"},
+    {"hidden_layers": [300, 150, 50], "activation": "relu", "optimizer": "adam"}
+  ],
+  "nn_rnn": [
+    {"rnn_type": "GRU", "hidden_units": 64, "num_layers": 2},
+    {"rnn_type": "GRU", "hidden_units": 128, "num_layers": 3},
+    {"rnn_type": "LSTM", "hidden_units": 64, "num_layers": 1},
+    {"rnn_type": "LSTM", "hidden_units": 128, "num_layers": 2}
+  ],
+  "nn_transformer": [
+    {"num_layers": 12, "num_heads": 12, "d_model": 768},
+    {"num_layers": 2, "num_heads": 4, "d_model": 128},
+    {"num_layers": 4, "num_heads": 8, "d_model": 256},
+    {"num_layers": 6, "num_heads": 8, "d_model": 512}
+  ],
+  "random_forest": [
+    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 200},
+    {"max_depth": 10, "min_samples_leaf": 3, "n_estimators": 100},
+    {"max_depth": 10, "min_samples_leaf": 3, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 100},
+    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 200},
+    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 200},
+    {"max_depth": 30, "min_samples_leaf": 3, "n_estimators": 100},
+    {"max_depth": 30, "min_samples_leaf": 3, "n_estimators": 200},
+    {"max_depth": 30, "min_samples_leaf": 5, "n_estimators": 100},
+    {"max_depth": 30, "min_samples_leaf": 5, "n_estimators": 200},
+    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 300},
+    {"max_depth": 30, "min_samples_leaf": 3, "n_estimators": 300},
+    {"max_depth": 30, "min_samples_leaf": 5, "n_estimators": 300}
+  ],
+  "xgboost": [
+    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 100},
+    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 100},
+    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 200},
+    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 300},
+    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 300},
+    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 300},
+    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 100},
+    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 200}
+  ]
+}
