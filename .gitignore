@@ -1,6 +1,6 @@
-# Large data files
-CS158-4 -Supervised ML/src/combined_data.csv
-combined_data_backup.csv
+# Other data files
+Database/pseudonym_cache.json
+*.pkl
 
 # Python
 __pycache__/
@@ -26,6 +26,8 @@ wheels/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+Pseudonymizer.ipynb
+Test - Credit Sales Refactor.ipynb
 
 # Environment variables
 .env
@@ -36,9 +38,10 @@ ENV/
 env.bak/
 venv.bak/
 
-# Data files (optional - uncomment if you want to ignore all data files)
- *.csv
+# Data files
+*.csv
 *.xlsx
+settings.json
 # *.json
 # data/
 

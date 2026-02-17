@@ -452,8 +452,8 @@ class CreditSales:
             how='left'
         )
 
-        
         df_cs = self._merge_opening_balance(df_cs, self.df_revenues)
+        df_cs = self._apply_one_hot_encoding(df_cs)
 
         return df_cs
 
@@ -553,6 +553,7 @@ class CreditSales:
         Calculate the opening balances for each student in df_cs
         where df_revenues['due_date'] <= df_cs['due_date'].
         """
+
         # Step 1: collapse revenues per student per due_date
         df_revenues = (
             df_revenues.groupby(['student_id_pseudonimized', 'due_date'], as_index=False)['receivables']
@@ -561,18 +562,31 @@ class CreditSales:
 
         # Step 2: sort and compute cumulative sum
         df_revenues = df_revenues.sort_values(['student_id_pseudonimized', 'due_date'])
-        df_revenues['opening_balance'] = df_revenues.groupby('student_id_pseudonimized')['receivables'].cumsum()
+        df_revenues['opening_balance'] = (
+            df_revenues.groupby('student_id_pseudonimized')['receivables'].cumsum()
+        )
 
-        # Step 3: merge with df_cs
-        merged = pd.merge(df_cs, df_revenues, on='student_id_pseudonimized', suffixes=('_cs', '_rev'))
+        # Step 3: merge with df_cs on student_id
+        merged = pd.merge(
+            df_cs,
+            df_revenues,
+            on='student_id_pseudonimized',
+            suffixes=('_cs', '_rev'),
+            how='left'
+        )
 
         # Step 4: filter by due_date condition
         merged = merged[merged['due_date_rev'] <= merged['due_date_cs']]
 
+        if 'opening_balance' not in merged.columns or merged.empty:
+            # No matching revenues at all, just add opening_balance = 0
+            df_cs['opening_balance'] = 0
+            return df_cs
+
         # Step 5: take latest cumulative sum for each cs row
         result = (
-            merged.groupby(['student_id_pseudonimized', 'due_date_cs'], as_index=False)['opening_balance']
-            .max()
+            merged.groupby(['student_id_pseudonimized', 'due_date_cs'], as_index=False)
+            [['opening_balance']].max()
         )
 
         # Step 6: merge back into df_cs
@@ -584,14 +598,32 @@ class CreditSales:
             how='left'
         )
 
+        # Step 7: clean up
         df_cs = df_cs.drop(columns=['due_date_cs'])
+        df_cs['opening_balance'] = df_cs['opening_balance'].fillna(0)  # edge case: no revenues yet
 
         return df_cs
     
     def _apply_one_hot_encoding(self, df_cs: pd.DataFrame) -> pd.DataFrame:
-        
-    
+        """
+        Apply one-hot encoding to categorical features while keeping original columns.
+        """
+        categorical_features = ['plan_type']
 
+        encoder = OneHotEncoder(sparse_output=False)
+        encoded = encoder.fit_transform(df_cs[categorical_features])
+
+        df_cs_encoded = pd.DataFrame(
+            encoded,
+            columns=encoder.get_feature_names_out(categorical_features),
+            index=df_cs.index
+        )
+
+        # Concatenate original df_cs with encoded features
+        df_cs = pd.concat([df_cs, df_cs_encoded], axis=1)
+
+        return df_cs
+        
     def show_data(self):
         return self.df_cs
 
