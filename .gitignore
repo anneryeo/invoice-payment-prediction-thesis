@@ -1,6 +1,22 @@
+# Jupyter Notebooks
+.ipynb_checkpoints
+Pseudonymizer.ipynb
+Test - Credit Sales Refactor.ipynb
+
+
+
+# Data files
+*.csv
+*.xlsx
+settings.json
+# *.json
+# data/
+
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
+
+
 
 # Python
 __pycache__/
@@ -24,10 +40,7 @@ wheels/
 .installed.cfg
 *.egg
 
-# Jupyter Notebook
-.ipynb_checkpoints
-Pseudonymizer.ipynb
-Test - Credit Sales Refactor.ipynb
+
 
 # Environment variables
 .env
@@ -38,12 +51,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Data files
-*.csv
-*.xlsx
-settings.json
-# *.json
-# data/
+
 
 # OS generated files
 .DS_Store
@@ -53,3 +61,4 @@ settings.json
 .Trashes
 ehthumbs.db
 Thumbs.db
+desktop.ini
