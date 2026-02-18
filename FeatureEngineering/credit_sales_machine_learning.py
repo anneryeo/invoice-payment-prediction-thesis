@@ -439,7 +439,7 @@ class CreditSales:
 
         df_cs['days_since_last_payment'] = (
             df_cs['due_date'] - df_cs['last_payment_date']
-            ).dt.days.astype("Int64") # Int64 stays <NA> if no previous payment's are made
+            ).dt.days.astype("Int64").fillna(-1) # Int64 stays <NA> if no previous payment's are made
         
 
         df_cs = self._merge_amount_due_cum_sum(df_cs, self.df_revenues)
