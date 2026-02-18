@@ -1,22 +1,25 @@
-import pandas as pd
 from sklearn.ensemble import AdaBoostClassifier
-
-from .Utils.data_partitioning import data_partitioning
 from .Utils.data_evaluation import data_evaluation
 
 class AdaBoostPipeline:
-    def __init__(self, parameters=None):
-        self.parameters = parameters or {}
+    def __init__(self, X_train, X_test,
+                 y_train, y_test,
+                 args, parameters=None):
+        self.args = args
+        self.parameters = parameters
         self.model = None
-        self.X_train, self.X_test, self.y_train, self.y_test = None, None, None, None
         self.results = None
 
-    def data_preparation(self, df_data):
-        self.X_train, self.X_test, self.y_train, self.y_test = data_partitioning(df_data)
-        return self
+        # Store pre‑prepared splits directly
+        self.X_train = X_train
+        self.X_test  = X_test
+        self.y_train = y_train
+        self.y_test  = y_test
 
     def build_model(self):
-        self.model = AdaBoostClassifier(**self.parameters)
+        # Initialize AdaBoost with provided parameters
+        # Common parameters: n_estimators, learning_rate, random_state
+        self.model = AdaBoostClassifier(**(self.parameters or {}))
         return self
 
     def train(self):
@@ -30,5 +33,4 @@ class AdaBoostPipeline:
         return self
 
     def show_results(self):
-        print(self.results)
-        return self
+        return self.results
