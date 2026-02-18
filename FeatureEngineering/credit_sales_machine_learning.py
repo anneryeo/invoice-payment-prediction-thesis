@@ -622,6 +622,7 @@ class CreditSales:
 
         # Concatenate original df_cs with encoded features
         df_cs = pd.concat([df_cs, df_cs_encoded], axis=1)
+        df_cs.drop(columns=categorical_features, inplace=True)
 
         return df_cs
     
