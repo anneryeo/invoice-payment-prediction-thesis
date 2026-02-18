@@ -454,6 +454,7 @@ class CreditSales:
 
         df_cs = self._merge_opening_balance(df_cs, self.df_revenues)
         df_cs = self._apply_one_hot_encoding(df_cs)
+        df_cs = self._merge_dtp_bracket(df_cs)
 
         return df_cs
 
@@ -623,6 +624,27 @@ class CreditSales:
         df_cs = pd.concat([df_cs, df_cs_encoded], axis=1)
 
         return df_cs
+    
+    def _merge_dtp_bracket(self, df_cs):
+        # Define bracket rules in a dictionary
+        bracket_rules = {
+            "on_time": lambda x: x <= 0,
+            "30_days": lambda x: 0 < x <= 30,
+            "60_days": lambda x: 30 < x <= 60,
+            "90_days": lambda x: x > 60
+        }
+
+        # Apply rules to create the new column
+        def assign_bracket(x):
+            for label, rule in bracket_rules.items():
+                if rule(x):
+                    return label
+            return None  # default if no condition matches
+
+        df_cs['dtp_bracket'] = df_cs['days_elapsed_until_fully_paid'].apply(assign_bracket)
+
+        return df_cs
+    
         
     def show_data(self):
         return self.df_cs
