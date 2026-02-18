@@ -17,28 +17,28 @@
     {"max_depth": 20, "min_samples_leaf": 5}
   ],
   "gaussian_naive_bayes": [
-    {"var_smoothing": "1e-2"},
-    {"var_smoothing": "1e-3"},
-    {"var_smoothing": "1e-4"},
-    {"var_smoothing": "1e-5"},
-    {"var_smoothing": "1e-6"},
-    {"var_smoothing": "1e-7"},
-    {"var_smoothing": "1e-8"},
-    {"var_smoothing": "1e-9"}
+      {"var_smoothing": 1e-2},
+      {"var_smoothing": 1e-3},
+      {"var_smoothing": 1e-4},
+      {"var_smoothing": 1e-5},
+      {"var_smoothing": 1e-6},
+      {"var_smoothing": 1e-7},
+      {"var_smoothing": 1e-8},
+      {"var_smoothing": 1e-9}
   ],
   "knn": [
-    {"n_neighbours": 3, "weights": "uniform"},
-    {"n_neighbours": 3, "weights": "distance"},
-    {"n_neighbours": 5, "weights": "uniform"},
-    {"n_neighbours": 5, "weights": "distance"},
-    {"n_neighbours": 7, "weights": "uniform"},
-    {"n_neighbours": 7, "weights": "distance"}
+    {"n_neighbors": 3, "weights": "uniform"},
+    {"n_neighbors": 3, "weights": "distance"},
+    {"n_neighbors": 5, "weights": "uniform"},
+    {"n_neighbors": 5, "weights": "distance"},
+    {"n_neighbors": 7, "weights": "uniform"},
+    {"n_neighbors": 7, "weights": "distance"}
   ],
   "nn_mlp": [
-    {"hidden_layers": [100, 50], "activation": "relu", "optimizer": "adam"},
-    {"hidden_layers": [100], "activation": "relu", "optimizer": "adam"},
-    {"hidden_layers": [200, 100], "activation": "tanh", "optimizer": "sgd"},
-    {"hidden_layers": [300, 150, 50], "activation": "relu", "optimizer": "adam"}
+    {"hidden_layer_sizes": [100, 50], "activation": "relu", "solver": "adam"},
+    {"hidden_layer_sizes": [100], "activation": "relu", "solver": "adam"},
+    {"hidden_layer_sizes": [200, 100], "activation": "tanh", "solver": "sgd"},
+    {"hidden_layer_sizes": [300, 150, 50], "activation": "relu", "solver": "adam"}
   ],
   "nn_rnn": [
     {"rnn_type": "GRU", "hidden_units": 64, "num_layers": 2},
@@ -72,18 +72,18 @@
     {"max_depth": 30, "min_samples_leaf": 5, "n_estimators": 300}
   ],
   "xgboost": [
-    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 100},
-    {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 200},
-    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 100},
-    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 200},
-    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 100},
-    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 100},
-    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 200},
-    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 200},
-    {"max_depth": 20, "min_samples_leaf": 1, "n_estimators": 300},
-    {"max_depth": 20, "min_samples_leaf": 3, "n_estimators": 300},
-    {"max_depth": 20, "min_samples_leaf": 5, "n_estimators": 300},
-    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 100},
-    {"max_depth": 30, "min_samples_leaf": 1, "n_estimators": 200}
+    {"max_depth": 10, "min_child_weight": 1, "n_estimators": 100},
+    {"max_depth": 10, "min_child_weight": 1, "n_estimators": 200},
+    {"max_depth": 20, "min_child_weight": 1, "n_estimators": 100},
+    {"max_depth": 20, "min_child_weight": 1, "n_estimators": 200},
+    {"max_depth": 20, "min_child_weight": 3, "n_estimators": 100},
+    {"max_depth": 20, "min_child_weight": 5, "n_estimators": 100},
+    {"max_depth": 20, "min_child_weight": 3, "n_estimators": 200},
+    {"max_depth": 20, "min_child_weight": 5, "n_estimators": 200},
+    {"max_depth": 20, "min_child_weight": 1, "n_estimators": 300},
+    {"max_depth": 20, "min_child_weight": 3, "n_estimators": 300},
+    {"max_depth": 20, "min_child_weight": 5, "n_estimators": 300},
+    {"max_depth": 30, "min_child_weight": 1, "n_estimators": 100},
+    {"max_depth": 30, "min_child_weight": 1, "n_estimators": 200}
   ]
 }
