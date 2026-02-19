@@ -15,6 +15,7 @@ settings.json
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
+results/
 
 
 
