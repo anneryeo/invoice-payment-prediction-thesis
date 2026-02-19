@@ -49,19 +49,19 @@
   "nn_transformer": [
   {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 50},
   {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 100},
-  {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 250},
+  {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 200},
 
   {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 50},
   {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 100},
-  {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 250},
+  {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 200},
 
   {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 50},
   {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 100},
-  {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 250},
+  {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 200},
 
   {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 50},
   {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 100},
-  {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 250}
+  {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 200}
 ],
   "random_forest": [
     {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 100},
