@@ -1,5 +1,5 @@
 from sklearn.tree import DecisionTreeClassifier
-from .Utils.data_evaluation import data_evaluation
+from ..Utils.data_evaluation import data_evaluation
 
 class DecisionTreePipeline:
     def __init__(self, X_train, X_test,

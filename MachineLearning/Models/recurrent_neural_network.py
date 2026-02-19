@@ -1,6 +1,6 @@
 from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import SimpleRNN, Dense
-from .Utils.data_evaluation import data_evaluation
+from ..Utils.data_evaluation import data_evaluation
 
 class RecurrentNeuralNetworkPipeline:
     def __init__(self, X_train, X_test,

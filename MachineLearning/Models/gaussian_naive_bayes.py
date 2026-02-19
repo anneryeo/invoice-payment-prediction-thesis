@@ -1,5 +1,5 @@
 from sklearn.naive_bayes import GaussianNB
-from .Utils.data_evaluation import data_evaluation
+from ..Utils.data_evaluation import data_evaluation
 
 class GaussianNaiveBayesPipeline:
     def __init__(self, X_train, X_test,

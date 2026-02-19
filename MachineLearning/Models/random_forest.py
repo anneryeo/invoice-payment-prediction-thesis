@@ -1,5 +1,5 @@
 from sklearn.ensemble import RandomForestClassifier
-from .Utils.data_evaluation import data_evaluation
+from ..Utils.data_evaluation import data_evaluation
 
 class RandomForestPipeline:
     def __init__(self, X_train, X_test,

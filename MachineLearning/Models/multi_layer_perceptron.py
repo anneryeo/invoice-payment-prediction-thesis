@@ -1,5 +1,5 @@
 from sklearn.neural_network import MLPClassifier
-from .Utils.data_evaluation import data_evaluation
+from ..Utils.data_evaluation import data_evaluation
 
 class MultiLayerPerceptronPipeline:
     def __init__(self, X_train, X_test,
