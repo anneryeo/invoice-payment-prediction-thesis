@@ -6,16 +6,14 @@ Test - Credit Sales Refactor.ipynb
 
 
 # Data files
-*.csv
-*.xlsx
+Database/
 settings.json
-# *.json
-# data/
 
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
 results/
+Excel Files/
 
 
 
