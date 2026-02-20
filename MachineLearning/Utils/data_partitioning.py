@@ -1,22 +1,36 @@
-from sklearn.model_selection import train_test_split
+import pandas as pd
 
-def data_partitioning(df, target_feature, test_size=0.2, random_state=42):
+def data_partitioning_by_due_date(df, target_feature, test_size=0.2):
     """
-    Splits dataframe into train/test sets.
+    Splits dataframe into train/test sets based on recent due_date values.
     
     Parameters:
-        df (pd.DataFrame): Input dataset
-        target_col (str): Name of target column
+        df (pd.DataFrame): Input dataset (must include 'due_date' column)
+        target_feature (str): Name of target column
         test_size (float): Proportion for test split
-        random_state (int): Random seed
     
     Returns:
         X_train, X_test, y_train, y_test
     """
-    X = df.drop(columns=[target_feature])
-    y = df[target_feature]
+    # Ensure due_date is datetime
+    df = df.copy()
+    df['due_date'] = pd.to_datetime(df['due_date'])
     
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, stratify=y
-    )
+    # Sort by due_date ascending
+    df_sorted = df.sort_values(by='due_date')
+    
+    # Determine split index
+    split_index = int(len(df_sorted) * (1 - test_size))
+    
+    # Partition
+    train_df = df_sorted.iloc[:split_index]
+    test_df = df_sorted.iloc[split_index:]
+    
+    # Drop target and due_date from features
+    X_train = train_df.drop(columns=[target_feature, 'due_date'])
+    y_train = train_df[target_feature]
+    
+    X_test = test_df.drop(columns=[target_feature, 'due_date'])
+    y_test = test_df[target_feature]
+    
     return X_train, X_test, y_train, y_test

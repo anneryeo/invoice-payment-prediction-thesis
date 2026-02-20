@@ -1,7 +1,9 @@
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils import resample
-from sklearn.model_selection import train_test_split
+
+from .data_partitioning import data_partitioning_by_due_date
+
 
 class DataPreparer:
     def __init__(self, df_data, target_feature, test_size=0.2):
@@ -24,12 +26,11 @@ class DataPreparer:
         )
 
         # --- Partition the data ---
-        print("Partitioning the datasets...")
-        X = self.df_data.drop(columns=[self.target_feature])
-        y = self.df_data[self.target_feature]
+        print("Partitioning the datasets based on due_date...")
 
-        self.X_train, self.X_test, self.y_train, self.y_test = train_test_split(
-            X, y, test_size=self.test_size, random_state=42, stratify=y
+        # Use the new chronological split function
+        self.X_train, self.X_test, self.y_train, self.y_test = data_partitioning_by_due_date(
+            self.df_data, target_feature=self.target_feature, test_size=self.test_size
         )
 
         # --- Manual oversampling for multiclass ---
@@ -56,7 +57,7 @@ class DataPreparer:
         self.y_train = balanced_train[self.target_feature]
 
         return self
-
+    
     def decode_labels(self, y_encoded):
         """Convert encoded labels back to original class names."""
         if self.label_encoder is None:
