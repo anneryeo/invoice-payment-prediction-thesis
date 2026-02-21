@@ -298,6 +298,7 @@ class CreditSales:
 
         return df_p
 
+
     #################################################################
     # Helper Functions to Calculate Credit Sales - Multiple Due Dates
     #################################################################
@@ -425,35 +426,44 @@ class CreditSales:
 
         return result
 
+
     ###########################################################
     # Helper Functions to Extract Features for Machine Learning
     ###########################################################
     def _merge_machine_learning_features(self, df_cs) -> pd.DataFrame:
         df_cs = self._merge_dtp(df_cs)
-        df_cs['dtp_avg'] = df_cs[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mean(axis=1)
 
+        # Averages and weighted averages
+        df_cs['dtp_avg'] = df_cs[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mean(axis=1)
         weights = [0.4, 0.3, 0.2, 0.1]
         df_cs['dtp_wavg'] = df_cs[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mul(weights).sum(axis=1)
-        df_cs['dtp_2_trend'] = (df_cs['dtp_2'] - df_cs['dtp_1']) / (2 - 1)
-        df_cs['dtp_3_trend'] = (df_cs['dtp_3'] - df_cs['dtp_1']) / (3 - 1)
 
+        df_cs = self._merge_due_date_prev(df_cs, 2)
+
+        # Time-normalized trends
+        df_cs['dtp_2_trend'] = self._calculate_dtp_trend(df_cs, lag=1)
+        df_cs['dtp_3_trend'] = self._calculate_dtp_trend(df_cs, lag=2)
+
+        # Days since last payment
         df_cs['days_since_last_payment'] = (
             df_cs['due_date'] - df_cs['last_payment_date']
-            ).dt.days.astype("Int64").fillna(-1) # Int64 stays <NA> if no previous payment's are made
-        
+        ).dt.days.astype("Int64").fillna(-1)
 
+        # Balance calculations
         df_cs = self._merge_amount_due_cum_sum(df_cs, self.df_revenues)
         df_cs = self._merge_amount_paid_cum_sum(df_cs, self.df_revenues)
         df_cs['opening_balance'] = (
             df_cs['amount_due_cumsum'] - df_cs['amount_paid_cumsum']
         ).clip(lower=0)
 
+        # Merge enrollee info
         df_cs = df_cs.merge(
             self.df_enrollees[['school_year', 'student_id_pseudonimized', 'plan_type']],
             on=['school_year', 'student_id_pseudonimized'],
             how='left'
         )
 
+        # Encoding and brackets
         df_cs = self._apply_one_hot_encoding(df_cs)
         df_cs = self._merge_dtp_bracket(df_cs)
 
@@ -485,6 +495,68 @@ class CreditSales:
             )
 
         return df_cs
+
+    def _merge_due_date_prev(self, df: pd.DataFrame, n: int = 1) -> pd.DataFrame:
+        """
+        Adds 'due_date_prev_k' columns per student_id_pseudonimized, representing the
+        previous k-th invoice's due_date for that student.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input dataframe containing 'student_id_pseudonimized' and 'due_date'.
+        n : int, optional (default=1)
+            Number of previous entries to retrieve. If n=1, only the immediate
+            previous due_date is added. If n>1, multiple columns are added.
+
+        Returns
+        -------
+        pd.DataFrame
+            Dataframe with additional 'due_date_prev_k' columns.
+        """
+        # Ensure due_date is datetime
+        df['due_date'] = pd.to_datetime(df['due_date'])
+
+        # Sort by student and due_date
+        df = df.sort_values(['student_id_pseudonimized', 'due_date'])
+
+        # Generate shifted columns dynamically
+        for k in range(1, n + 1):
+            df[f'due_date_prev_{k}'] = (
+                df.groupby('student_id_pseudonimized')['due_date']
+                .shift(k)
+            )
+
+        return df
+
+    def _calculate_dtp_trend(self, df: pd.DataFrame, lag: int) -> pd.Series:
+        """
+        Calculate normalized DTP trend between two invoices based on due_date differences.
+
+        Parameters
+        ----------
+        df : pd.DataFrame
+            Input dataframe containing DTP and due_date columns.
+        lag : int
+            How many invoices back to compare (e.g., 1 for dtp_2 vs dtp_1).
+
+        Returns
+        -------
+        pd.Series
+            Normalized trend values (rate of change per day).
+        """
+        # Current column is always dtp_{lag+1}, previous is dtp_{1}
+        col_current = f'dtp_{lag+1}'
+        col_previous = 'dtp_1'
+
+        date_current = df['due_date']
+        column_prev = f'due_date_prev_{lag}'
+        date_previous = df[column_prev]
+
+        days_diff = (date_current - date_previous).dt.days
+        trend = (df[col_current] - df[col_previous]) / days_diff.replace(0, pd.NA)
+
+        return trend.fillna(0)
     
     def _merge_amount_due_cum_sum(self, df_cs: pd.DataFrame, df_revenues: pd.DataFrame) -> pd.DataFrame:
         """
