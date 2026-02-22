@@ -6,7 +6,7 @@ class RandomForestPipeline:
                  y_train, y_test,
                  args, parameters=None):
         self.args = args
-        self.parameters = parameters
+        self.parameters = parameters or {}
         self.model = None
         self.results = None
 
@@ -18,8 +18,9 @@ class RandomForestPipeline:
 
     def build_model(self):
         # Initialize Random Forest with provided parameters
-        # Common parameters: n_estimators, max_depth, min_samples_split, min_samples_leaf, max_features, random_state
-        self.model = RandomForestClassifier(**(self.parameters or {}))
+        # Common parameters: n_estimators, max_depth, min_samples_split,
+        # min_samples_leaf, max_features, random_state
+        self.model = RandomForestClassifier(**self.parameters)
         return self
 
     def train(self):
@@ -28,8 +29,21 @@ class RandomForestPipeline:
         self.model.fit(self.X_train, self.y_train)
         return self
 
+    def predict(self, X):
+        """
+        Generate predictions for new data.
+        Accepts numpy arrays or pandas DataFrames.
+        Returns numpy array of predicted class labels.
+        """
+        return self.model.predict(X)
+
     def evaluation(self):
-        self.results = data_evaluation(self.model, self.X_test, self.y_test)
+        """
+        Evaluate the model using the simplified data_evaluation
+        that expects (y_pred, y_test).
+        """
+        y_pred = self.predict(self.X_test)
+        self.results = data_evaluation(y_pred, self.y_test)
         return self
 
     def show_results(self):

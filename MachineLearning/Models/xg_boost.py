@@ -6,7 +6,7 @@ class XGboostPipeline:
                  y_train, y_test,
                  args, parameters=None):
         self.args = args
-        self.parameters = parameters
+        self.parameters = parameters or {}
         self.model = None
         self.results = None
 
@@ -18,8 +18,9 @@ class XGboostPipeline:
 
     def build_model(self):
         # Initialize XGBoost with provided parameters
-        # Common parameters: n_estimators, learning_rate, max_depth, subsample, colsample_bytree, random_state
-        self.model = XGBClassifier(**(self.parameters or {}))
+        # Common parameters: n_estimators, learning_rate, max_depth,
+        # subsample, colsample_bytree, random_state
+        self.model = XGBClassifier(**self.parameters)
         return self
 
     def train(self):
@@ -28,8 +29,21 @@ class XGboostPipeline:
         self.model.fit(self.X_train, self.y_train)
         return self
 
+    def predict(self, X):
+        """
+        Generate predictions for new data.
+        Accepts numpy arrays or pandas DataFrames.
+        Returns numpy array of predicted class labels.
+        """
+        return self.model.predict(X)
+
     def evaluation(self):
-        self.results = data_evaluation(self.model, self.X_test, self.y_test)
+        """
+        Evaluate the model using the simplified data_evaluation
+        that expects (y_pred, y_test).
+        """
+        y_pred = self.predict(self.X_test)
+        self.results = data_evaluation(y_pred, self.y_test)
         return self
 
     def show_results(self):

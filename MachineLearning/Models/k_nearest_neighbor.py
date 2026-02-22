@@ -6,7 +6,7 @@ class KnearestNeighborPipeline:
                  y_train, y_test,
                  args, parameters=None):
         self.args = args
-        self.parameters = parameters
+        self.parameters = parameters or {}
         self.model = None
         self.results = None
 
@@ -19,7 +19,7 @@ class KnearestNeighborPipeline:
     def build_model(self):
         # Initialize KNN with provided parameters
         # Common parameters: n_neighbors, weights, algorithm, leaf_size, p, metric
-        self.model = KNeighborsClassifier(**(self.parameters or {}))
+        self.model = KNeighborsClassifier(**self.parameters)
         return self
 
     def train(self):
@@ -28,8 +28,21 @@ class KnearestNeighborPipeline:
         self.model.fit(self.X_train, self.y_train)
         return self
 
+    def predict(self, X):
+        """
+        Generate predictions for new data.
+        Accepts numpy arrays or pandas DataFrames.
+        Returns numpy array of predicted class labels.
+        """
+        return self.model.predict(X)
+
     def evaluation(self):
-        self.results = data_evaluation(self.model, self.X_test, self.y_test)
+        """
+        Evaluate the model using the simplified data_evaluation
+        that expects (y_pred, y_test).
+        """
+        y_pred = self.predict(self.X_test)
+        self.results = data_evaluation(y_pred, self.y_test)
         return self
 
     def show_results(self):
