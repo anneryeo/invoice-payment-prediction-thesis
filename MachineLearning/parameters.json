@@ -35,10 +35,9 @@
     {"n_neighbors": 7, "weights": "distance"}
   ],
   "nn_mlp": [
-    {"hidden_layer_sizes": [100, 50], "activation": "relu", "solver": "adam"},
-    {"hidden_layer_sizes": [100], "activation": "relu", "solver": "adam"},
-    {"hidden_layer_sizes": [200, 100], "activation": "tanh", "solver": "sgd"},
-    {"hidden_layer_sizes": [300, 150, 50], "activation": "relu", "solver": "adam"}
+    {"hidden_layer_sizes": [64, 32], "activation": "relu", "solver": "adam", "alpha": 0.0005, "dropout": 0.3, "early_stopping": true},
+    {"hidden_layer_sizes": [128, 64], "activation": "tanh", "solver": "adam", "alpha": 0.001, "dropout": 0.2, "early_stopping": true},
+    {"hidden_layer_sizes": [100], "activation": "relu", "solver": "adam", "alpha": 0.0001, "dropout": 0.25, "early_stopping": true}
   ],
   "nn_rnn": [
     {"rnn_type": "GRU", "hidden_units": 64, "num_layers": 2},
@@ -47,22 +46,10 @@
     {"rnn_type": "LSTM", "hidden_units": 128, "num_layers": 2}
   ],
   "nn_transformer": [
-  {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 50},
-  {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 100},
-  {"num_layers": 12, "num_heads": 12, "d_model": 768, "epochs": 200},
-
-  {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 50},
-  {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 100},
-  {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 200},
-
-  {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 50},
-  {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 100},
-  {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 200},
-
-  {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 50},
-  {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 100},
-  {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 200}
-],
+    {"num_layers": 4, "num_heads": 8, "d_model": 256, "epochs": 40},
+    {"num_layers": 6, "num_heads": 8, "d_model": 512, "epochs": 40},
+    {"num_layers": 2, "num_heads": 4, "d_model": 128, "epochs": 30}
+  ],
   "random_forest": [
     {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 100},
     {"max_depth": 10, "min_samples_leaf": 1, "n_estimators": 200},
