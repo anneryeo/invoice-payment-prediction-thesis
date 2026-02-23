@@ -35,13 +35,21 @@ class DecisionTreePipeline:
         """
         return self.model.predict(X)
 
+    def predict_proba(self, X):
+        """
+        Generate class probability estimates for new data.
+        Useful for metrics like ROC AUC.
+        """
+        return self.model.predict_proba(X)
+
     def evaluation(self):
         """
-        Evaluate the model using the simplified data_evaluation
-        that expects (y_pred, y_test).
+        Evaluate the model using data_evaluation,
+        which now supports AUC if probabilities are provided.
         """
         y_pred = self.predict(self.X_test)
-        self.results = data_evaluation(y_pred, self.y_test)
+        y_proba = self.predict_proba(self.X_test)
+        self.results = data_evaluation(y_pred, self.y_test, y_proba=y_proba)
         return self
 
     def show_results(self):

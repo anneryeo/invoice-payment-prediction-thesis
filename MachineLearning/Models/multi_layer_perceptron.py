@@ -38,6 +38,9 @@ class MultiLayerPerceptronPipeline:
         self.model = None
         self.results = None
 
+        # Select device (GPU if available, else CPU)
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
         # Convert DataFrames/Series to numpy arrays
         if isinstance(X_train, pd.DataFrame):
             X_train = X_train.to_numpy()
@@ -54,11 +57,11 @@ class MultiLayerPerceptronPipeline:
         y_train = y_train.astype(np.int64)
         y_test  = y_test.astype(np.int64)
 
-        # Convert to torch tensors
-        self.X_train = torch.tensor(X_train, dtype=torch.float32)
-        self.X_test  = torch.tensor(X_test, dtype=torch.float32)
-        self.y_train = torch.tensor(y_train, dtype=torch.long)
-        self.y_test  = torch.tensor(y_test, dtype=torch.long)
+        # Convert to torch tensors and move to device
+        self.X_train = torch.tensor(X_train, dtype=torch.float32).to(self.device)
+        self.X_test  = torch.tensor(X_test, dtype=torch.float32).to(self.device)
+        self.y_train = torch.tensor(y_train, dtype=torch.long).to(self.device)
+        self.y_test  = torch.tensor(y_test, dtype=torch.long).to(self.device)
 
     def build_model(self):
         input_dim = self.X_train.shape[1]
@@ -70,7 +73,7 @@ class MultiLayerPerceptronPipeline:
             activation=self.parameters.get("activation", "relu"),
             dropout=self.parameters.get("dropout", 0.3),
             output_dim=output_dim
-        )
+        ).to(self.device)  # move model to device
         return self
 
     def train(self, epochs=50, batch_size=32, lr=1e-3):
@@ -106,7 +109,7 @@ class MultiLayerPerceptronPipeline:
         elif isinstance(X, torch.Tensor):
             X = X.detach().cpu().numpy().astype(np.float32)
 
-        X_tensor = torch.tensor(X, dtype=torch.float32)
+        X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
 
         self.model.eval()
         with torch.no_grad():
@@ -114,13 +117,34 @@ class MultiLayerPerceptronPipeline:
             predicted_classes = preds.argmax(dim=1).cpu().numpy()
         return predicted_classes
 
+    def predict_proba(self, X):
+        """
+        Generate class probability estimates for new data.
+        Returns numpy array of probabilities for each class.
+        """
+        if isinstance(X, pd.DataFrame):
+            X = X.to_numpy().astype(np.float32)
+        elif isinstance(X, np.ndarray):
+            X = X.astype(np.float32)
+        elif isinstance(X, torch.Tensor):
+            X = X.detach().cpu().numpy().astype(np.float32)
+
+        X_tensor = torch.tensor(X, dtype=torch.float32).to(self.device)
+
+        self.model.eval()
+        with torch.no_grad():
+            preds = self.model(X_tensor)
+            probs = torch.softmax(preds, dim=1).cpu().numpy()
+        return probs
+
     def evaluation(self):
         """
-        Evaluate the model using the simplified data_evaluation
-        that expects (y_pred, y_test).
+        Evaluate the model using data_evaluation,
+        which now supports AUC if probabilities are provided.
         """
         y_pred = self.predict(self.X_test)
-        self.results = data_evaluation(y_pred, self.y_test.numpy())
+        y_proba = self.predict_proba(self.X_test)
+        self.results = data_evaluation(y_pred, self.y_test.cpu().numpy(), y_proba=y_proba)
         return self
 
     def show_results(self):
