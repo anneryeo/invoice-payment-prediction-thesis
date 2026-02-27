@@ -30,13 +30,12 @@ class CreditSales:
     Algorithm
     ---------
     1. Divide the dataset into two groups: students with single due dates and those with multiple due dates.
-        - This is for optimization purposes, as the singular due dates can be calculated with a singular matrix operations.
+        - This is for optimization purposes, as the singular due dates can be calculated via singular matrix operations.
         - While handling multiple due dates requires iterative allocations.
     2. For each group, calculate the amount due, discounts, adjustments, and credit sale transactions.
     3. For students with multiple due dates, allocate discounts and adjustments sequentially across due dates.
     4. Calculate payment allocations into predefined buckets based on days elapsed since due date.
-    5. Combine all relevant columns to produce the final credit sales DataFrame.
-    6. Expand the category column with a description column for each credit sale transaction.
+    5. Adds new feature columns for machine learning purposes.
     """
     def __init__(self, df_revenues, df_enrollees):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
@@ -431,7 +430,8 @@ class CreditSales:
     # Helper Functions to Extract Features for Machine Learning
     ###########################################################
     def _merge_machine_learning_features(self, df_cs) -> pd.DataFrame:
-        df_cs = self._merge_dtp(df_cs)
+        # Days to pay features used for time-series features
+        df_cs = self._merge_dtp(df_cs, dtp_n=4)
 
         # Averages and weighted averages
         df_cs['dtp_avg'] = df_cs[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mean(axis=1)
@@ -647,9 +647,9 @@ class CreditSales:
         # Define bracket rules in a dictionary
         bracket_rules = {
             "on_time": lambda x: x <= 0,
-            "30_days": lambda x: 0 < x <= 30,
-            "60_days": lambda x: 30 < x <= 60,
-            "90_days": lambda x: x > 60
+            "30_days": lambda x: 0 < x <= 30,  # 1-30 days
+            "60_days": lambda x: 30 < x <= 60, # 31-60 days
+            "90_days": lambda x: x > 60        # 61-90 days
         }
 
         # Apply rules to create the new column
