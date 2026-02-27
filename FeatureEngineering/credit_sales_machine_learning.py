@@ -469,7 +469,7 @@ class CreditSales:
 
         return df_cs
 
-    def _merge_dtp(self, df_cs) -> pd.DataFrame:
+    def _merge_dtp(self, df_cs, dtp_n) -> pd.DataFrame:
         """
         Extract the number of days between the current invoice due date and the
         Nth previous issued invoice (where N = no_of_invoices_back).
@@ -487,7 +487,7 @@ class CreditSales:
         ).dt.days.astype("Int64")  # Int64 stays <NA> if unpaid
 
         # Use shift to get previous N values (across all years for the same student)
-        for n in range(1, 5):  # dtp_1, dtp_2, dtp_3, dtp_4
+        for n in range(1, dtp_n+1):
             df_cs[f"dtp_{n}"] = (
                 df_cs.groupby("student_id_pseudonimized")["days_elapsed_until_fully_paid"]
                 .shift(n)
