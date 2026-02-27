@@ -10,7 +10,7 @@ def data_partitioning_by_due_date(df, target_feature, test_size=0.2):
         test_size (float): Proportion for test split
     
     Returns:
-        X_train, X_test, y_train, y_test
+        X_train, X_test, y_train, y_test, cutoff_date
     """
     # Ensure due_date is datetime
     df = df.copy()
@@ -33,4 +33,7 @@ def data_partitioning_by_due_date(df, target_feature, test_size=0.2):
     X_test = test_df.drop(columns=[target_feature, 'due_date'])
     y_test = test_df[target_feature]
     
-    return X_train, X_test, y_train, y_test
+    # Cutoff date is the first due_date in the test set
+    cutoff_date = test_df['due_date'].min()
+    
+    return X_train, X_test, y_train, y_test, cutoff_date
