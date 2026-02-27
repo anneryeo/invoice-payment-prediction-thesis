@@ -72,7 +72,7 @@ class DataPreparer:
         # --- Partition the data ---
         self._log("Partitioning datasets based on due_date...")
 
-        self.X_train, self.X_test, self.y_train, self.y_test = (
+        self.X_train, self.X_test, self.y_train, self.y_test, self.cut_off_date = (
             data_partitioning_by_due_date(
                 self.df_data,
                 target_feature=self.target_feature,
