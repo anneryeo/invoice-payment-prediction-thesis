@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+from datetime import datetime
 from multiprocessing import Pool, cpu_count
 from sklearn.preprocessing import OneHotEncoder
 
@@ -37,9 +38,11 @@ class CreditSales:
     4. Calculate payment allocations into predefined buckets based on days elapsed since due date.
     5. Adds new feature columns for machine learning purposes.
     """
-    def __init__(self, df_revenues, df_enrollees):
+    def __init__(self, df_revenues, df_enrollees, args):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
         self.df_enrollees = df_enrollees
+        self.args = args
+        
         self.df_discounts = self._get_discounts(self.df_revenues)
         self.df_adjustments = self._get_adjustments(self.df_revenues)
         self.df_payments_to_receivables = self._get_payments_to_receivables(self.df_revenues)
@@ -466,6 +469,8 @@ class CreditSales:
         # Encoding and brackets
         df_cs = self._apply_one_hot_encoding(df_cs)
         df_cs = self._merge_dtp_bracket(df_cs)
+        df_cs = self._merge_censor(df_cs)
+        df_cs = self._calculate_dtp_for_censored_invoices(df_cs)
 
         return df_cs
 
@@ -660,6 +665,47 @@ class CreditSales:
             return None  # default if no condition matches
 
         df_cs['dtp_bracket'] = df_cs['days_elapsed_until_fully_paid'].apply(assign_bracket)
+
+        return df_cs
+    
+    def _merge_censor(self, df_cs):
+        """
+        Adds a new column that is used in survival analysis.
+        censor (E) = 0: The payment still has not happened yet during the observation end date
+        censor (E) = 1: The exact date of full payment happened during the observation end date
+        """
+        observation_end_date = df_cs['due_date'].max()
+        df_cs['censor'] = (df_cs['date_fully_paid'] <= observation_end_date).astype(int)
+
+        return df_cs
+    
+    def _calculate_dtp_for_censored_invoices(self, df_cs):
+        """
+        Calculate days_elapsed_until_fully_paid for censored data (censor = 0).
+        Result is stored as integer days for all rows.
+        """
+        default_observation_end_date = datetime.today()
+        observation_end_date = getattr(self.args, "observation_end", default_observation_end_date)
+
+        # Keep records before observation_end_date regardless of payment,
+        # plus those after observation_end_date only if they are fully paid
+        df_cs = df_cs[
+            (df_cs['due_date'] <= observation_end_date) |
+            ((df_cs['due_date'] > observation_end_date) & df_cs['date_fully_paid'].notna())
+        ]
+
+        # Update only censored rows
+        df_cs.loc[df_cs['censor'] == 0, 'days_elapsed_until_fully_paid'] = (
+            (observation_end_date - df_cs.loc[df_cs['censor'] == 0, 'due_date']).dt.days
+        )
+
+        # Convert entire column to integer safely
+        df_cs['days_elapsed_until_fully_paid'] = (
+            df_cs['days_elapsed_until_fully_paid']
+            .infer_objects(copy=False)
+            .fillna(0)
+            .astype(int)
+        )
 
         return df_cs
     
