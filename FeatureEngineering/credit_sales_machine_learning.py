@@ -54,7 +54,6 @@ class CreditSales:
         print(f"Single due date records: {len(df_credit_sales_single)}")
         print(f"Multiple due date records: {len(df_credit_sales_multiple)}")
 
-        df_cs = self._merge_last_payment_date(df_cs, self.df_payments_to_all)
         df_cs = self._merge_machine_learning_features(df_cs)
 
         self.df_cs = df_cs
@@ -445,6 +444,7 @@ class CreditSales:
         df_cs['dtp_3_trend'] = self._calculate_dtp_trend(df_cs, lag=2)
 
         # Days since last payment
+        df_cs = self._merge_last_payment_date(df_cs, self.df_payments_to_all)
         df_cs['days_since_last_payment'] = (
             df_cs['due_date'] - df_cs['last_payment_date']
         ).dt.days.astype("Int64").fillna(-1)
