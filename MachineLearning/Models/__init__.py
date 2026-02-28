@@ -3,7 +3,7 @@ from .decision_tree import DecisionTreePipeline
 from .gaussian_naive_bayes import GaussianNaiveBayesPipeline
 from .k_nearest_neighbor import KnearestNeighborPipeline
 from .random_forest import RandomForestPipeline
-from .xg_boost import XGboostPipeline
+from .xg_boost import XGBoostPipeline
 from .multi_layer_perceptron import MultiLayerPerceptronPipeline
 from .transformer import TransformerPipeline
 
@@ -13,7 +13,7 @@ __all__ = [
     "GaussianNaiveBayesPipeline",
     "KnearestNeighborPipeline",
     "RandomForestPipeline",
-    "XGboostPipeline",
+    "XGBoostPipeline",
     "MultiLayerPerceptronPipeline",
     "TransformerPipeline",
 ]

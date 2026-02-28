@@ -1,12 +1,11 @@
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
-import pandas as pd
-import numpy as np
 import shap
-from ..Utils.data_evaluation import data_evaluation
-
+import pandas as pd
+from .base_pipeline import BasePipeline
 
 class TorchMLP(nn.Module):
     def __init__(self, input_dim, hidden_layer_sizes=[100, 50],
@@ -29,15 +28,15 @@ class TorchMLP(nn.Module):
         return self.net(x)
 
 
-class MultiLayerPerceptronPipeline:
+class MultiLayerPerceptronPipeline(BasePipeline):
     def __init__(self, X_train, X_test, y_train, y_test, args, parameters=None, feature_names=None):
-        self.args = args
-        self.parameters = parameters or {}
-        self.model = None
-        self.results = None
+        # Call BasePipeline constructor for shared setup
+        super().__init__(X_train, X_test, y_train, y_test, args, parameters, feature_names)
+
+        # Torch-specific setup
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        # Convert inputs to numpy arrays
+        # Convert inputs to tensors
         if isinstance(X_train, pd.DataFrame):
             if feature_names is None:
                 feature_names = list(X_train.columns)
@@ -83,7 +82,7 @@ class MultiLayerPerceptronPipeline:
 
     def fit(self, epochs=50, batch_size=32, lr=1e-3,
             use_feature_selection=False, top_k=10):
-        """Train the model on the training set, optionally apply SHAP-based feature selection."""
+        """Train the MLP, optionally apply SHAP-based feature selection."""
         if self.model is None:
             raise ValueError("Model not built. Call initialize_model() first.")
 
@@ -93,6 +92,7 @@ class MultiLayerPerceptronPipeline:
         criterion = nn.CrossEntropyLoss()
         optimizer = optim.Adam(self.model.parameters(), lr=lr)
 
+        # Training loop
         self.model.train()
         for epoch in range(epochs):
             for xb, yb in loader:
@@ -125,7 +125,6 @@ class MultiLayerPerceptronPipeline:
                     loss.backward()
                     optimizer.step()
         else:
-            # If no feature selection, keep all original names
             self.selected_feature_names = self.feature_names
 
         return self
@@ -148,21 +147,8 @@ class MultiLayerPerceptronPipeline:
             preds = self.model(X_tensor)
             return torch.softmax(preds, dim=1).cpu().numpy()
 
-    def evaluate(self):
-        """Evaluate the model using data_evaluation."""
-        y_pred = self.predict(self.X_test.cpu().numpy())
-        y_proba = self._predict_proba(self.X_test.cpu().numpy())
-        self.results = data_evaluation(y_pred, self.y_test.cpu().numpy(), y_proba=y_proba)
-        return self
-
-    def show_results(self):
-        return self.results
-
     def compute_feature_importance(self, top_k=10):
         """Use SHAP to estimate feature importance and select top features."""
-        if self.feature_names is None:
-            raise ValueError("Feature names must be provided to interpret features.")
-
         X_background = self.X_train[:100].cpu().numpy()
         X_sample = self.X_test[:50].cpu().numpy()
 
