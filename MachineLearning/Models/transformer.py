@@ -1,3 +1,6 @@
+import torch
+import pandas as pd
+from torch.utils.data import Dataset
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -7,12 +10,8 @@ from transformers import (
     BertForSequenceClassification,
     EarlyStoppingCallback
 )
-from torch.utils.data import Dataset
-import torch
-import pandas as pd
 from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 import shutil
-
 
 class TextDataset(Dataset):
     def __init__(self, texts, labels, tokenizer, max_length=128):
@@ -58,7 +57,7 @@ class TransformerPipeline:
                  y_train, y_test,
                  args, parameters=None):
         self.args = args
-        self.parameters = parameters
+        self.parameters = parameters or {}
         self.model = None
         self.tokenizer = None
         self.trainer = None
@@ -69,18 +68,19 @@ class TransformerPipeline:
         self.y_train = y_train
         self.y_test = y_test
 
-    def build_model(self):
+    def initialize_model(self):
+        """Initialize Transformer model with provided parameters."""
         model_name = self.parameters.get("model_name", "distilbert-base-uncased")
 
+        # Detect number of labels
         if "num_labels" in self.parameters:
-            num_labels = self.parameters["num_classes"]
+            num_labels = self.parameters["num_labels"]
         else:
             unique_labels = set(self.y_train) | set(self.y_test)
             num_labels = len(unique_labels)
             print(f"[INFO] Auto-detected {num_labels} classes: {sorted(unique_labels)}")
 
         nn_transformer = self.parameters.get("nn_transformer", None)
-
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
 
         if nn_transformer:
@@ -108,7 +108,7 @@ class TransformerPipeline:
 
         training_args = TrainingArguments(
             output_dir=self.args.results_dir,
-            eval_strategy="epoch",
+            evaluation_strategy="epoch",
             save_strategy="epoch",
             learning_rate=self.parameters.get("learning_rate", 5e-5),
             per_device_train_batch_size=self.parameters.get("train_batch_size", 16),
@@ -132,34 +132,42 @@ class TransformerPipeline:
         self.test_dataset = test_dataset
         return self
 
-    def train(self):
+    def fit(self):
+        """Train the model using Hugging Face Trainer."""
         if self.trainer is None:
-            raise ValueError("Model not built. Call build_model() first.")
+            raise ValueError("Model not built. Call initialize_model() first.")
         self.trainer.train()
 
         # Clean up checkpoints after best model is loaded
         shutil.rmtree("./results", ignore_errors=True)
         print("[INFO] Deleted checkpoint directory after loading best model.")
-
         return self
 
-    def evaluation(self):
-        # Hugging Face evaluation (loss, etc.)
-        eval_results = self.trainer.evaluate()
+    def predict(self, X):
+        """Generate predictions for new data."""
+        dataset = TextDataset(X, [0]*len(X), self.tokenizer)  # dummy labels
+        predictions = self.trainer.predict(dataset)
+        return predictions.predictions.argmax(axis=-1)
 
-        # Hugging Face predictions
+    def _predict_proba(self, X):
+        """Generate class probability estimates for new data."""
+        dataset = TextDataset(X, [0]*len(X), self.tokenizer)  # dummy labels
+        predictions = self.trainer.predict(dataset)
+        probs = torch.softmax(torch.tensor(predictions.predictions), dim=1).numpy()
+        return probs
+
+    def evaluate(self):
+        """Evaluate the model using Hugging Face + sklearn metrics."""
+        eval_results = self.trainer.evaluate()
         predictions = self.trainer.predict(self.test_dataset)
         y_pred = predictions.predictions.argmax(axis=-1)
 
-        # Wrap into sklearn-style evaluation
         results = {
             "accuracy": accuracy_score(self.y_test, y_pred),
             "precision_macro": precision_score(self.y_test, y_pred, average="macro", zero_division=0),
             "recall_macro": recall_score(self.y_test, y_pred, average="macro", zero_division=0),
             "f1_macro": f1_score(self.y_test, y_pred, average="macro", zero_division=0),
         }
-
-        # Merge Hugging Face eval metrics (like eval_loss) with sklearn metrics
         results.update(eval_results)
         self.results = results
         return self
