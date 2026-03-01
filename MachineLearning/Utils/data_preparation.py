@@ -1,15 +1,17 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder
+import numpy as np
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from imblearn.over_sampling import SMOTE, BorderlineSMOTE, RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.combine import SMOTEENN, SMOTETomek
 
 from .data_partitioning import data_partitioning_by_due_date
+from .hybrid_balance import HybridBalance
 
 
 class DataPreparer:
-    def __init__(self, df_data, target_feature, test_size=0.2, verbose=True):
+    def __init__(self, df_data, target_feature,
+                 test_size=0.2, verbose=True):
         """
         Initialize DataPreparer.
 
@@ -18,13 +20,13 @@ class DataPreparer:
         df_data : pd.DataFrame
             Input dataset.
         target_feature : str
-            Target column name.
+            Target column name (classification labels).
         test_size : float
             Test split ratio.
         verbose : bool
             If True, prints progress messages.
         """
-        self.df_data = df_data
+        self.df_data = df_data.copy()
         self.target_feature = target_feature
         self.test_size = test_size
         self.verbose = verbose
@@ -32,19 +34,20 @@ class DataPreparer:
         self.label_encoder = None
         self.class_mapping = None
 
+        # Outputs
         self.X_train = None
         self.X_test = None
         self.y_train = None
         self.y_test = None
 
     def _log(self, message):
-        """Print message only if verbose=True."""
         if self.verbose:
             print(message)
 
     def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
         """
-        Prepare data by encoding labels, partitioning, and balancing.
+        Prepare data by encoding labels, partitioning, balancing,
+        and aligning survival variables.
 
         Parameters
         ----------
@@ -72,7 +75,7 @@ class DataPreparer:
         # --- Partition the data ---
         self._log("Partitioning datasets based on due_date...")
 
-        self.X_train, self.X_test, self.y_train, self.y_test, self.cut_off_date = (
+        X_train_raw, X_test_raw, y_train_raw, y_test_raw, self.cut_off_date = (
             data_partitioning_by_due_date(
                 self.df_data,
                 target_feature=self.target_feature,
@@ -80,133 +83,73 @@ class DataPreparer:
             )
         )
 
-        # --- Convert to float64 (critical for imblearn compatibility) ---
         self.X_train = pd.DataFrame(
-            self.X_train.to_numpy(dtype="float64"),
-            columns=self.X_train.columns,
-            index=self.X_train.index
+            X_train_raw.to_numpy(dtype="float64"),
+            columns=X_train_raw.columns,
+            index=X_train_raw.index
         )
-
         self.X_test = pd.DataFrame(
-            self.X_test.to_numpy(dtype="float64"),
-            columns=self.X_test.columns,
-            index=self.X_test.index
+            X_test_raw.to_numpy(dtype="float64"),
+            columns=X_test_raw.columns,
+            index=X_test_raw.index
         )
+        self.y_train = y_train_raw
+        self.y_test = y_test_raw
 
-        # --- Apply balancing strategy ---
-        if balance_strategy == "smote":
-            sampler = SMOTE(random_state=42)
+        # --- Balance training data ---
+        samplers = {
+            "smote": SMOTE(random_state=42),
+            "borderline_smote": BorderlineSMOTE(random_state=42),
+            "smoteenn": SMOTEENN(random_state=42),
+            "smotetomek": SMOTETomek(random_state=42),
+            "hybrid": HybridBalance(undersample_threshold=undersample_threshold, random_state=42),
+            "none": None,
+        }
 
-        elif balance_strategy == "borderline_smote":
-            sampler = BorderlineSMOTE(random_state=42)
-
-        elif balance_strategy == "smoteenn":
-            sampler = SMOTEENN(random_state=42)
-
-        elif balance_strategy == "smotetomek":
-            sampler = SMOTETomek(random_state=42)
-
-        elif balance_strategy == "hybrid":
-            self._log("Applying hybrid undersample + oversample...")
-            self.X_train, self.y_train = self._hybrid_balance(
-                self.X_train,
-                self.y_train,
-                undersample_threshold
-            )
-            return self
-
-        elif balance_strategy == "none":
-            self._log("No balancing applied.")
-            return self
-
-        else:
+        if balance_strategy not in samplers:
             raise ValueError("Invalid balance_strategy.")
 
-        self._log(f"Applying {balance_strategy}...")
+        sampler = samplers[balance_strategy]
 
-        X_res, y_res = sampler.fit_resample(self.X_train, self.y_train)
+        if sampler is None:
+            self._log("No balancing applied.")
+        else:
+            self._log(f"Applying {balance_strategy}...")
+            X_res, y_res = sampler.fit_resample(self.X_train, self.y_train)
+            self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
+            self.y_train = pd.Series(y_res, name=self.target_feature)
 
-        self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
-        self.y_train = pd.Series(y_res, name=self.target_feature)
+        # --- Normalize the data ---
+        numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
+        scaler = StandardScaler()
+        self.X_train[numeric_cols] = scaler.fit_transform(self.X_train[numeric_cols])
+        self.X_test[numeric_cols] = scaler.transform(self.X_test[numeric_cols])
 
         return self
 
-    def _hybrid_balance(self, X, y, undersample_threshold=0.5):
+    def _adjust_payment_period(self, T, ε=1e-6):
         """
-        Hybrid approach:
-        1. Undersample majority classes down to a threshold multiple
-           of the minority class.
-        2. Oversample minority classes up to the new majority size.
+        Adjusts the payment period to avoid negative or zero values.
 
         Parameters
         ----------
-        X : pd.DataFrame
-            Training features.
-        y : pd.Series
-            Training labels.
-        undersample_threshold : float
-            Determines how aggressively majority classes are reduced.
+        T : array-like or float
+            The time period(s) to adjust.
+        epsilon : float, optional
+            A small constant added to avoid zero values (default is 1e-6).
 
         Returns
         -------
-        X_resampled : pd.DataFrame
-        y_resampled : pd.Series
+        adjusted_T : ndarray or float
+            The adjusted time period(s).
+        earliest_pre_payment : ndarray or float
+            The portion representing pre-payments (non-positive values).
         """
-
-        class_counts = y.value_counts()
-        min_size = class_counts.min()
-
-        target_majority_size = int(min_size / undersample_threshold)
-
-        self._log(f"Minority class size: {min_size}")
-        self._log(f"Target majority size: {target_majority_size}")
-
-        # --- Step 1: Undersample ---
-        under_strategy = {
-            cls: min(count, target_majority_size)
-            for cls, count in class_counts.items()
-        }
-
-        under_sampler = RandomUnderSampler(
-            sampling_strategy=under_strategy,
-            random_state=42
-        )
-
-        X_under, y_under = under_sampler.fit_resample(X, y)
-
-        # --- Step 2: Oversample ---
-        over_strategy = {
-            cls: target_majority_size
-            for cls in y_under.unique()
-        }
-
-        over_sampler = RandomOverSampler(
-            sampling_strategy=over_strategy,
-            random_state=42
-        )
-
-        X_final, y_final = over_sampler.fit_resample(X_under, y_under)
-
-        return (
-            pd.DataFrame(X_final, columns=X.columns),
-            pd.Series(y_final, name=self.target_feature)
-        )
+        earliest_pre_payment = np.minimum(T, 0)
+        adjusted_T = T - earliest_pre_payment + ε
+        return adjusted_T
 
     def decode_labels(self, y_encoded):
-        """
-        Convert encoded labels back to original class names.
-
-        Parameters
-        ----------
-        y_encoded : array-like
-            Encoded labels.
-
-        Returns
-        -------
-        array-like
-            Original class labels.
-        """
         if self.label_encoder is None:
             raise ValueError("Label encoder not initialized. Run prep_data() first.")
-
         return self.label_encoder.inverse_transform(y_encoded)

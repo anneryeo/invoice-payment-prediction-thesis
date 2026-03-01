@@ -1,19 +1,16 @@
 import pandas as pd
 import numpy as np
-from sklearn.preprocessing import LabelEncoder
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import LabelEncoder, StandardScaler
 
-from imblearn.over_sampling import SMOTE, BorderlineSMOTE, RandomOverSampler
-from imblearn.under_sampling import RandomUnderSampler
+from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.combine import SMOTEENN, SMOTETomek
 
 from .data_partitioning import data_partitioning_by_due_date
+from .hybrid_balance import HybridBalance
 
 
 class SurvivalDataPreparer:
     def __init__(self, df_data, target_feature,
-                 time_feature="days_elapsed_until_fully_paid",
-                 censor_feature="censor",
                  test_size=0.2, verbose=True):
         """
         Initialize SurvivalDataPreparer.
@@ -24,10 +21,6 @@ class SurvivalDataPreparer:
             Input dataset.
         target_feature : str
             Target column name (classification labels).
-        time_feature : str
-            Column name for time-to-event.
-        censor_feature : str
-            Column name for censor indicator (1=event, 0=censored).
         test_size : float
             Test split ratio.
         verbose : bool
@@ -35,8 +28,6 @@ class SurvivalDataPreparer:
         """
         self.df_data = df_data.copy()
         self.target_feature = target_feature
-        self.time_feature = time_feature
-        self.censor_feature = censor_feature
         self.test_size = test_size
         self.verbose = verbose
 
@@ -48,10 +39,6 @@ class SurvivalDataPreparer:
         self.X_test = None
         self.y_train = None
         self.y_test = None
-        self.T_train = None
-        self.T_test = None
-        self.E_train = None
-        self.E_test = None
 
     def _log(self, message):
         if self.verbose:
@@ -109,62 +96,28 @@ class SurvivalDataPreparer:
         self.y_train = y_train_raw
         self.y_test = y_test_raw
 
+        # --- Balance training data ---
+        samplers = {
+            "smote": SMOTE(random_state=42),
+            "borderline_smote": BorderlineSMOTE(random_state=42),
+            "smoteenn": SMOTEENN(random_state=42),
+            "smotetomek": SMOTETomek(random_state=42),
+            "hybrid": HybridBalance(undersample_threshold=undersample_threshold, random_state=42),
+            "none": None,
+        }
 
-        # --- Balance training data (X, y only) ---
-
-        # Survival variables before balancing
-        T_train = self.df_data.loc[self.X_train.index, self.time_feature]
-        E_train = self.df_data.loc[self.X_train.index, self.censor_feature]
-        T_test = self.df_data.loc[self.X_test.index, self.time_feature]
-        E_test = self.df_data.loc[self.X_test.index, self.censor_feature]
-
-        if balance_strategy == "smote":
-            sampler = SMOTE(random_state=42)
-        elif balance_strategy == "borderline_smote":
-            sampler = BorderlineSMOTE(random_state=42)
-        elif balance_strategy == "smoteenn":
-            sampler = SMOTEENN(random_state=42)
-        elif balance_strategy == "smotetomek":
-            sampler = SMOTETomek(random_state=42)
-        elif balance_strategy == "hybrid":
-            self._log("Applying hybrid undersample + oversample...")
-            self.X_train, self.y_train, self.T_train, self.E_train = self._hybrid_balance(
-                self.X_train, self.y_train, T_train, E_train, undersample_threshold
-            )
-        elif balance_strategy == "none":
-            self._log("No balancing applied.")
-        else:
+        if balance_strategy not in samplers:
             raise ValueError("Invalid balance_strategy.")
 
-        # Apply sampler that is assigned
-        if balance_strategy not in ["hybrid", "none"]:
-            self._log(f"Applying {balance_strategy}...")
+        sampler = samplers[balance_strategy]
 
-            # Concatenate survival variables with X_train
-            Xy_train = self.X_train.copy()
-            Xy_train[self.time_feature] = T_train
-            Xy_train[self.censor_feature] = E_train
-
-            # Resample including survival variables
-            X_res, y_res = sampler.fit_resample(Xy_train, self.y_train)
-
-            # Split back out
-            self.X_train = X_res.drop([self.time_feature, self.censor_feature], axis=1)
-            self.T_train = X_res[self.time_feature]
-            self.E_train = X_res[self.censor_feature]
-            self.y_train = pd.Series(y_res, name=self.target_feature)
-        elif balance_strategy == "hybrid":
-            self.X_train = self.X_train.drop([self.time_feature, self.censor_feature], axis=1)
+        if sampler is None:
+            self._log("No balancing applied.")
         else:
-            # If none, just assign directly
-            # Since the helper function already assigns it
-            self.T_train = T_train
-            self.E_train = E_train
-
-        # Test set survival variables remain unchanged
-        self.T_test = T_test
-        self.E_test = E_test
-
+            self._log(f"Applying {balance_strategy}...")
+            X_res, y_res = sampler.fit_resample(self.X_train, self.y_train)
+            self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
+            self.y_train = pd.Series(y_res, name=self.target_feature)
 
         # --- Normalize the data ---
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
@@ -172,65 +125,8 @@ class SurvivalDataPreparer:
         self.X_train[numeric_cols] = scaler.fit_transform(self.X_train[numeric_cols])
         self.X_test[numeric_cols] = scaler.transform(self.X_test[numeric_cols])
 
-        # Shift payment periods to have a minimum of 0
-        ε = 1e-6
-        self.T_train = self._adjust_payment_period(self.T_train, ε)
-        self.T_test = self._adjust_payment_period(self.T_test, ε)
-
-        # Ensure X_test also drops survival variables
-        self.X_test = self.X_test.drop(
-            [self.time_feature, self.censor_feature],
-            axis=1,
-            errors="ignore"
-        )
-
         return self
 
-    def _hybrid_balance(self, X, y, T, E, undersample_threshold=0.5):
-        """Hybrid undersample + oversample strategy with survival variables."""
-
-        # Concatenate survival variables into X
-        Xy = X.copy()
-        Xy[self.time_feature] = T
-        Xy[self.censor_feature] = E
-
-        # Compute class sizes
-        class_counts = y.value_counts()
-        min_size = class_counts.min()
-        target_majority_size = int(min_size / undersample_threshold)
-
-        self._log(f"Minority class size: {min_size}")
-        self._log(f"Target majority size: {target_majority_size}")
-
-        # Undersampling strategy
-        under_strategy = {
-            cls: min(count, target_majority_size)
-            for cls, count in class_counts.items()
-        }
-        under_sampler = RandomUnderSampler(
-            sampling_strategy=under_strategy, random_state=42
-        )
-        X_under, y_under = under_sampler.fit_resample(Xy, y)
-
-        # Oversampling strategy
-        over_strategy = {cls: target_majority_size for cls in y_under.unique()}
-        over_sampler = RandomOverSampler(
-            sampling_strategy=over_strategy, random_state=42
-        )
-        X_final, y_final = over_sampler.fit_resample(X_under, y_under)
-
-        # Split back out so T and E match X
-        X_balanced = X_final.drop([self.time_feature, self.censor_feature], axis=1)
-        T_balanced = X_final[self.time_feature].reset_index(drop=True)
-        E_balanced = X_final[self.censor_feature].reset_index(drop=True)
-
-        return (
-            pd.DataFrame(X_balanced, columns=X.columns),
-            pd.Series(y_final, name=self.target_feature),
-            T_balanced,
-            E_balanced
-        )
-    
     def _adjust_payment_period(self, T, ε=1e-6):
         """
         Adjusts the payment period to avoid negative or zero values.
@@ -249,12 +145,8 @@ class SurvivalDataPreparer:
         earliest_pre_payment : ndarray or float
             The portion representing pre-payments (non-positive values).
         """
-        # Maximum to only get pre-payments (negative or zero values)
         earliest_pre_payment = np.minimum(T, 0)
-        
-        # Shift T to avoid negatives and add epsilon to avoid zero
         adjusted_T = T - earliest_pre_payment + ε
-        
         return adjusted_T
 
     def decode_labels(self, y_encoded):

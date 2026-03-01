@@ -3,7 +3,7 @@ from joblib import Parallel, delayed
 from tqdm import tqdm
 from contextlib import contextmanager
 from MachineLearning.Utils.load_parameters import ParameterLoader
-from MachineLearning.Utils.data_preparation_survival_analysis import SurvivalDataPreparer
+from MachineLearning.Utils.data_preparation import DataPreparer
 from MachineLearning.Utils.generate_survival_features import generate_survival_features
 
 
@@ -51,10 +51,12 @@ class SurvivalExperimentRunner:
     preparer : SurvivalDataPreparer
         Preparer object for dataset splitting and balancing.
     """
-    def __init__(self, df_data_surv, models, balance_strategies, args,
+    def __init__(self, df_data, df_data_surv, models, balance_strategies, args,
                  best_penalty, thresholds=None, n_jobs=-1,
                  output_path="MachineLearning/Results/model_results.xlsx",
-                 do_not_parallel_compute=None, feature_selection=True):
+                 do_not_parallel_compute=None,
+                 feature_selection_baseline=True, feature_selection_enhanced=True):
+        self.df_data = df_data
         self.df_data_surv = df_data_surv
         self.models = models
         self.balance_strategies = balance_strategies
@@ -64,16 +66,15 @@ class SurvivalExperimentRunner:
         self.n_jobs = n_jobs
         self.output_path = output_path
         self.do_not_parallel_compute = do_not_parallel_compute or []
-        self.feature_selection = feature_selection
+        self.feature_selection_baseline = feature_selection_baseline
+        self.feature_selection_enhanced = feature_selection_enhanced
 
         # Initialize parameter loader and data preparer
         self.loader = ParameterLoader(args.parameters_dir)
         self.parameters_by_model = {m: self.loader.get_parameters(m) for m in models}
-        self.preparer = SurvivalDataPreparer(
-            df_data_surv,
+        self.preparer = DataPreparer(
+            df_data,
             target_feature=args.target_feature,
-            time_feature="days_elapsed_until_fully_paid",
-            censor_feature="censor",
             test_size=args.test_size,
             verbose=False
         )
@@ -134,22 +135,21 @@ class SurvivalExperimentRunner:
         -------
         tuple
             A tuple containing (X_train, X_test, y_train, y_test,
-            T_train, T_test, E_train, E_test, X_survival_train, X_survival_test).
+            X_survival_train, X_survival_test).
         """
         self.preparer.prep_data(balance_strategy=balance_strategy,
                                 undersample_threshold=threshold)
 
         X_train, X_test = self.preparer.X_train, self.preparer.X_test
         y_train, y_test = self.preparer.y_train, self.preparer.y_test
-        T_train, T_test = self.preparer.T_train, self.preparer.T_test
-        E_train, E_test = self.preparer.E_train, self.preparer.E_test
 
-        # Cache survival features once
-        X_survival_train = generate_survival_features(
-            X_train, T_train, E_train, self.best_penalty, time_points=self.args.time_points
-        )
-        X_survival_test = generate_survival_features(
-            X_test, T_test, E_test, self.best_penalty, time_points=self.args.time_points
+        # Generate survival features
+        X_surv = self.df_data_surv.drop(columns=['days_elapsed_until_fully_paid', 'censor'])
+        T = self.df_data_surv['days_elapsed_until_fully_paid']
+        E = self.df_data_surv['censor']
+
+        X_survival_train, X_survival_test = generate_survival_features(
+            X_surv, T, E, X_train, X_test, self.best_penalty, time_points=self.args.time_points
         )
 
         return (X_train, X_test, y_train, y_test,
@@ -194,7 +194,7 @@ class SurvivalExperimentRunner:
         pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, self.args, param)
         result_baseline = (
             pipeline_baseline.initialize_model()
-            .fit(use_feature_selection=self.feature_selection)
+            .fit(use_feature_selection=self.feature_selection_baseline)
             .evaluate()
             .show_results()
         )
@@ -204,7 +204,7 @@ class SurvivalExperimentRunner:
         pipeline_enhanced = pipeline_class(X_survival_train, X_survival_test, y_train, y_test, self.args, param)
         result_enhanced = (
             pipeline_enhanced.initialize_model()
-            .fit(use_feature_selection=self.feature_selection)
+            .fit(use_feature_selection=self.feature_selection_enhanced)
             .evaluate()
             .show_results()
         )
