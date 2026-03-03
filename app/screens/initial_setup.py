@@ -49,41 +49,7 @@ class InitialSetupScreen:
                     ]
                 ),
 
-                # Step Content (default = Step 1 upload boxes with icons)
-                html.Div(
-                    id="step-content",
-                    className="setup-step",
-                    children=[
-                        html.H3("Step 1: Upload your datasets", className="step-header"),
-
-                        # Revenue upload
-                        dcc.Upload(
-                            id="upload_revenue",
-                            children=html.Div([
-                                html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
-                                html.Div("Drag & Drop or Click to Upload Revenue Ledger CSV")
-                            ], className="upload-content"),
-                            multiple=False,
-                            className="upload-box"
-                        ),
-                        html.Div(id="upload_revenue_output", className="upload-output"),
-
-                        # Enrollees upload
-                        dcc.Upload(
-                            id="upload_enrollees",
-                            children=html.Div([
-                                html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
-                                html.Div("Drag & Drop or Click to Upload Enrollee Information CSV")
-                            ], className="upload-content"),
-                            multiple=False,
-                            className="upload-box"
-                        ),
-                        html.Div(id="upload_enrollees_output", className="upload-output"),
-
-                        # Action buttons
-                        html.Button("Confirm Uploads", id="upload_confirm_btn", className="setup-btn"),
-                        html.Button("Next", id="next_btn", className="setup-btn", disabled=True)
-                    ]
-                )
+                # Step Content (populated dynamically by callback)
+                html.Div(id="step-content", className="setup-step")
             ]
         )

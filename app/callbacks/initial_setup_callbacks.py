@@ -1,7 +1,6 @@
-from dash import Input, Output, html, dcc, State
+from dash import Input, Output, html, dcc, ctx, State, no_update
 from app import dash_app
 
-# Step rendering callback
 @dash_app.callback(
     Output("step-content", "children"),
     [
@@ -10,18 +9,42 @@ from app import dash_app
         Input("progress-3", "n_clicks"),
         Input("progress-4", "n_clicks"),
         Input("progress-5", "n_clicks"),
-    ]
+    ],
+    prevent_initial_call=False   # run at startup
 )
 def render_step(step1, step2, step3, step4, step5):
-    ctx = dcc.callback_context
-    if not ctx.triggered:
-        step = "progress-1"
-    else:
-        step = ctx.triggered[0]["prop_id"].split(".")[0]
+    # Default to step 1 if nothing triggered yet
+    step = ctx.triggered_id if ctx.triggered_id is not None else "progress-1"
 
     if step == "progress-1":
         return html.Div([
             html.H3("Step 1: Upload your datasets", className="step-header"),
+
+            # Revenue upload
+            dcc.Upload(
+                id="upload_revenue",
+                children=html.Div([
+                    html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
+                    html.Div("Drag & Drop or Click to Upload Revenue Ledger CSV")
+                ], className="upload-content"),
+                multiple=False,
+                className="upload-box"
+            ),
+            html.Div(id="upload_revenue_output", className="upload-output"),
+
+            # Enrollees upload
+            dcc.Upload(
+                id="upload_enrollees",
+                children=html.Div([
+                    html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
+                    html.Div("Drag & Drop or Click to Upload Enrollee Information CSV")
+                ], className="upload-content"),
+                multiple=False,
+                className="upload-box"
+            ),
+            html.Div(id="upload_enrollees_output", className="upload-output"),
+
+            # Action buttons
             html.Button("Confirm Uploads", id="upload_confirm_btn", className="setup-btn"),
             html.Button("Next", id="next_btn", className="setup-btn", disabled=True)
         ])
@@ -65,8 +88,10 @@ def render_step(step1, step2, step3, step4, step5):
 
 # Revenue upload: hide box, show filename + X
 @dash_app.callback(
-    [Output("upload_revenue", "style"),
-     Output("upload_revenue_output", "children")],
+    [
+        Output("upload_revenue", "style"),
+        Output("upload_revenue_output", "children"),
+    ],
     Input("upload_revenue", "contents"),
     State("upload_revenue", "filename"),
     prevent_initial_call=True
@@ -85,7 +110,6 @@ def show_revenue_filename(contents, filename):
             )
         )
     return {"display": "block"}, None
-
 
 # Enrollees upload: hide box, show filename + X
 @dash_app.callback(
@@ -113,23 +137,32 @@ def show_enrollees_filename(contents, filename):
 
 # Clear Revenue file when X is clicked
 @dash_app.callback(
-    [Output("upload_revenue", "style", allow_duplicate=True),
-     Output("upload_revenue_output", "children", allow_duplicate=True)],
+    [
+        Output("upload_revenue", "style", allow_duplicate=True),
+        Output("upload_revenue_output", "children", allow_duplicate=True),
+        Output("upload_revenue", "contents", allow_duplicate=True),
+    ],
     Input("delete_revenue", "n_clicks"),
     prevent_initial_call=True
 )
 def clear_revenue_file(n_clicks):
     if n_clicks:
-        return {"display": "block"}, None
+        # Reset style, clear children, and reset contents
+        return {"display": "block"}, None, None
+    return no_update, no_update, no_update
 
 
 # Clear Enrollees file when X is clicked
 @dash_app.callback(
-    [Output("upload_enrollees", "style", allow_duplicate=True),
-     Output("upload_enrollees_output", "children", allow_duplicate=True)],
+    [
+        Output("upload_enrollees", "style", allow_duplicate=True),
+        Output("upload_enrollees_output", "children", allow_duplicate=True),
+        Output("upload_enrollees", "contents", allow_duplicate=True),
+    ],
     Input("delete_enrollees", "n_clicks"),
     prevent_initial_call=True
 )
 def clear_enrollees_file(n_clicks):
     if n_clicks:
-        return {"display": "block"}, None
+        return {"display": "block"}, None, None
+    return no_update, no_update, no_update
