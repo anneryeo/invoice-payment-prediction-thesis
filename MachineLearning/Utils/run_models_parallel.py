@@ -1,5 +1,6 @@
 import pandas as pd
 from joblib import Parallel, delayed
+from joblib.externals.loky import get_reusable_executor
 from tqdm import tqdm
 from contextlib import contextmanager
 from MachineLearning.Utils.load_parameters import ParameterLoader
@@ -7,6 +8,12 @@ from MachineLearning.Utils.data_preparation import DataPreparer
 from MachineLearning.Utils.generate_survival_features import generate_survival_features
 from MachineLearning.Utils.adjust_survival_time_periods import adjust_payment_period
 
+# Ensures compatibility with Dash by resetting/shutting down the joblib executor
+# so that new parallel tasks can be scheduled without hitting ShutdownExecutorError.
+get_reusable_executor().shutdown(wait=True)
+
+# Used for the progress bar in Dash
+progress_state = {"completed": 0, "total": 0}
 
 class SurvivalExperimentRunner:
     """
@@ -114,6 +121,40 @@ class SurvivalExperimentRunner:
         finally:
             joblib.parallel.BatchCompletionCallBack = old_callback
             tqdm_object.close()
+
+    # -----------------------------
+    # tqdm-joblib integration for Dash
+    # -----------------------------
+    @staticmethod
+    @contextmanager
+    def tqdm_joblib(total):
+        from joblib.parallel import BatchCompletionCallBack
+        import joblib.parallel
+        import threading
+
+        class DashTqdm:
+            def __init__(self, total):
+                self.lock = threading.Lock()
+                progress_state["completed"] = 0
+                progress_state["total"] = total
+
+            def update(self, n=1):
+                with self.lock:
+                    progress_state["completed"] += n
+
+        dash_tqdm = DashTqdm(total)
+
+        class TqdmBatchCompletionCallback(BatchCompletionCallBack):
+            def __call__(self, *args, **kwargs):
+                dash_tqdm.update(self.batch_size)
+                return super().__call__(*args, **kwargs)
+
+        old_callback = BatchCompletionCallBack
+        try:
+            joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
+            yield dash_tqdm
+        finally:
+            joblib.parallel.BatchCompletionCallBack = old_callback
 
     # -----------------------------
     # Dataset preparation helper
