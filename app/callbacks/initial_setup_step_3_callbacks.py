@@ -1,6 +1,7 @@
 import pandas as pd
 
-from dash import Input, Output, State, html, dcc, no_update
+import dash_bootstrap_components as dbc
+from dash import Input, Output, State, html, dcc
 from app import dash_app
 
 from FeatureEngineering.credit_sales_machine_learning import CreditSales
@@ -16,31 +17,16 @@ from MachineLearning import (
 )
 from MachineLearning.Utils.run_models_parallel import SurvivalExperimentRunner
 
-html_step_3 = (
-    html.Div([
-        html.Div("3", className="step-number"),
-        html.H3("Waiting for Model Results", className="step-header"),
-        html.Div("Training in progress..."),
-        html.Button("Next", id="next_btn")
-    ])
-)
-
-html_step_4 = (
-    html.Div([
-        html.Div("4", className="step-number"),
-        html.H3("Model Result Analysis", className="step-header"),
-        dcc.Dropdown(id="model_summary_dropdown", placeholder="Select a model"),
-        dcc.Graph(id="auc_graph"),
-        html.Button("Next", id="next_btn")
-    ])
-)
-
-html_step_5 = (
-    html.Div([
-        html.Div("5", className="step-number"),
-        html.H3("Finalization", className="step-header"),
-        html.Button("Finalize Model", id="finalize_btn")
-    ])
+# Progress bar component
+html_step_3 = html.Div(
+    className="step-container",
+    children=[
+        html.H3("Step 3: Model Training & Results", className="step-header"),
+        dbc.Progress(id="training-progress", value=0, striped=True, animated=True, style={"height": "30px"}),
+        html.Div(id="progress-text", className="status-message"),
+        dcc.Interval(id="progress-interval", interval=1000, n_intervals=0),  # update every second
+        html.Button("Next ➡", id="next_btn", className="next-button")
+    ]
 )
 
 
@@ -67,15 +53,27 @@ def clean_datasets(revenues_content, enrollees_content):
     class Config:
         # Hard-coded full datetime (year, month, day, hour, minute, second)
         observation_end = datetime(2026, 3, 3, 23, 59, 59)
-
     args = Config()
 
-    cs = CreditSales(df_revenues, df_enrollees, args)
+    cs = CreditSales(df_revenues, df_enrollees, args,
+                     drop_demographic_columns=True,
+                     drop_helper_columns=True,
+                     drop_plan_type_columns=True,
+                     drop_missing_dtp=True)
     df_credit_sales = cs.show_data()
 
-    return df_credit_sales
+    survival_columns = ['censor', 'days_elapsed_until_fully_paid']
+    non_survival_columns = ['due_date', 'dtp_bracket']
 
-def run_model_training(models_data, balancing_data):
+    df_data = df_credit_sales.drop(columns=survival_columns)
+    # Filter only invoices that are fully paid:
+    df_data = df_credit_sales[df_credit_sales['censor'] == 1]
+
+    df_data_surv = df_credit_sales.drop(columns=non_survival_columns)
+
+    return df_data, df_data_surv
+
+def run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty):
     PIPELINE_MAP = {
         "ada_boost": AdaBoostPipeline,
         "decision_tree": DecisionTreePipeline,
@@ -118,14 +116,6 @@ def run_model_training(models_data, balancing_data):
     # Run experiments
     df_results = runner.run()
 
-
-def run_model_training(models_data, balancing_data):
-    print("Running model training execution...")
-    print("Models selected:", models_data)
-    print("Balancing strategies:", balancing_data)
-    # Training logic here
-
-
 def evaluate_model(models_data):
     print("Evaluating the trained model...")
     print("Models used:", models_data)
@@ -157,3 +147,15 @@ def store_credit_sales(enrollees_content, revenues_content):
         # Serialize DataFrame to JSON for storage
         return df_credit_sales.to_json(date_format="iso", orient="split")
     return None
+
+
+@dash_app.callback(
+    [Output("training-progress", "value"),
+     Output("progress-text", "children")],
+    Input("progress-interval", "n_intervals")
+)
+def update_progress(n):
+    completed = progress_state.get("completed", 0)
+    total = progress_state.get("total", 1)
+    percent = int((completed / total) * 100)
+    return percent, f"{completed}/{total} experiments completed ({percent}%)"
