@@ -1,8 +1,8 @@
-from dash import Input, Output, html, dcc
-from app import app
+from dash import Input, Output, html, dcc, State
+from app import dash_app
 
 # Step rendering callback
-@app.callback(
+@dash_app.callback(
     Output("step-content", "children"),
     [
         Input("progress-1", "n_clicks"),
@@ -64,49 +64,55 @@ def render_step(step1, step2, step3, step4, step5):
 
 
 # Revenue upload: hide box, show filename + X
-@app.callback(
+@dash_app.callback(
     [Output("upload_revenue", "style"),
      Output("upload_revenue_output", "children")],
-    [Input("upload_revenue", "contents"),
-     Input("upload_revenue", "filename")],
+    Input("upload_revenue", "contents"),
+    State("upload_revenue", "filename"),
     prevent_initial_call=True
 )
 def show_revenue_filename(contents, filename):
     if contents and filename:
-        return {"display": "none"}, html.Div(
-            className="file-display",
-            children=[
-                html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
-                html.Span(filename, className="file-name"),
-                html.Button("X", id="delete_revenue", className="delete-btn")
-            ]
+        return (
+            {"display": "none"},
+            html.Div(
+                className="file-display",
+                children=[
+                    html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
+                    html.Span(filename, className="file-name"),
+                    html.Button("X", id="delete_revenue", className="delete-btn")
+                ]
+            )
         )
     return {"display": "block"}, None
 
 
 # Enrollees upload: hide box, show filename + X
-@app.callback(
+@dash_app.callback(
     [Output("upload_enrollees", "style"),
      Output("upload_enrollees_output", "children")],
-    [Input("upload_enrollees", "contents"),
-     Input("upload_enrollees", "filename")],
+    Input("upload_enrollees", "contents"),
+    State("upload_enrollees", "filename"),
     prevent_initial_call=True
 )
 def show_enrollees_filename(contents, filename):
     if contents and filename:
-        return {"display": "none"}, html.Div(
-            className="file-display",
-            children=[
-                html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
-                html.Span(filename, className="file-name"),
-                html.Button("X", id="delete_enrollees", className="delete-btn")
-            ]
+        return (
+            {"display": "none"},
+            html.Div(
+                className="file-display",
+                children=[
+                    html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
+                    html.Span(filename, className="file-name"),
+                    html.Button("X", id="delete_enrollees", className="delete-btn")
+                ]
+            )
         )
     return {"display": "block"}, None
 
 
 # Clear Revenue file when X is clicked
-@app.callback(
+@dash_app.callback(
     [Output("upload_revenue", "style", allow_duplicate=True),
      Output("upload_revenue_output", "children", allow_duplicate=True)],
     Input("delete_revenue", "n_clicks"),
@@ -118,7 +124,7 @@ def clear_revenue_file(n_clicks):
 
 
 # Clear Enrollees file when X is clicked
-@app.callback(
+@dash_app.callback(
     [Output("upload_enrollees", "style", allow_duplicate=True),
      Output("upload_enrollees_output", "children", allow_duplicate=True)],
     Input("delete_enrollees", "n_clicks"),

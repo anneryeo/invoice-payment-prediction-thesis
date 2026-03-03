@@ -2,8 +2,8 @@
 from dash import html, dcc
 
 class InitialSetupScreen:
-    def __init__(self, app):
-        self.app = app
+    def __init__(self, dash_app):
+        self.dash_app = dash_app
 
     def layout(self):
         return html.Div(

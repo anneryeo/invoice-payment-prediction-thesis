@@ -110,20 +110,28 @@
 
 
 
-/* Upload Box */
+/* Upload Box (empty state) */
 .upload-box {
     border: 2px dashed #0078d7;
     border-radius: 8px;
-    padding: 20px;
+    padding: 24px;              /* slightly more balanced padding */
     text-align: center;
-    margin-bottom: 20px;
+    margin-bottom: 24px;        /* consistent spacing */
     cursor: pointer;
     transition: background-color 0.3s ease;
+    height: 140px;              /* match file-display height */
+    display: flex;
+    flex-direction: column;     /* stack icon + text */
+    align-items: center;
+    justify-content: center;
+    gap: 10px;                  /* proportional spacing */
+    box-sizing: border-box;
 }
 
 .upload-box:hover {
     background-color: #f0f8ff;
 }
+
 
 /* Setup Buttons */
 .setup-btn {
@@ -150,37 +158,44 @@
 
 
 
-.upload-content {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-}
-
+/* Upload Icon + Text */
 .upload-icon {
-    width: 70px;
-    height: 70px;
-    margin-bottom: 5px;
+    width: 60px;                /* proportional to text */
+    height: 60px;
 }
 
+.upload-content {
+    font-size: 15px;            /* slightly larger for balance */
+    color: #333;
+}
 
+/* File Display (uploaded state) */
 .file-display {
     display: flex;
     align-items: center;
-    gap: 10px;
-    margin-top: 8px;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 24px;        /* same bottom spacing as upload-box */
+    height: 140px;              /* match upload-box height */
+    border: 2px dashed #0078d7;
+    border-radius: 8px;
+    padding: 24px;
+    box-sizing: border-box;
 }
 
 .file-icon {
-    width: 24px;
-    height: 24px;
+    width: 60px;
+    height: 60px;
 }
 
 .file-name {
-    font-size: 14px;
+    font-size: 20px;            /* match upload-content text size */
     color: #333;
     flex-grow: 1;
 }
+
+
+
 
 .delete-btn {
     background-color: transparent;
