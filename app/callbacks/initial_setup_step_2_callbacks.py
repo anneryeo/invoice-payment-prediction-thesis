@@ -21,6 +21,7 @@ html_step_2 = (
                     {"label": "XGBoost", "value": "xgboost"},
                     {"label": "AdaBoost", "value": "ada_boost"},
                 ],
+                value=["decision_tree", "random_forest", "xgboost", "ada_boost"],
                 className="checklist"
             ),
 
@@ -28,6 +29,7 @@ html_step_2 = (
             dcc.Checklist(
                 id="model_selection_prob",
                 options=[{"label": "Gaussian Naive Bayes", "value": "gaussian_naive_bayes"}],
+                value=["gaussian_naive_bayes"],
                 className="checklist"
             ),
 
@@ -35,6 +37,7 @@ html_step_2 = (
             dcc.Checklist(
                 id="model_selection_neighbors",
                 options=[{"label": "K Nearest Neighbors (KNN)", "value": "knn"}],
+                value=["knn"],
                 className="checklist"
             ),
 
@@ -42,6 +45,7 @@ html_step_2 = (
             dcc.Checklist(
                 id="model_selection_nn",
                 options=[{"label": "Multi-layer Perceptron (MLP)", "value": "nn_mlp"}],
+                value=["nn_mlp"],
                 className="checklist"
             ),
         ], className="section-block"),
@@ -57,6 +61,7 @@ html_step_2 = (
                 {"label": "SMOTE-ENN (Edited Nearest Neighbors)", "value": "smote_enn"},
                 {"label": "SMOTE Tomek (Tomek Links)", "value": "smote_tomek"},
             ],
+            value=["smote", "borderline_smote", "smote_enn", "smote_tomek"],
             className="checklist"
         ),
 
@@ -69,7 +74,11 @@ html_step_2 = (
 #########################################################
 
 @dash_app.callback(
-    Output("model_parameters_confirm_btn", "disabled"),
+    [
+        Output("model_parameters_confirm_btn", "disabled"),
+        Output("stored_models", "data"),
+        Output("stored_balancing", "data"),
+    ],
     [
         Input("model_selection_trees", "value"),
         Input("model_selection_prob", "value"),
@@ -87,11 +96,11 @@ def toggle_confirm_button(trees, prob, neighbors, nn, balancing, stored_models, 
     selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or [])
     selected_balancing = balancing or []
 
-    # Update stores
-    models_data = selected_models if selected_models else stored_models
-    balancing_data = selected_balancing if selected_balancing else stored_balancing
+    # Update stores safely
+    models_data = selected_models if selected_models else (stored_models or [])
+    balancing_data = selected_balancing if selected_balancing else (stored_balancing or [])
 
     # Button enabled only if both lists are non-empty
-    disabled = not (selected_models and selected_balancing)
+    disabled = not (models_data and balancing_data)
 
-    return disabled
+    return disabled, models_data, balancing_data
