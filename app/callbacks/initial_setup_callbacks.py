@@ -18,6 +18,8 @@ from app.callbacks.initial_setup_step_3_callbacks import (
     clean_datasets, run_model_training
 )
 
+from MachineLearning.Utils.calculate_best_penalty import calculate_best_penalty
+
 # Layout screen layoot with hidden stores
 initial_setup_layout = html.Div([
     dcc.Store(id="current_step", data="progress-1"),                # track active step
@@ -74,7 +76,7 @@ def render_step(step):
      Output("progress-3", "className"),
      Output("progress-4", "className"),
      Output("progress-5", "className")],
-    Input("current_step", "data")
+     Input("current_step", "data")
 )
 def update_progress_classes(current_step):
     step_num = int(current_step.split("-")[1])
@@ -133,8 +135,28 @@ def go_to_step_3(confirm_clicks, current_step):
 def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, balancing_data):
     if confirm_clicks:
         print("Running training...")
-        df_credit_sales = clean_datasets(revenue_data, enrollees_data)
-        run_model_training(models_data, balancing_data)
+        df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
+
+        print("Getting best penalty...")
+        best_penalty = calculate_best_penalty(df_data_surv)
+
+        class Config:
+            # Path to the machine learning model parameters
+            parameters_dir = r"MachineLearning\parameters.json"
+
+            # Class to predict
+            target_feature = 'dtp_bracket'
+            # Test size in %
+            test_size = 0.3
+
+            # Time points used in generating survival features
+            # It's not until 120 since the earliest pre-payment is 288 days
+            time_points = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450]
+        args = Config()
+
+        print("Proceeeding to model training...")
+        run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty)
+    
         return "done"
     return no_update
 
