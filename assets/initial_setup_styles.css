@@ -1,0 +1,196 @@
+/* Setup Header */
+.setup-header {
+    margin-bottom: 25px;
+    text-align: center;
+}
+
+.setup-title {
+    font-size: 28px;
+    font-weight: 700;
+    color: #222;
+    margin-bottom: 10px;
+}
+
+.setup-divider {
+    border: none;
+    border-top: 2px solid #eee;
+    width: 100%;
+    margin: 0 auto;
+}
+
+
+
+/* Setup Container */
+.setup-container {
+    padding: 40px;              /* inner spacing */
+    margin: 60px auto;          /* outer margin around the whole block */
+    max-width: 900px;
+    background-color: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+}
+
+/* Progress Header */
+.progress-header {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 30px;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 10px;
+}
+
+/* Each step as column, centered */
+.progress-step {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;   /* center circle + label */
+    gap: 6px;
+    font-weight: 500;
+    color: #888;
+    cursor: pointer;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s ease;
+    position: relative;    /* for divider line */
+}
+
+/* Active step highlight */
+.progress-step.active {
+    color: #0078d7;
+    border-bottom: 3px solid #0078d7;
+    font-weight: 600;
+}
+
+/* Circle Number (default active/current) */
+.step-number {
+    background-color: #0078d7;   /* blue for active/current */
+    color: white;
+    font-weight: bold;
+    font-size: 16px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+/* Greyed out circle for future steps */
+.progress-step.future .step-number {
+    background-color: #ccc;      /* light grey */
+    color: #666;                 /* darker grey text */
+}
+
+/* Active step highlight */
+.progress-step.active .step-number {
+    background-color: #0078d7;   /* blue */
+    color: white;
+}
+
+/* Label under circle */
+.step-label {
+    font-size: 14px;
+    color: #333;
+    text-align: center;
+    display: block;
+    margin-top: 6px;   /* add space between circle and text */
+    padding: 0 4px;    /* horizontal breathing room */
+}
+
+/* Vertical divider line between steps */
+.progress-step:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    right: 0;
+    top: 10%;
+    bottom: 10%;
+    width: 1px;
+    background-color: #ddd;
+}
+
+
+
+/* Upload Box */
+.upload-box {
+    border: 2px dashed #0078d7;
+    border-radius: 8px;
+    padding: 20px;
+    text-align: center;
+    margin-bottom: 20px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.upload-box:hover {
+    background-color: #f0f8ff;
+}
+
+/* Setup Buttons */
+.setup-btn {
+    background-color: #0078d7;
+    color: white;
+    border: none;
+    padding: 10px 18px;
+    margin: 10px 5px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: background-color 0.3s ease;
+}
+
+.setup-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.setup-btn:hover:not(:disabled) {
+    background-color: #005a9e;
+}
+
+
+
+
+.upload-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+}
+
+.upload-icon {
+    width: 70px;
+    height: 70px;
+    margin-bottom: 5px;
+}
+
+
+.file-display {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 8px;
+}
+
+.file-icon {
+    width: 24px;
+    height: 24px;
+}
+
+.file-name {
+    font-size: 14px;
+    color: #333;
+    flex-grow: 1;
+}
+
+.delete-btn {
+    background-color: transparent;
+    border: none;
+    color: #d9534f;
+    font-weight: bold;
+    cursor: pointer;
+    font-size: 16px;
+}
+
+.delete-btn:hover {
+    color: #a94442;
+}
