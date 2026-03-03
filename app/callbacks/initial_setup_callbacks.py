@@ -1,81 +1,60 @@
-from dash import Input, Output, html, dcc, ctx, State, no_update
+import pandas as pd
+
+from dash import Input, Output, State, html, dcc, ctx, no_update
 from app import dash_app
 
+from app.callbacks.initial_setup_step_1_callbacks import (
+    html_step_1,
+    show_revenue_filename, show_enrollees_filename, clear_enrollees_file, enable_next_button
+)
+
+from app.callbacks.initial_setup_step_2_callbacks import (
+    html_step_2,
+    toggle_confirm_button
+)
+
+from app.callbacks.initial_setup_step_3_callbacks import (
+    html_step_3,
+    clean_datasets, run_model_training
+)
+
+# Layout screen layoot with hidden stores
+initial_setup_layout = html.Div([
+    dcc.Store(id="current_step", data="progress-1"),                # track active step
+    dcc.Store(id="training_status"),                                # track the machine learning status
+    dcc.Store(id="stored_revenue"),                                 # store revenue file (base64 format) 
+    dcc.Store(id="stored_enrollees"),                               # store enrollees file (base64 format)
+    dcc.Store(id="stored_models"),                                  # store selected models
+    dcc.Store(id="stored_balancing"),                               # store selected balancing strategies
+    html.Div(id="step-content")                                     # where steps render
+])
+
+
+##############################################
+# MAIN RENDER CALLBACK
+##############################################
 @dash_app.callback(
     Output("step-content", "children"),
-    [
-        Input("progress-1", "n_clicks"),
-        Input("progress-2", "n_clicks"),
-        Input("progress-3", "n_clicks"),
-        Input("progress-4", "n_clicks"),
-        Input("progress-5", "n_clicks"),
-    ],
-    prevent_initial_call=False   # run at startup
+    Input("current_step", "data"),
+    prevent_initial_call=False
 )
-def render_step(step1, step2, step3, step4, step5):
-    # Default to step 1 if nothing triggered yet
-    step = ctx.triggered_id if ctx.triggered_id is not None else "progress-1"
-
+def render_step(step):
     if step == "progress-1":
-        return html.Div([
-            html.H3("Step 1: Upload your datasets", className="step-header"),
-
-            # Revenue upload
-            dcc.Upload(
-                id="upload_revenue",
-                children=html.Div([
-                    html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
-                    html.Div("Drag & Drop or Click to Upload Revenue Ledger CSV")
-                ], className="upload-content"),
-                multiple=False,
-                className="upload-box"
-            ),
-            html.Div(id="upload_revenue_output", className="upload-output"),
-
-            # Enrollees upload
-            dcc.Upload(
-                id="upload_enrollees",
-                children=html.Div([
-                    html.Img(src="/assets/icons/csv_icon.png", className="upload-icon"),
-                    html.Div("Drag & Drop or Click to Upload Enrollee Information CSV")
-                ], className="upload-content"),
-                multiple=False,
-                className="upload-box"
-            ),
-            html.Div(id="upload_enrollees_output", className="upload-output"),
-
-            # Action buttons
-            html.Button("Confirm Uploads", id="upload_confirm_btn", className="setup-btn"),
-            html.Button("Next", id="next_btn", className="setup-btn", disabled=True)
-        ])
-
+        return html_step_1
+         
     elif step == "progress-2":
-        return html.Div([
-            html.Div("2", className="step-number"),
-            html.H3("Model Training Selection", className="step-header"),
-            dcc.Checklist(
-                id="model_selection",
-                options=[
-                    {"label": "Random Forest", "value": "rf"},
-                    {"label": "XGBoost", "value": "xgb"},
-                ]
-            ),
-            html.Button("Confirm Selection", id="confirm_btn")
-        ])
-
+        return html_step_2
+    
     elif step == "progress-3":
-        return html.Div([
-            html.Div("3", className="step-number"),
-            html.H3("Waiting for Model Results", className="step-header"),
-            html.Div("Training in progress...")
-        ])
+        return html_step_3
 
     elif step == "progress-4":
         return html.Div([
             html.Div("4", className="step-number"),
             html.H3("Model Result Analysis", className="step-header"),
             dcc.Dropdown(id="model_summary_dropdown", placeholder="Select a model"),
-            dcc.Graph(id="auc_graph")
+            dcc.Graph(id="auc_graph"),
+            html.Button("Next", id="next_btn")
         ])
 
     elif step == "progress-5":
@@ -86,83 +65,101 @@ def render_step(step1, step2, step3, step4, step5):
         ])
 
 
-# Revenue upload: hide box, show filename + X
+##############################################
+# PROGRESS HEADER CLASS UPDATE
+##############################################
 @dash_app.callback(
-    [
-        Output("upload_revenue", "style"),
-        Output("upload_revenue_output", "children"),
-    ],
-    Input("upload_revenue", "contents"),
-    State("upload_revenue", "filename"),
+    [Output("progress-1", "className"),
+     Output("progress-2", "className"),
+     Output("progress-3", "className"),
+     Output("progress-4", "className"),
+     Output("progress-5", "className")],
+    Input("current_step", "data")
+)
+def update_progress_classes(current_step):
+    step_num = int(current_step.split("-")[1])
+    classes = []
+    for i in range(1, 6):
+        if i < step_num:
+            classes.append("progress-step complete")
+        elif i == step_num:
+            classes.append("progress-step active")
+        else:
+            classes.append("progress-step future")
+    return classes
+    
+##############################################
+# STEP ADVANCEMENT CALLBACK WITH ACTIONS
+##############################################
+
+# Step 1 → Step 2
+@dash_app.callback(
+    Output("current_step", "data", allow_duplicate=True),
+    Input("upload_confirm_btn", "n_clicks"),
+    State("current_step", "data"),
     prevent_initial_call=True
 )
-def show_revenue_filename(contents, filename):
-    if contents and filename:
-        return (
-            {"display": "none"},
-            html.Div(
-                className="file-display",
-                children=[
-                    html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
-                    html.Span(filename, className="file-name"),
-                    html.Button("X", id="delete_revenue", className="delete-btn")
-                ]
-            )
-        )
-    return {"display": "block"}, None
+def go_to_step_2(upload_clicks, current_step):
+    if upload_clicks:
+        return "progress-2"
+    return current_step
 
-# Enrollees upload: hide box, show filename + X
+
+# Step 2 → Step 3
+# Step change only
+# so that the UI loads imediately before precessing
 @dash_app.callback(
-    [Output("upload_enrollees", "style"),
-     Output("upload_enrollees_output", "children")],
-    Input("upload_enrollees", "contents"),
-    State("upload_enrollees", "filename"),
+    Output("current_step", "data", allow_duplicate=True),
+    Input("model_parameters_confirm_btn", "n_clicks"),
+    State("current_step", "data"),
     prevent_initial_call=True
 )
-def show_enrollees_filename(contents, filename):
-    if contents and filename:
-        return (
-            {"display": "none"},
-            html.Div(
-                className="file-display",
-                children=[
-                    html.Img(src="/assets/icons/csv_icon.png", className="file-icon"),
-                    html.Span(filename, className="file-name"),
-                    html.Button("X", id="delete_enrollees", className="delete-btn")
-                ]
-            )
-        )
-    return {"display": "block"}, None
+def go_to_step_3(confirm_clicks, current_step):
+    # Only advance if we are not already at step 3
+    if confirm_clicks and current_step != "progress-3":
+        return "progress-3"
+    return current_step
 
 
-# Clear Revenue file when X is clicked
 @dash_app.callback(
-    [
-        Output("upload_revenue", "style", allow_duplicate=True),
-        Output("upload_revenue_output", "children", allow_duplicate=True),
-        Output("upload_revenue", "contents", allow_duplicate=True),
-    ],
-    Input("delete_revenue", "n_clicks"),
+    Output("training_status", "data"),
+    Input("model_parameters_confirm_btn", "n_clicks"),
+    State("stored_revenue", "data"),
+    State("stored_enrollees", "data"),
+    State("stored_models", "data"),
+    State("stored_balancing", "data"),
     prevent_initial_call=True
 )
-def clear_revenue_file(n_clicks):
-    if n_clicks:
-        # Reset style, clear children, and reset contents
-        return {"display": "block"}, None, None
-    return no_update, no_update, no_update
+def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, balancing_data):
+    if confirm_clicks:
+        print("Running training...")
+        df_credit_sales = clean_datasets(revenue_data, enrollees_data)
+        run_model_training(models_data, balancing_data)
+        return "done"
+    return no_update
 
 
-# Clear Enrollees file when X is clicked
+# Step 3 → Step 4
 @dash_app.callback(
-    [
-        Output("upload_enrollees", "style", allow_duplicate=True),
-        Output("upload_enrollees_output", "children", allow_duplicate=True),
-        Output("upload_enrollees", "contents", allow_duplicate=True),
-    ],
-    Input("delete_enrollees", "n_clicks"),
+    Output("current_step", "data", allow_duplicate=True),
+    Input("next_btn", "n_clicks"),
+    State("current_step", "data"),
     prevent_initial_call=True
 )
-def clear_enrollees_file(n_clicks):
-    if n_clicks:
-        return {"display": "block"}, None, None
-    return no_update, no_update, no_update
+def go_to_step_4(next_clicks, current_step):
+    if next_clicks:
+        return "progress-4"
+    return current_step
+
+
+# Step 4 → Step 5
+@dash_app.callback(
+    Output("current_step", "data", allow_duplicate=True),
+    Input("finalize_btn", "n_clicks"),
+    State("current_step", "data"),
+    prevent_initial_call=True
+)
+def go_to_step_5(finalize_clicks, current_step):
+    if finalize_clicks:
+        return "progress-5"
+    return current_step

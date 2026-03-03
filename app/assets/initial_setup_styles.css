@@ -1,4 +1,6 @@
-/* Setup Header */
+/* ===========================
+   HEADER STYLES
+   =========================== */
 .setup-header {
     margin-bottom: 25px;
     text-align: center;
@@ -19,18 +21,22 @@
 }
 
 
-
-/* Setup Container */
+/* ===========================
+   CONTAINER STYLES
+   =========================== */
 .setup-container {
-    padding: 40px;              /* inner spacing */
-    margin: 60px auto;          /* outer margin around the whole block */
+    padding: 40px;
+    margin: 60px auto;
     max-width: 900px;
     background-color: #ffffff;
     border-radius: 12px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
 
-/* Progress Header */
+
+/* ===========================
+   PROGRESS BAR STYLES
+   =========================== */
 .progress-header {
     display: flex;
     justify-content: space-between;
@@ -39,31 +45,28 @@
     padding-bottom: 10px;
 }
 
-/* Each step as column, centered */
 .progress-step {
     flex: 1;
     display: flex;
     flex-direction: column;
-    align-items: center;   /* center circle + label */
+    align-items: center;
     gap: 6px;
     font-weight: 500;
     color: #888;
     cursor: pointer;
     border-bottom: 3px solid transparent;
     transition: all 0.3s ease;
-    position: relative;    /* for divider line */
+    position: relative;
 }
 
-/* Active step highlight */
 .progress-step.active {
     color: #0078d7;
     border-bottom: 3px solid #0078d7;
     font-weight: 600;
 }
 
-/* Circle Number (default active/current) */
 .step-number {
-    background-color: #0078d7;   /* blue for active/current */
+    background-color: #0078d7;
     color: white;
     font-weight: bold;
     font-size: 16px;
@@ -75,29 +78,41 @@
     justify-content: center;
 }
 
-/* Greyed out circle for future steps */
 .progress-step.future .step-number {
-    background-color: #ccc;      /* light grey */
-    color: #666;                 /* darker grey text */
+    background-color: #ccc;
+    color: #666;
 }
 
-/* Active step highlight */
+.progress-step.complete .step-number {
+    background-color: #21a128;
+    font-size: 0;
+    position: relative;
+}
+
+.progress-step.complete .step-number::before {
+    content: "✓";
+    color: white;
+    font-size: 16px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+
 .progress-step.active .step-number {
-    background-color: #0078d7;   /* blue */
+    background-color: #0078d7;
     color: white;
 }
 
-/* Label under circle */
 .step-label {
     font-size: 14px;
     color: #333;
     text-align: center;
     display: block;
-    margin-top: 6px;   /* add space between circle and text */
-    padding: 0 4px;    /* horizontal breathing room */
+    margin-top: 6px;
+    padding: 0 4px;
 }
 
-/* Vertical divider line between steps */
 .progress-step:not(:last-child)::after {
     content: "";
     position: absolute;
@@ -109,22 +124,23 @@
 }
 
 
-
-/* Upload Box (empty state) */
+/* ===========================
+   UPLOAD BOX STYLES
+   =========================== */
 .upload-box {
     border: 2px dashed #0078d7;
     border-radius: 8px;
-    padding: 24px;              /* slightly more balanced padding */
+    padding: 24px;
     text-align: center;
-    margin-bottom: 24px;        /* consistent spacing */
+    margin-bottom: 24px;
     cursor: pointer;
     transition: background-color 0.3s ease;
-    height: 140px;              /* match file-display height */
+    height: 140px;
     display: flex;
-    flex-direction: column;     /* stack icon + text */
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 10px;                  /* proportional spacing */
+    gap: 10px;
     box-sizing: border-box;
 }
 
@@ -133,7 +149,9 @@
 }
 
 
-/* Setup Buttons */
+/* ===========================
+   BUTTON STYLES
+   =========================== */
 .setup-btn {
     background-color: #0078d7;
     color: white;
@@ -156,27 +174,30 @@
 }
 
 
-
-
-/* Upload Icon + Text */
+/* ===========================
+   UPLOAD CONTENT STYLES
+   =========================== */
 .upload-icon {
-    width: 60px;                /* proportional to text */
+    width: 60px;
     height: 60px;
 }
 
 .upload-content {
-    font-size: 15px;            /* slightly larger for balance */
+    font-size: 15px;
     color: #333;
 }
 
-/* File Display (uploaded state) */
+
+/* ===========================
+   FILE DISPLAY STYLES
+   =========================== */
 .file-display {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 12px;
-    margin-bottom: 24px;        /* same bottom spacing as upload-box */
-    height: 140px;              /* match upload-box height */
+    margin-bottom: 24px;
+    height: 140px;
     border: 2px dashed #0078d7;
     border-radius: 8px;
     padding: 24px;
@@ -189,13 +210,10 @@
 }
 
 .file-name {
-    font-size: 20px;            /* match upload-content text size */
+    font-size: 20px;
     color: #333;
     flex-grow: 1;
 }
-
-
-
 
 .delete-btn {
     background-color: transparent;
@@ -208,4 +226,87 @@
 
 .delete-btn:hover {
     color: #a94442;
+}
+
+
+/* ===========================
+   STEP CONTENT STYLES
+   =========================== */
+.step-header {
+    font-size: 24px;
+    margin-bottom: 20px;
+    color: #2c3e50;
+    font-weight: 600;
+}
+
+.sub-header {
+    font-size: 20px;
+    margin-top: 30px;
+    margin-bottom: 12px;
+    color: #34495e;
+    border-bottom: 2px solid #eee;
+    padding-bottom: 6px;
+}
+
+.sub-sub-header {
+    font-size: 16px;
+    margin-top: 18px;
+    margin-bottom: 6px;
+    color: #555;
+    font-weight: 500;
+}
+
+.section-description {
+    margin-bottom: 12px;
+    color: #666;
+    font-size: 14px;
+}
+
+.section-block {
+    margin-bottom: 25px;
+    padding-left: 10px;
+}
+
+.checklist {
+    margin-left: 20px;
+    margin-bottom: 12px;
+}
+
+.divider {
+    margin: 35px 0;
+    border-top: 2px solid #ccc;
+}
+
+
+/* ===========================
+   CONFIRM BUTTON STYLES
+   =========================== */
+.confirm-btn {
+    margin-top: 25px;
+    background-color: #0078d7;
+    color: white;
+    padding: 12px 22px;
+    border-radius: 6px;
+    font-weight: 600;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.confirm-btn:disabled {
+    background-color: #ccc;
+    cursor: not-allowed;
+}
+
+.confirm-btn:hover:not(:disabled) {
+    background-color: #005a9e;
+}
+
+/* ===========================
+   FORM CONTROLS
+   =========================== */
+
+/* Checklist / Checkbox styling */
+input[type="checkbox"] {
+    accent-color: #0078d7; /* Blue checkboxes */
 }

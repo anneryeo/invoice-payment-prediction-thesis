@@ -9,6 +9,7 @@ from app import dash_app, server
 
 # Import callbacks (they attach automatically to the app instance)
 import app.callbacks.initial_setup_callbacks
+from app.callbacks.initial_setup_callbacks import initial_setup_layout
 
 # Import screen classes
 from app.screens.initial_setup import InitialSetupScreen
@@ -28,10 +29,10 @@ invoice_drilldown = InvoiceDrilldownScreen(app)
 audit_logs = AuditLogsScreen(app)
 settings = SettingsScreen(app)
 
-# Layout with routing
 dash_app.layout = html.Div([
     dcc.Location(id="url", refresh=False),
-    html.Div(id="page-content")
+    html.Div(id="page-content"),
+    initial_setup_layout
 ])
 
 # Routing callback

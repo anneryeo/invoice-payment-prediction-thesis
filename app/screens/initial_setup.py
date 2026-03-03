@@ -9,6 +9,11 @@ class InitialSetupScreen:
         return html.Div(
             className="setup-container",
             children=[
+                # Hidden store to track current step
+                dcc.Store(id="current_step", data="progress-1"),
+                dcc.Store(id="stored_revenue"),
+                dcc.Store(id="stored_enrollees"),
+
                 # Top Title Section
                 html.Div(
                     className="setup-header",
