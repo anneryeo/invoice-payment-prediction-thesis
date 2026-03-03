@@ -39,6 +39,9 @@ wheels/
 .installed.cfg
 *.egg
 
+# Scripts to test the app
+*.bat
+
 
 
 # Environment variables
