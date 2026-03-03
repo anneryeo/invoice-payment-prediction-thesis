@@ -14,11 +14,11 @@ class XGBoostPipeline(BasePipeline):
             gpu_available = False
 
         if gpu_available:
+            # GPU training
             self.parameters.setdefault("tree_method", "gpu_hist")
-            self.parameters.setdefault("predictor", "gpu_predictor")
         else:
+            # CPU training
             self.parameters.setdefault("tree_method", "hist")
-            self.parameters.setdefault("predictor", "auto")
 
         self.model = XGBClassifier(**self.parameters)
         return self
