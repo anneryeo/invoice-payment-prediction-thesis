@@ -1,11 +1,13 @@
+import pandas as pd
 import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import TensorDataset, DataLoader
 import shap
-import pandas as pd
+
 from .base_pipeline import BasePipeline
+from MachineLearning.Utils.data_evaluation import data_evaluation
 
 class TorchMLP(nn.Module):
     def __init__(self, input_dim, hidden_layer_sizes=[100, 50],
@@ -81,7 +83,7 @@ class MultiLayerPerceptronPipeline(BasePipeline):
         return self
 
     def fit(self, epochs=50, batch_size=32, lr=1e-3,
-            use_feature_selection=False, top_k=10):
+            use_feature_selection=False, top_k=15):
         """Train the MLP, optionally apply SHAP-based feature selection."""
         if self.model is None:
             raise ValueError("Model not built. Call initialize_model() first.")
@@ -146,6 +148,21 @@ class MultiLayerPerceptronPipeline(BasePipeline):
         with torch.no_grad():
             preds = self.model(X_tensor)
             return torch.softmax(preds, dim=1).cpu().numpy()
+        
+    def evaluate(self):
+        """Evaluate the model using data_evaluation."""
+        # Predictions are already returned as NumPy arrays
+        y_pred = self.predict(self.X_test)
+        y_proba = self._predict_proba(self.X_test)
+
+        # Ensure y_test is a NumPy array (convert if it's a tensor)
+        if isinstance(self.y_test, torch.Tensor):
+            y_true = self.y_test.cpu().numpy()
+        else:
+            y_true = self.y_test
+
+        self.results = data_evaluation(y_pred, y_true, y_proba=y_proba)
+        return self
 
     def compute_feature_importance(self, top_k=10):
         """Use SHAP to estimate feature importance and select top features."""
