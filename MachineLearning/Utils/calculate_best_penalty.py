@@ -1,12 +1,21 @@
 import numpy as np
 from sksurv.linear_model import CoxnetSurvivalAnalysis
 from sksurv.metrics import concordance_index_censored
+import warnings
+
+# Suppress scikit-learn UserWarning: "all coefficients are zero, consider decreasing alpha"
+# This warning occurs when the chosen alpha value is too high, causing the model to shrink
+# all coefficients to zero. We silence it here because this behavior is expected in some runs.
+import warnings
+warnings.filterwarnings("ignore", message=".*all coefficients are zero.*")
+warnings.filterwarnings("ignore", message=".*all coefficients are zero.*")
 
 def calculate_best_penalty(df_data_surv):
     # ============================================
     # STEP 1 — Initialize and Prepare Data
     # ============================================
 
+    print("extracing variables")
     X = df_data_surv.drop(columns=['days_elapsed_until_fully_paid', 'censor'])
     T = df_data_surv['days_elapsed_until_fully_paid']
     E = df_data_surv['censor']
@@ -27,6 +36,9 @@ def calculate_best_penalty(df_data_surv):
     # ============================================
     penalties = [1e-6, 1e-5, 1e-4, 1e-3, 1e-2, 1e-1, 1]
     best_penalty, best_c_index = None, -np.inf
+
+    
+    print("Now tuning")
 
     for λ in penalties:
         model = CoxnetSurvivalAnalysis(l1_ratio=1.0, alphas=[λ], normalize=True)
