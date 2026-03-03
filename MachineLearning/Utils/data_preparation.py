@@ -99,8 +99,8 @@ class DataPreparer:
         samplers = {
             "smote": SMOTE(random_state=42),
             "borderline_smote": BorderlineSMOTE(random_state=42),
-            "smoteenn": SMOTEENN(random_state=42),
-            "smotetomek": SMOTETomek(random_state=42),
+            "smote_enn": SMOTEENN(random_state=42),
+            "smote_tomek": SMOTETomek(random_state=42),
             "hybrid": HybridBalance(undersample_threshold=undersample_threshold, random_state=42),
             "none": None,
         }
