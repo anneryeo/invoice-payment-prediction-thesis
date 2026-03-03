@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from MachineLearning.Utils.load_parameters import ParameterLoader
 from MachineLearning.Utils.data_preparation import DataPreparer
 from MachineLearning.Utils.generate_survival_features import generate_survival_features
+from MachineLearning.Utils.adjust_survival_time_periods import adjust_payment_period
 
 
 class SurvivalExperimentRunner:
@@ -145,7 +146,7 @@ class SurvivalExperimentRunner:
 
         # Generate survival features
         X_surv = self.df_data_surv.drop(columns=['days_elapsed_until_fully_paid', 'censor'])
-        T = self.df_data_surv['days_elapsed_until_fully_paid']
+        T = adjust_payment_period(self.df_data_surv['days_elapsed_until_fully_paid'])
         E = self.df_data_surv['censor']
 
         X_survival_train, X_survival_test = generate_survival_features(
