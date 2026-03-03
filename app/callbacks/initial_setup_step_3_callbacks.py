@@ -15,7 +15,7 @@ from MachineLearning import (
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
-from MachineLearning.Utils.run_models_parallel import SurvivalExperimentRunner
+from MachineLearning.Utils.run_models_parallel import SurvivalExperimentRunner, progress_state
 
 # Progress bar component
 html_step_3 = html.Div(
@@ -148,14 +148,25 @@ def store_credit_sales(enrollees_content, revenues_content):
         return df_credit_sales.to_json(date_format="iso", orient="split")
     return None
 
-
 @dash_app.callback(
     [Output("training-progress", "value"),
      Output("progress-text", "children")],
     Input("progress-interval", "n_intervals")
 )
 def update_progress(n):
-    completed = progress_state.get("completed", 0)
-    total = progress_state.get("total", 1)
-    percent = int((completed / total) * 100)
-    return percent, f"{completed}/{total} experiments completed ({percent}%)"
+    # Force values into plain ints
+    completed = int(progress_state.get("completed", 0) or 0)
+    total = int(progress_state.get("total", 0) or 0)
+
+    if total > 0:
+        percent = int((completed / total) * 100)
+        if completed >= total:
+            progress_msg = f"All {total} experiments completed (100%)"
+            percent = 100
+        else:
+            progress_msg = f"{completed}/{total} experiments completed ({percent}%)"
+    else:
+        percent = 0
+        progress_msg = "Waiting for experiments to start..."
+
+    return percent, progress_msg

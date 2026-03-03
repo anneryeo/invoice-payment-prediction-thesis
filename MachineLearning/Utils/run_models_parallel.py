@@ -303,7 +303,7 @@ class SurvivalExperimentRunner:
         # Run parallel tasks
         parallel_results = []
         if parallel_tasks:
-            with self.tqdm_joblib(tqdm(desc="Running parallel experiments", total=len(parallel_tasks), unit="exp")):
+            with self.tqdm_joblib(total=len(parallel_tasks)):
                 parallel_results = Parallel(n_jobs=self.n_jobs)(parallel_tasks)
 
         # Run sequential tasks
