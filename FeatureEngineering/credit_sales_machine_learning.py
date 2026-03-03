@@ -18,30 +18,62 @@ class CreditSales:
         - 'school_year'
         - 'student_id_pseudonimized'
         - 'category_name'
+        - 'entry_number' (will be dropped automatically)
+    df_enrollees : pd.DataFrame
+        Input DataFrame containing student enrollment records.
+    args : dict
+        Additional arguments for processing.
+    drop_helper_columns : bool, default=False
+        If True, drops intermediate helper columns created during processing.
+    drop_demographic_columns : bool, default=False
+        If True, drops demographic-related columns (e.g., school_year, student_id, category_name).
+    drop_survival_columns : bool, default=False
+        If True, drops survival analysis columns (e.g., censor, days_elapsed_until_fully_paid).
+    drop_plan_type_columns : bool, default=False
+        If True, drops plan-type related columns (e.g., Plan A, Plan B, etc.).
+    drop_missing_dtp : bool, default=False
+        If True, drops plan-type related columns (e.g., dtp_1, dtp_2, dtp_3, dtp_4).
 
     Notes
     -----
+    - The column 'entry_number' is always dropped from `df_revenues` at initialization.
+    - Depending on the drop flags, additional sets of columns may be removed from the
+      final processed DataFrame (`df_cs`).
+
     The resulting DataFrame includes:
     - school_year
     - student_id_pseudonimized
     - category_name
     - due_date
     - date_fully_paid
+    - plus optional machine learning feature columns (unless dropped)
 
     Algorithm
     ---------
     1. Divide the dataset into two groups: students with single due dates and those with multiple due dates.
-        - This is for optimization purposes, as the singular due dates can be calculated via singular matrix operations.
-        - While handling multiple due dates requires iterative allocations.
+        - Single due dates are processed via matrix operations.
+        - Multiple due dates require iterative allocations.
     2. For each group, calculate the amount due, discounts, adjustments, and credit sale transactions.
     3. For students with multiple due dates, allocate discounts and adjustments sequentially across due dates.
     4. Calculate payment allocations into predefined buckets based on days elapsed since due date.
-    5. Adds new feature columns for machine learning purposes.
+    5. Merge additional machine learning features.
+    6. Drop columns based on user-specified flags.
     """
-    def __init__(self, df_revenues, df_enrollees, args):
+    def __init__(self, df_revenues, df_enrollees, args,
+                 drop_helper_columns=False,
+                 drop_demographic_columns=False,
+                 drop_survival_columns=False,
+                 drop_plan_type_columns=False,
+                 drop_missing_dtp=False):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
         self.df_enrollees = df_enrollees
         self.args = args
+
+        self.drop_helper_columns = drop_helper_columns
+        self.drop_demographic_columns = drop_demographic_columns
+        self.drop_survival_columns = drop_survival_columns
+        self.drop_plan_type_columns = drop_plan_type_columns
+        self.drop_missing_dtp = drop_missing_dtp
         
         self.df_discounts = self._get_discounts(self.df_revenues)
         self.df_adjustments = self._get_adjustments(self.df_revenues)
@@ -58,6 +90,7 @@ class CreditSales:
         print(f"Multiple due date records: {len(df_credit_sales_multiple)}")
 
         df_cs = self._merge_machine_learning_features(df_cs)
+        df_cs = self._drop_columns(df_cs)
 
         self.df_cs = df_cs
     
@@ -709,8 +742,36 @@ class CreditSales:
 
         return df_cs
     
+    def _drop_columns(self, df_cs):
+        helper_columns = ['gross_receivables', 'amount_discounted', 'adjustments',
+            'due_date_prev_1', 'due_date_prev_2', 'date_fully_paid', 'last_payment_date']
         
-    def show_data(self):
+        demographic_columns = ['school_year', 'student_id_pseudonimized', 'category_name']
+        
+        survival_columns = ['censor', 'days_elapsed_until_fully_paid']
+
+        plan_type_columns = ['plan_type_Plan - A', 'plan_type_Plan - B', 'plan_type_Plan - C',
+                             'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan']
+        
+        if self.drop_helper_columns:
+            df_cs.drop(columns=helper_columns, inplace=True)
+
+        if self.drop_demographic_columns:
+            df_cs.drop(columns=demographic_columns, inplace=True)      
+
+        if self.drop_survival_columns:
+            df_cs.drop(columns=survival_columns, inplace=True)
+
+        if self.drop_plan_type_columns:
+            df_cs.drop(columns=plan_type_columns, inplace=True)
+        
+        if self.drop_missing_dtp:
+            # Drop invoices with missing critical features
+            df_cs.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'], inplace=True)
+        
+        return df_cs
+        
+    def show_data(self) -> pd.DataFrame:
         return self.df_cs
 
 # --- helper functions that must be top-level for multiprocessing ---
