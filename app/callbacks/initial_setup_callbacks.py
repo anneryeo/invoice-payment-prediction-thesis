@@ -1,24 +1,14 @@
-import pandas as pd
+from time import time
 
 from dash import Input, Output, State, html, dcc, ctx, no_update
 from app import dash_app
 
-from app.callbacks.initial_setup_step_1_callbacks import (
-    html_step_1,
-    show_revenue_filename, show_enrollees_filename, clear_enrollees_file, enable_next_button
-)
-
-from app.callbacks.initial_setup_step_2_callbacks import (
-    html_step_2,
-    toggle_confirm_button
-)
-
-from app.callbacks.initial_setup_step_3_callbacks import (
-    html_step_3,
-    clean_datasets, run_model_training
-)
+from app.callbacks.initial_setup_step_1_callbacks import html_step_1
+from app.callbacks.initial_setup_step_2_callbacks import html_step_2
+from app.callbacks.initial_setup_step_3_callbacks import html_step_3, clean_datasets, run_model_training
 
 from MachineLearning.Utils.calculate_best_penalty import calculate_best_penalty
+from MachineLearning.Utils.run_models_parallel import progress_state
 
 # Layout screen layoot with hidden stores
 initial_setup_layout = html.Div([
@@ -134,32 +124,33 @@ def go_to_step_3(confirm_clicks, current_step):
 )
 def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, balancing_data):
     if confirm_clicks:
+        # Reset flags for a fresh run
+        progress_state["extraction_done"] = False
+        progress_state["survival_done"] = False
+        progress_state["start_time"] = time()
+
         print("Running training...")
         df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
+        # extraction_done = True is now set inside clean_datasets()
 
         print("Getting best penalty...")
         best_penalty = calculate_best_penalty(df_data_surv)
 
+        # ✅ Signal step 2 complete
+        progress_state["survival_done"] = True
+
         class Config:
-            # Path to the machine learning model parameters
             parameters_dir = r"MachineLearning\parameters.json"
-
-            # Class to predict
             target_feature = 'dtp_bracket'
-            # Test size in %
             test_size = 0.3
-
-            # Time points used in generating survival features
-            # It's not until 120 since the earliest pre-payment is 288 days
             time_points = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450]
         args = Config()
 
-        print("Proceeeding to model training...")
+        print("Proceeding to model training...")
         run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty)
-    
+
         return "done"
     return no_update
-
 
 # Step 3 → Step 4
 @dash_app.callback(
