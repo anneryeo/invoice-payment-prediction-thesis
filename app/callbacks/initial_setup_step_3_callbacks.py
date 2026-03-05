@@ -85,6 +85,7 @@ html_step_3 = html.Div(
                 value=0,
                 striped=True,
                 animated=True,
+                color="primary",
                 style={"height": "1.5rem"},
             ),
             html.Div(id="progress-text", className="status-message"),
@@ -245,10 +246,11 @@ def update_sub_steps(n):
     prevent_initial_call=False,
 )
 def update_step_statuses(n, revenue_data, enrollees_data):
+    # What it will render when the respective step is not in progress or not completed
     step1 = "Extraction of Invoice Details."
     step2 = "Train Survival Analysis Model."
     step3 = "Train All Models."
-    step4 = "Saving Model Results."
+    step4 = "Save Model Results."
 
     try:
         # Step 1
@@ -286,6 +288,8 @@ def update_step_statuses(n, revenue_data, enrollees_data):
 # ── Progress bar + text + button enable ───────────────────────────────────────
 @dash_app.callback(
     [Output("training-progress", "value"),
+     Output("training-progress", "animated"),
+     Output("training-progress", "color"),
      Output("progress-text", "children"),
      Output("next_btn", "disabled")],
     Input("progress-interval", "n_intervals"),
@@ -310,8 +314,8 @@ def update_progress(n):
         percent = int((completed / total) * 100)
         if completed >= total:
             saving_done = bool(progress_state.get("saving_done", False))
-            return 100, f"All {total} models trained (100%)", not saving_done
+            return 100, False, "success", f"All {total} models trained (100%)", not saving_done
         else:
-            return percent, f"{completed}/{total} models trained ({percent}%) — {eta_str}", True
+            return percent, True, "primary", f"{completed}/{total} models trained ({percent}%) — {eta_str}", True
 
-    return 0, "Waiting for experiments to start...", True
+    return 0, True, "primary", "Waiting for experiments to start...", True
