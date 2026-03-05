@@ -257,7 +257,8 @@ class SurvivalExperimentRunner:
             "model":                 model_name,
             "parameters":            param_str,
             "balance_strategy":      balance_strategy,
-            "undersample_threshold": threshold,
+            #"undersample_threshold": threshold,                                    # Removed since the custom implementation
+            #                                                                       performs worst than the built in SMOTE technques
 
             **{f"baseline_{k}": v for k, v in result_baseline.items()},
             "baseline_feature_method":   pipeline_baseline.features.method,
@@ -335,5 +336,11 @@ class SurvivalExperimentRunner:
             result = self.run_model_experiment(*task_args)
             all_results.append(result)
             progress_state["completed"] += 1
+
+        print(f"Parallel tasks: {len(parallel_tasks)}")
+        print(f"Sequential tasks: {len(sequential_tasks)}")
+        print(f"Total results collected: {len(all_results)}")
+        for r in all_results:
+            print(type(r), list(r.keys()) if isinstance(r, dict) else r)
 
         return pd.DataFrame(all_results), self.class_mappings

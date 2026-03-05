@@ -148,6 +148,7 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
             start_time.isoformat(),
             end_time.isoformat(),
             str(total_training_time),
+            format='xlsx'
         )
         progress_state["saving_done"] = True
 

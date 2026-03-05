@@ -151,7 +151,7 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
 
     selected_pipelines = {m: PIPELINE_MAP[m] for m in models_data if m in PIPELINE_MAP}
 
-    do_not_parallel_compute = ['nn_transformer']
+    do_not_parallel_compute = ['xg_boost', 'nn_transformer']
 
     runner = SurvivalExperimentRunner(
         df_data=df_data,

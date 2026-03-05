@@ -25,7 +25,7 @@ class AdaBoostPipeline(BasePipeline):
 
             # Capture weights before retrain overwrites importances
             self._set_features(
-                method=f"AdaBoost feature_importances_ (weighted estimator votes, threshold={threshold!r})",
+                method=f"Weighted estimator votes, threshold={threshold!r})",
                 mask=mask
             )
 
