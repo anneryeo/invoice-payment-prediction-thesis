@@ -21,14 +21,13 @@ class SurvivalExperimentRunner:
     ------------------------
     A class to manage and execute survival model experiments with baseline and enhanced
     survival features. Supports parallel and sequential execution, dataset preparation,
-    feature generation, and results export.
+    and feature generation.
 
     This class encapsulates:
     - Dataset preparation per balance strategy and threshold
     - Survival feature generation (cached per dataset)
     - Model training and evaluation (baseline vs. enhanced)
     - Parallel execution with tqdm progress bars
-    - Flattened results export to Excel
 
     Attributes
     ----------
@@ -319,22 +318,20 @@ class SurvivalExperimentRunner:
                         else:
                             parallel_tasks.append(delayed(self.run_model_experiment)(*task_args))
 
-        # Run parallel tasks
-        parallel_results = []
-        if parallel_tasks:
-            with self.tqdm_joblib(total=len(parallel_tasks)):
-                parallel_results = Parallel(n_jobs=self.n_jobs)(parallel_tasks)
-
-        # Run sequential tasks
-        sequential_results = []
-        if sequential_tasks:
-            for task_args in tqdm(sequential_tasks, desc="Running sequential experiments", unit="exp"):
-                result = self.run_model_experiment(*task_args)
-                sequential_results.append(result)
-
-        # Combine — each entry is now (unique_key, result_dict) so no key collisions
+        total = len(parallel_tasks) + len(sequential_tasks)
+        progress_state["total"] = total
+        progress_state["completed"] = 0
         all_results = {}
-        for unique_key, result in parallel_results + sequential_results:
+
+        if parallel_tasks:
+            with self.tqdm_joblib(len(parallel_tasks)) as pbar:
+                parallel_results = Parallel(n_jobs=self.n_jobs)(parallel_tasks)
+            for unique_key, result in parallel_results:
+                all_results[unique_key] = result
+
+        for task_args in sequential_tasks:
+            unique_key, result = self.run_model_experiment(*task_args)
             all_results[unique_key] = result
+            progress_state["completed"] += 1
 
         return all_results, self.class_mappings
