@@ -1,20 +1,23 @@
-from time import time
+from datetime import datetime
 
-from dash import Input, Output, State, html, dcc, ctx, no_update
+from dash import Input, Output, State, html, dcc, no_update
 from app import dash_app
 
 from app.callbacks.initial_setup_step_1_callbacks import html_step_1
 from app.callbacks.initial_setup_step_2_callbacks import html_step_2
 from app.callbacks.initial_setup_step_3_callbacks import html_step_3, clean_datasets, run_model_training
+from app.callbacks.initial_setup_step_4_callbacks import html_step_4
+from app.callbacks.initial_setup_step_5_callbacks import html_step_5
 
-from MachineLearning.Utils.calculate_best_penalty import calculate_best_penalty
-from MachineLearning.Utils.run_models_parallel import progress_state
+from MachineLearning.Utils.training.calculate_best_penalty import calculate_best_penalty
+from MachineLearning.Utils.training.run_models_parallel import progress_state
+from MachineLearning.Utils.save_results_to_folder import save_training_results
 
-# Layout screen layoot with hidden stores
+# Layout screen layout with hidden stores
 initial_setup_layout = html.Div([
-    dcc.Store(id="current_step", data="progress-1"),                # track active step
+    dcc.Store(id="current_step", data="progress-1"),                # track active step, start with step 1
     dcc.Store(id="training_status"),                                # track the machine learning status
-    dcc.Store(id="stored_revenue"),                                 # store revenue file (base64 format) 
+    dcc.Store(id="stored_revenue"),                                 # store revenue file (base64 format)
     dcc.Store(id="stored_enrollees"),                               # store enrollees file (base64 format)
     dcc.Store(id="stored_models"),                                  # store selected models
     dcc.Store(id="stored_balancing"),                               # store selected balancing strategies
@@ -33,28 +36,14 @@ initial_setup_layout = html.Div([
 def render_step(step):
     if step == "progress-1":
         return html_step_1
-         
     elif step == "progress-2":
         return html_step_2
-    
     elif step == "progress-3":
         return html_step_3
-
     elif step == "progress-4":
-        return html.Div([
-            html.Div("4", className="step-number"),
-            html.H3("Model Result Analysis", className="step-header"),
-            dcc.Dropdown(id="model_summary_dropdown", placeholder="Select a model"),
-            dcc.Graph(id="auc_graph"),
-            html.Button("Next", id="next_btn")
-        ])
-
+        return html_step_4
     elif step == "progress-5":
-        return html.Div([
-            html.Div("5", className="step-number"),
-            html.H3("Finalization", className="step-header"),
-            html.Button("Finalize Model", id="finalize_btn")
-        ])
+        return html_step_5
 
 
 ##############################################
@@ -66,7 +55,7 @@ def render_step(step):
      Output("progress-3", "className"),
      Output("progress-4", "className"),
      Output("progress-5", "className")],
-     Input("current_step", "data")
+    Input("current_step", "data")
 )
 def update_progress_classes(current_step):
     step_num = int(current_step.split("-")[1])
@@ -79,27 +68,25 @@ def update_progress_classes(current_step):
         else:
             classes.append("progress-step future")
     return classes
-    
+
+
 ##############################################
-# STEP ADVANCEMENT CALLBACK WITH ACTIONS
+# STEP ADVANCEMENT CALLBACKS
 ##############################################
 
-# Step 1 → Step 2
+# --- Step 1 → Step 2 ---
 @dash_app.callback(
     Output("current_step", "data", allow_duplicate=True),
     Input("upload_confirm_btn", "n_clicks"),
-    State("current_step", "data"),
     prevent_initial_call=True
 )
-def go_to_step_2(upload_clicks, current_step):
+def go_to_step_2(upload_clicks):
     if upload_clicks:
         return "progress-2"
-    return current_step
+    return no_update
 
 
-# Step 2 → Step 3
-# Step change only
-# so that the UI loads imediately before precessing
+# --- Step 2 → Step 3 (UI advance only, training fires separately) ---
 @dash_app.callback(
     Output("current_step", "data", allow_duplicate=True),
     Input("model_parameters_confirm_btn", "n_clicks"),
@@ -107,10 +94,9 @@ def go_to_step_2(upload_clicks, current_step):
     prevent_initial_call=True
 )
 def go_to_step_3(confirm_clicks, current_step):
-    # Only advance if we are not already at step 3
     if confirm_clicks and current_step != "progress-3":
         return "progress-3"
-    return current_step
+    return no_update
 
 
 @dash_app.callback(
@@ -127,7 +113,9 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         # Reset flags for a fresh run
         progress_state["extraction_done"] = False
         progress_state["survival_done"] = False
-        progress_state["start_time"] = time()
+        progress_state["training_done"] = False
+        progress_state["saving_done"] = False
+        start_time = datetime.now()
 
         print("Running training...")
         df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
@@ -139,6 +127,7 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         # ✅ Signal step 2 complete
         progress_state["survival_done"] = True
 
+        print("Proceeding to model training...")
         class Config:
             parameters_dir = r"MachineLearning\parameters.json"
             target_feature = 'dtp_bracket'
@@ -146,33 +135,45 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
             time_points = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450]
         args = Config()
 
-        print("Proceeding to model training...")
-        run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty)
+        results_dict, class_mappings_dict = run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty)
+
+        # ✅ Signal step 3 complete
+        progress_state["training_done"] = True
+
+        end_time = datetime.now()
+        total_training_time = end_time - start_time
+
+        # Convert to JSON-serializable types before saving
+        start_time_str = start_time.isoformat()
+        end_time_str = end_time.isoformat()
+        total_training_time_str = str(total_training_time)
+
+        save_training_results(results_dict, class_mappings_dict, "Results", models_data, start_time_str, end_time_str, total_training_time_str)
+        progress_state["saving_done"] = True
 
         return "done"
     return no_update
 
-# Step 3 → Step 4
+
+# --- Step 3 → Step 4 ---
 @dash_app.callback(
     Output("current_step", "data", allow_duplicate=True),
     Input("next_btn", "n_clicks"),
-    State("current_step", "data"),
     prevent_initial_call=True
 )
-def go_to_step_4(next_clicks, current_step):
+def go_to_step_4(next_clicks):
     if next_clicks:
         return "progress-4"
-    return current_step
+    return no_update
 
 
-# Step 4 → Step 5
+# --- Step 4 → Step 5 ---
 @dash_app.callback(
     Output("current_step", "data", allow_duplicate=True),
     Input("finalize_btn", "n_clicks"),
-    State("current_step", "data"),
     prevent_initial_call=True
 )
-def go_to_step_5(finalize_clicks, current_step):
+def go_to_step_5(finalize_clicks):
     if finalize_clicks:
         return "progress-5"
-    return current_step
+    return no_update
