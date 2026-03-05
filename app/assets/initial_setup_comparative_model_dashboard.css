@@ -1,0 +1,473 @@
+/* ============================================================
+   STEP 4 — MODEL ANALYSIS DASHBOARD  ·  Light Mode
+   Academic editorial aesthetic
+   IBM Plex Mono numerics · DM Serif Display headers
+   Slate-blue accent on warm off-white
+   ============================================================ */
+
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=DM+Serif+Display&family=DM+Sans:wght@400;500;600&display=swap');
+
+/* ── CSS Variables ──────────────────────────────────────────── */
+:root {
+    --bg-root:        #f8fafc;
+    --bg-card:        #ffffff;
+    --bg-card-hover:  #f1f5f9;
+    --bg-selected:    #eff6ff;
+    --bg-input:       #ffffff;
+    --bg-thead:       #f8fafc;
+    --bg-enh-col:     #f0f9ff;
+
+    --border:         #e2e8f0;
+    --border-strong:  #cbd5e1;
+    --border-accent:  #2563eb;
+
+    --accent-blue:    #2563eb;
+    --accent-green:   #16a34a;
+    --accent-red:     #dc2626;
+    --accent-amber:   #d97706;
+
+    --text-primary:   #0f172a;
+    --text-secondary: #475569;
+    --text-muted:     #94a3b8;
+    --text-mono:      'IBM Plex Mono', monospace;
+    --text-display:   'DM Serif Display', serif;
+    --text-sans:      'DM Sans', sans-serif;
+
+    --rank-gold:      #b45309;
+    --rank-gold-bg:   #fef3c7;
+    --rank-silver:    #475569;
+    --rank-silver-bg: #f1f5f9;
+    --rank-bronze:    #92400e;
+    --rank-bronze-bg: #fef9c3;
+
+    --shadow-sm:      0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04);
+    --shadow-md:      0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
+    --radius:         6px;
+    --radius-lg:      10px;
+}
+
+/* ── Root container ─────────────────────────────────────────── */
+.dashboard-root {
+    background: var(--bg-root);
+    padding: 1.5rem 1.25rem 3rem;
+    font-family: var(--text-sans);
+    min-width: 0;
+    box-sizing: border-box;
+}
+
+/* ── Page header ────────────────────────────────────────────── */
+.dash-page-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    padding-bottom: 1rem;
+    border-bottom: 2px solid var(--border);
+}
+
+.dash-header-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    min-width: 0;
+}
+
+.dash-title-tag {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.2em;
+    color: var(--accent-blue);
+    text-transform: uppercase;
+}
+
+.dash-title {
+    font-family: var(--text-display);
+    font-size: 1.6rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.1;
+}
+
+.dash-subtitle {
+    font-family: var(--text-sans);
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin: 0.2rem 0 0;
+    line-height: 1.4;
+}
+
+/* ── Result type toggle ─────────────────────────────────────── */
+.result-toggle-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+.toggle-label {
+    font-family: var(--text-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+}
+
+.result-toggle {
+    display: flex;
+    background: var(--bg-root);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.toggle-btn {
+    font-family: var(--text-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.35rem 0.85rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.toggle-btn:hover {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.active-toggle {
+    background: var(--accent-blue) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+/* ── Global controls ────────────────────────────────────────── */
+.global-controls {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.search-input {
+    font-family: var(--text-mono);
+    font-size: 0.78rem;
+    background: var(--bg-input);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-primary);
+    padding: 0.4rem 0.85rem;
+    width: 100%;
+    max-width: 220px;
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    box-sizing: border-box;
+}
+
+.search-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.search-input::placeholder {
+    color: var(--text-muted);
+}
+
+.controls-right {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    flex-shrink: 0;
+}
+
+.export-btn {
+    font-family: var(--text-mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.06em;
+    padding: 0.38rem 0.85rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+}
+
+.export-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: #eff6ff;
+}
+
+/* ── Leaderboard wrapper ────────────────────────────────────── */
+.leaderboard-wrap {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow-x: auto;          /* horizontal scroll on narrow viewports */
+    overflow-y: visible;
+    margin-bottom: 1.5rem;
+    box-shadow: var(--shadow-sm);
+}
+
+/* ── Table ──────────────────────────────────────────────────── */
+.leaderboard-table {
+    width: 100%;
+    min-width: 560px;          /* prevents collapse below readable width */
+    border-collapse: collapse;
+    font-family: var(--text-mono);
+}
+
+/* Header row 1 — metric group labels + sort buttons */
+.leaderboard-table thead tr:first-child th {
+    background: var(--bg-thead);
+    border-bottom: 1px solid var(--border);
+    padding: 0.5rem 0.4rem 0.3rem;
+    text-align: center;
+}
+
+/* Header row 2 — Base / Enh sub-labels */
+.leaderboard-table thead tr:last-child th {
+    background: var(--bg-thead);
+    border-bottom: 2px solid var(--border-strong);
+    padding: 0.2rem 0.4rem 0.3rem;
+}
+
+.metric-header-cell {
+    text-align: center !important;
+    border-left: 1px solid var(--border);
+}
+
+/* Sort buttons */
+.sort-btn {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: transparent;
+    border: none;
+    color: var(--accent-blue);
+    cursor: pointer;
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    transition: all 0.12s;
+}
+
+.sort-btn:hover {
+    background: #eff6ff;
+    color: #1d4ed8;
+}
+
+/* Sub-header labels */
+.th-sub {
+    font-family: var(--text-mono);
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-align: center;
+    padding: 0.18rem 0.35rem;
+    text-transform: uppercase;
+}
+
+.th-sub-active {
+    color: var(--accent-blue) !important;
+    font-weight: 600;
+}
+
+.th-rank, .th-model, .th-strategy {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 0.45rem 0.6rem;
+}
+
+/* Body rows */
+.model-row {
+    border-bottom: 1px solid var(--border);
+    cursor: pointer;
+    transition: background 0.1s;
+}
+
+.model-row:hover {
+    background: var(--bg-card-hover);
+}
+
+.model-row:last-child {
+    border-bottom: none;
+}
+
+.selected-row {
+    background: var(--bg-selected) !important;
+    border-left: 3px solid var(--accent-blue);
+}
+
+/* Cells */
+.td-rank {
+    padding: 0.55rem 0.5rem;
+    text-align: center;
+    width: 40px;
+}
+
+.td-model {
+    padding: 0.55rem 0.6rem;
+    font-size: 0.78rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    white-space: nowrap;
+    font-family: var(--text-sans);
+}
+
+.td-strategy {
+    padding: 0.55rem 0.5rem;
+    text-align: center;
+}
+
+.td-metric {
+    padding: 0.45rem 0.4rem;
+    text-align: center;
+    font-size: 0.76rem;
+    border-left: 1px solid #f1f5f9;
+}
+
+.enh-col {
+    background: var(--bg-enh-col);
+}
+
+.best-cell {
+    background: #f0fdf4 !important;
+}
+
+.best-cell .metric-val {
+    color: var(--accent-green) !important;
+    font-weight: 600;
+}
+
+/* Metric value */
+.metric-val {
+    font-family: var(--text-mono);
+    font-size: 0.76rem;
+    color: var(--text-primary);
+    display: block;
+}
+
+.enh-cell-inner {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.08rem;
+}
+
+/* Delta badges */
+.delta-up {
+    font-family: var(--text-mono);
+    font-size: 0.58rem;
+    color: var(--accent-green);
+    line-height: 1;
+}
+
+.delta-down {
+    font-family: var(--text-mono);
+    font-size: 0.58rem;
+    color: var(--accent-red);
+    line-height: 1;
+}
+
+.delta-neutral {
+    font-family: var(--text-mono);
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    line-height: 1;
+}
+
+/* Rank badges */
+.rank-badge {
+    font-family: var(--text-mono);
+    font-size: 0.63rem;
+    font-weight: 600;
+    padding: 0.12rem 0.35rem;
+    border-radius: 3px;
+    letter-spacing: 0.04em;
+    display: inline-block;
+}
+
+.rank-gold   { color: var(--rank-gold);   background: var(--rank-gold-bg);   }
+.rank-silver { color: var(--rank-silver); background: var(--rank-silver-bg); }
+.rank-bronze { color: var(--rank-bronze); background: var(--rank-bronze-bg); }
+.rank-default{ color: var(--text-muted);  background: #f8fafc;               }
+
+/* Strategy pill */
+.strategy-pill {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: #f1f5f9;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 0.1rem 0.4rem;
+    color: var(--text-secondary);
+    display: inline-block;
+}
+
+/* ── Charts section ─────────────────────────────────────────── */
+.charts-section {
+    margin-top: 0.5rem;
+}
+
+.charts-model-label {
+    margin-bottom: 0.75rem;
+}
+
+.charts-model-name {
+    font-family: var(--text-display);
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.charts-model-type {
+    font-family: var(--text-mono);
+    font-size: 0.75rem;
+    color: var(--accent-blue);
+}
+
+/* 2×2 grid — collapses to 1 column on narrow viewports */
+.charts-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1rem;
+}
+
+@media (max-width: 700px) {
+    .charts-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Chart card */
+.chart-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    box-shadow: var(--shadow-sm);
+    transition: box-shadow 0.15s, border-color 0.15s;
+    min-width: 0;
+}
+
+.chart-card:hover {
+    box-shadow: var(--shadow-md);
+    border-color: var(--border-strong);
+}
