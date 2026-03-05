@@ -9,9 +9,9 @@ from app.callbacks.initial_setup_step_3_callbacks import html_step_3, clean_data
 from app.callbacks.initial_setup_step_4_callbacks import html_step_4
 from app.callbacks.initial_setup_step_5_callbacks import html_step_5
 
-from MachineLearning.Utils.training.calculate_best_penalty import calculate_best_penalty
-from MachineLearning.Utils.training.run_models_parallel import progress_state
-from MachineLearning.Utils.save_results_to_folder import save_training_results
+from machine_learning.utils.training.calculate_best_penalty import calculate_best_penalty
+from machine_learning.utils.training.run_models_parallel import progress_state
+from machine_learning.utils.io.save_results_to_folder import save_training_results
 
 # Layout screen layout with hidden stores
 initial_setup_layout = html.Div([

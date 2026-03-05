@@ -8,8 +8,8 @@ import dash_bootstrap_components as dbc
 from dash import Input, Output, State, html, dcc, no_update
 
 from app import dash_app
-from FeatureEngineering.credit_sales_machine_learning import CreditSales
-from MachineLearning import (
+from feature_engineering.credit_sales_machine_learning import CreditSales
+from machine_learning import (
     AdaBoostPipeline,
     DecisionTreePipeline,
     GaussianNaiveBayesPipeline,
@@ -19,7 +19,7 @@ from MachineLearning import (
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
-from MachineLearning.Utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
+from machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
 
 
 # ══════════════════════════════════════════════════════════════════════════════
