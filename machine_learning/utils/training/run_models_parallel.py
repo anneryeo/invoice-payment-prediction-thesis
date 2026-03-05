@@ -3,10 +3,10 @@ from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 from tqdm import tqdm
 from contextlib import contextmanager
-from MachineLearning.Utils.training.load_parameters import ParameterLoader
-from MachineLearning.Utils.data.data_preparation import DataPreparer
-from MachineLearning.Utils.features.generate_survival_features import generate_survival_features
-from MachineLearning.Utils.features.adjust_survival_time_periods import adjust_payment_period
+from machine_learning.Utils.training.load_parameters import ParameterLoader
+from machine_learning.Utils.data.data_preparation import DataPreparer
+from machine_learning.Utils.features.generate_survival_features import generate_survival_features
+from machine_learning.Utils.features.adjust_survival_time_periods import adjust_payment_period
 
 # Ensures compatibility with Dash by resetting/shutting down the joblib executor
 # so that new parallel tasks can be scheduled without hitting ShutdownExecutorError.
