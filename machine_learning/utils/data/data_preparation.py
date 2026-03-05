@@ -5,7 +5,7 @@ from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.combine import SMOTEENN, SMOTETomek
 
 from .data_partitioning import data_partitioning_by_due_date
-from machine_learning.Utils.balancing.hybrid_balance import HybridBalance
+from machine_learning.utils.balancing.hybrid_balance import HybridBalance
 
 
 class DataPreparer:
