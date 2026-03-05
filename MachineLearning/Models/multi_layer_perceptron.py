@@ -7,7 +7,7 @@ from torch.utils.data import TensorDataset, DataLoader
 import shap
 
 from .base_pipeline import BasePipeline
-from MachineLearning.Utils.data_evaluation import data_evaluation
+from MachineLearning.Utils.data.data_evaluation import data_evaluation
 
 class TorchMLP(nn.Module):
     def __init__(self, input_dim, hidden_layer_sizes=[100, 50],

@@ -1,6 +1,6 @@
 import numpy as np
 from abc import ABC, abstractmethod
-from ..Utils.data_evaluation import data_evaluation
+from ..Utils.data.data_evaluation import data_evaluation
 
 class BasePipeline(ABC):
     def __init__(self, X_train, X_test,

@@ -5,7 +5,7 @@ from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.combine import SMOTEENN, SMOTETomek
 
 from .data_partitioning import data_partitioning_by_due_date
-from .hybrid_balance import HybridBalance
+from MachineLearning.Utils.balancing.hybrid_balance import HybridBalance
 
 
 class DataPreparer:
@@ -32,6 +32,7 @@ class DataPreparer:
 
         self.label_encoder = None
         self.class_mapping = None
+        self.cut_off_date = None
 
         # Outputs
         self.X_train = None
@@ -43,35 +44,39 @@ class DataPreparer:
         if self.verbose:
             print(message)
 
-    def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
+    def encode_labels(self):
         """
-        Prepare data by encoding labels, partitioning, balancing,
-        and aligning survival variables.
+        Encode the target feature column using LabelEncoder.
 
-        Parameters
-        ----------
-        balance_strategy : str
-            Strategy for balancing:
-            'smote', 'borderline_smote', 'smoteenn',
-            'smotetomek', 'hybrid', or 'none'.
-        undersample_threshold : float
-            Threshold for hybrid undersampling (default=0.5).
+        Populates self.label_encoder and self.class_mapping.
+
+        Returns
+        -------
+        self
         """
-
-        # --- Encode target feature ---
         self.label_encoder = LabelEncoder()
         self.df_data[self.target_feature] = self.label_encoder.fit_transform(
             self.df_data[self.target_feature]
         )
-
         self.class_mapping = dict(
             zip(
                 self.label_encoder.classes_,
                 self.label_encoder.transform(self.label_encoder.classes_)
             )
         )
+        return self
 
-        # --- Partition the data ---
+    def train_test_split(self):
+        """
+        Partition data into train/test sets based on due_date.
+
+        Populates self.X_train, self.X_test, self.y_train,
+        self.y_test, and self.cut_off_date.
+
+        Returns
+        -------
+        self
+        """
         self._log("Partitioning datasets based on due_date...")
 
         X_train_raw, X_test_raw, y_train_raw, y_test_raw, self.cut_off_date = (
@@ -95,7 +100,24 @@ class DataPreparer:
         self.y_train = y_train_raw
         self.y_test = y_test_raw
 
-        # --- Balance training data ---
+        return self
+
+    def resample(self, strategy="smote", undersample_threshold=0.5):
+        """
+        Balance the training set using the specified resampling strategy.
+
+        Parameters
+        ----------
+        strategy : str
+            One of: 'smote', 'borderline_smote', 'smote_enn',
+            'smote_tomek', 'hybrid', or 'none'.
+        undersample_threshold : float
+            Threshold for hybrid undersampling (default=0.5).
+
+        Returns
+        -------
+        self
+        """
         samplers = {
             "smote": SMOTE(random_state=42),
             "borderline_smote": BorderlineSMOTE(random_state=42),
@@ -105,28 +127,77 @@ class DataPreparer:
             "none": None,
         }
 
-        if balance_strategy not in samplers:
-            raise ValueError("Invalid balance_strategy.")
+        if strategy not in samplers:
+            raise ValueError(
+                f"Invalid strategy '{strategy}'. "
+                f"Choose from: {list(samplers.keys())}"
+            )
 
-        sampler = samplers[balance_strategy]
+        sampler = samplers[strategy]
 
         if sampler is None:
             self._log("No balancing applied.")
         else:
-            self._log(f"Applying {balance_strategy}...")
+            self._log(f"Applying {strategy}...")
             X_res, y_res = sampler.fit_resample(self.X_train, self.y_train)
             self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
             self.y_train = pd.Series(y_res, name=self.target_feature)
 
-        # --- Normalize the data ---
+        return self
+
+    def normalize(self):
+        """
+        Fit StandardScaler on training data and transform both
+        train and test sets.
+
+        Returns
+        -------
+        self
+        """
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
         scaler = StandardScaler()
         self.X_train[numeric_cols] = scaler.fit_transform(self.X_train[numeric_cols])
         self.X_test[numeric_cols] = scaler.transform(self.X_test[numeric_cols])
-
         return self
 
+    def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
+        """
+        Run the full preparation pipeline:
+        encode labels → split → resample → normalize.
+
+        Parameters
+        ----------
+        balance_strategy : str
+            Resampling strategy passed to resample().
+        undersample_threshold : float
+            Threshold for hybrid undersampling (default=0.5).
+
+        Returns
+        -------
+        self
+        """
+        return (
+            self
+            .encode_labels()
+            .train_test_split()
+            .resample(strategy=balance_strategy, undersample_threshold=undersample_threshold)
+            .normalize()
+        )
+
     def decode_labels(self, y_encoded):
+        """
+        Inverse-transform encoded labels back to original classes.
+
+        Parameters
+        ----------
+        y_encoded : array-like
+            Encoded label values.
+
+        Returns
+        -------
+        np.ndarray
+            Original class labels.
+        """
         if self.label_encoder is None:
-            raise ValueError("Label encoder not initialized. Run prep_data() first.")
+            raise ValueError("Label encoder not initialized. Run encode_labels() first.")
         return self.label_encoder.inverse_transform(y_encoded)

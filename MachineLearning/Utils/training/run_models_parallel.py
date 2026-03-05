@@ -1,12 +1,12 @@
-import pandas as pd
+import json
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 from tqdm import tqdm
 from contextlib import contextmanager
-from MachineLearning.Utils.load_parameters import ParameterLoader
-from MachineLearning.Utils.data_preparation import DataPreparer
-from MachineLearning.Utils.generate_survival_features import generate_survival_features
-from MachineLearning.Utils.adjust_survival_time_periods import adjust_payment_period
+from MachineLearning.Utils.training.load_parameters import ParameterLoader
+from MachineLearning.Utils.data.data_preparation import DataPreparer
+from MachineLearning.Utils.features.generate_survival_features import generate_survival_features
+from MachineLearning.Utils.features.adjust_survival_time_periods import adjust_payment_period
 
 # Ensures compatibility with Dash by resetting/shutting down the joblib executor
 # so that new parallel tasks can be scheduled without hitting ShutdownExecutorError.
@@ -61,7 +61,6 @@ class SurvivalExperimentRunner:
     """
     def __init__(self, df_data, df_data_surv, models, balance_strategies, args,
                  best_penalty, thresholds=None, n_jobs=-1,
-                 output_path="MachineLearning/Results/model_results.xlsx",
                  do_not_parallel_compute=None,
                  feature_selection_baseline=True, feature_selection_enhanced=True):
         self.df_data = df_data
@@ -72,7 +71,6 @@ class SurvivalExperimentRunner:
         self.best_penalty = best_penalty
         self.thresholds = thresholds
         self.n_jobs = n_jobs
-        self.output_path = output_path
         self.do_not_parallel_compute = do_not_parallel_compute or []
         self.feature_selection_baseline = feature_selection_baseline
         self.feature_selection_enhanced = feature_selection_enhanced
@@ -85,7 +83,9 @@ class SurvivalExperimentRunner:
             target_feature=args.target_feature,
             test_size=args.test_size,
             verbose=False
-        )
+        ).encode_labels().train_test_split()
+
+        self.class_mappings = self.preparer.class_mapping
 
     # -----------------------------
     # tqdm-joblib integration
@@ -206,7 +206,7 @@ class SurvivalExperimentRunner:
         Run a single experiment for a given model, parameter set, and dataset.
 
         Executes both baseline and enhanced pipelines, performs training, evaluation,
-        and feature selection, then returns flattened results.
+        and feature selection, then returns a result entry with a unique composite key.
 
         Parameters
         ----------
@@ -225,44 +225,46 @@ class SurvivalExperimentRunner:
 
         Returns
         -------
-        dict
-            Flattened dictionary of results including baseline and enhanced metrics,
-            selected features, and metadata.
+        tuple
+            (unique_key, result_dict) where unique_key is a composite of
+            model_name, balance_strategy, threshold, and param index.
         """
         (X_train, X_test, y_train, y_test,
          X_survival_train, X_survival_test) = dataset
 
         # Baseline pipeline
         pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, self.args, param)
-        result_baseline = (
-            pipeline_baseline.initialize_model()
-            .fit(use_feature_selection=self.feature_selection_baseline)
-            .evaluate()
-            .show_results()
-        )
+        pipeline_baseline.initialize_model().fit(use_feature_selection=self.feature_selection_baseline)
+        result_baseline = pipeline_baseline.evaluate().show_results()
         features_baseline = pipeline_baseline.get_selected_features()
 
         # Enhanced pipeline
         pipeline_enhanced = pipeline_class(X_survival_train, X_survival_test, y_train, y_test, self.args, param)
-        result_enhanced = (
-            pipeline_enhanced.initialize_model()
-            .fit(use_feature_selection=self.feature_selection_enhanced)
-            .evaluate()
-            .show_results()
-        )
+        pipeline_enhanced.initialize_model().fit(use_feature_selection=self.feature_selection_enhanced)
+        result_enhanced = pipeline_enhanced.evaluate().show_results()
         features_enhanced = pipeline_enhanced.get_selected_features()
 
-        # Flatten results directly
-        return {
+        # Unique key: model + strategy + threshold + param fingerprint
+        threshold_str = str(threshold) if threshold is not None else "none"
+        param_str = str(sorted(param.items())) if isinstance(param, dict) else str(param)
+        unique_key = f"{model_name}__{balance_strategy}__{threshold_str}__{param_str}"
+
+        result = {
             "model": model_name,
-            "parameters": str(param),
+            "parameters": param_str,
             "balance_strategy": balance_strategy,
             "undersample_threshold": threshold,
-            **{f"baseline_{k}": v for k, v in result_baseline.items()},
-            **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
-            "baseline_features": features_baseline,
-            "enhanced_features": features_enhanced
+            "baseline": {
+                "evaluation": result_baseline,
+                "features": features_baseline,
+            },
+            "enhanced": {
+                "evaluation": result_enhanced,
+                "features": features_enhanced,
+            },
         }
+
+        return unique_key, result
 
     # -----------------------------
     # Main experiment runner
@@ -277,21 +279,38 @@ class SurvivalExperimentRunner:
 
         Returns
         -------
-        pd.DataFrame
-            Results DataFrame with flattened baseline and enhanced metrics,
-            exported to Excel at the specified output path.
+        tuple
+            A 2-tuple of (all_results, class_mappings):
+
+            all_results : dict
+                Dictionary keyed by unique experiment key. Each entry contains:
+                - parameters: str
+                    Stringified parameter set used for the model.
+                - balance_strategy: str
+                    Balancing strategy applied to the dataset.
+                - undersample_threshold: float or None
+                    Threshold used for hybrid balancing strategy.
+                - baseline: dict
+                    Contains evaluation results (metrics + raw chart data)
+                    and selected features for the baseline pipeline.
+                - enhanced: dict
+                    Contains evaluation results (metrics + raw chart data)
+                    and selected features for the enhanced pipeline.
+
+            class_mappings : dict
+                Dictionary mapping original class labels to their encoded
+                integer representations, as produced by the label encoder
+                during dataset preparation.
         """
         parallel_tasks = []
         sequential_tasks = []
 
-        # Loop over balance strategies first (prep once per dataset)
         for balance_strategy in self.balance_strategies:
             strategy_thresholds = self.thresholds if balance_strategy == "hybrid" else [None]
 
             for threshold in strategy_thresholds:
                 dataset = self.prepare_dataset(balance_strategy, threshold)
 
-                # Build tasks for all models/params using this dataset
                 for model_name, pipeline_class in self.models.items():
                     for param in self.parameters_by_model[model_name]:
                         task_args = (model_name, pipeline_class, param, dataset, balance_strategy, threshold)
@@ -313,14 +332,9 @@ class SurvivalExperimentRunner:
                 result = self.run_model_experiment(*task_args)
                 sequential_results.append(result)
 
-        # Combine results
-        all_results = parallel_results + sequential_results
+        # Combine — each entry is now (unique_key, result_dict) so no key collisions
+        all_results = {}
+        for unique_key, result in parallel_results + sequential_results:
+            all_results[unique_key] = result
 
-        # Convert to DataFrame directly (already flattened)
-        results_df = pd.DataFrame(all_results)
-
-        # Export
-        results_df.to_excel(self.output_path, index=False)
-        print(f"All results saved to {self.output_path}")
-
-        return results_df
+        return all_results, self.class_mappings

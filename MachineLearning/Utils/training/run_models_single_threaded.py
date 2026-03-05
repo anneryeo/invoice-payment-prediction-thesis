@@ -1,8 +1,8 @@
 import pandas as pd
 import numpy as np
-from MachineLearning.Utils.load_parameters import ParameterLoader
-from MachineLearning.Utils.data_preparation_survival_analysis import SurvivalDataPreparer
-from MachineLearning.Utils.generate_survival_features import generate_survival_features
+from MachineLearning.Utils.training.load_parameters import ParameterLoader
+from MachineLearning.Utils.data.data_preparation import SurvivalDataPreparer
+from MachineLearning.Utils.features.generate_survival_features import generate_survival_features
 
 def run_survival_model_experiments(
     df_data_surv,
