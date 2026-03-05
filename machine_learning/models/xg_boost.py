@@ -3,23 +3,20 @@ from xgboost import XGBClassifier
 from sklearn.feature_selection import SelectFromModel
 from .base_pipeline import BasePipeline
 
+
 class XGBoostPipeline(BasePipeline):
     def initialize_model(self):
         """Initialize XGBoost with provided parameters, using GPU if available."""
         try:
-            import xgboost
-            # Simple check for GPU availability
-            gpu_available = xgboost.rabit.get_rank() == 0
-        except Exception:
-            gpu_available = False
+            import torch
+            if torch.cuda.is_available():
+                self.parameters.setdefault("device", "cuda")
+            else:
+                self.parameters.setdefault("device", "cpu")
+        except ImportError:
+            self.parameters.setdefault("device", "cpu")
 
-        if gpu_available:
-            # GPU training
-            self.parameters.setdefault("tree_method", "gpu_hist")
-        else:
-            # CPU training
-            self.parameters.setdefault("tree_method", "hist")
-
+        self.parameters.setdefault("tree_method", "hist")
         self.model = XGBClassifier(**self.parameters)
         return self
 
@@ -28,29 +25,22 @@ class XGBoostPipeline(BasePipeline):
         if self.model is None:
             raise ValueError("Model not built. Call initialize_model() first.")
 
-        # Fit model on training data
         self.model.fit(self.X_train, self.y_train)
 
         if use_feature_selection:
-            # Fit selector
-            self.selector = SelectFromModel(self.model, threshold=threshold)
-            self.selector.fit(self.X_train, self.y_train)
+            self.selector = SelectFromModel(self.model, threshold=threshold, prefit=True)
 
-            # Transform train/test once
+            mask = self.selector.get_support()
             self.X_train = self.selector.transform(self.X_train)
             self.X_test  = self.selector.transform(self.X_test)
 
-            # Save selected feature names
-            if self.original_feature_names is not None:
-                mask = self.selector.get_support()
-                self.selected_feature_names = [
-                    name for name, keep in zip(self.original_feature_names, mask) if keep
-                ]
+            self._set_features(
+                method=f"Gain-based split importance (threshold={threshold!r})",
+                mask=mask,
+            )
 
-            # Retrain model on reduced features
             self.model.fit(self.X_train, self.y_train)
         else:
-            # If no feature selection, keep all original names
-            self.selected_feature_names = self.original_feature_names
+            self._set_features(method="none")
 
         return self

@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.naive_bayes import GaussianNB
 from .base_pipeline import BasePipeline
 
+
 class GaussianNaiveBayesPipeline(BasePipeline):
     def initialize_model(self):
         """Initialize Gaussian Naive Bayes with provided parameters."""
@@ -13,39 +14,34 @@ class GaussianNaiveBayesPipeline(BasePipeline):
         if self.model is None:
             raise ValueError("Model not built. Call initialize_model() first.")
 
-        # Fit model on training data
         self.model.fit(self.X_train, self.y_train)
 
         if use_feature_selection:
-            # GaussianNB exposes theta_ (means) and var_ (variances)
-            means = self.model.theta_      # shape: (n_classes, n_features)
-            variances = self.model.var_    # shape: (n_classes, n_features)
+            means     = self.model.theta_
+            variances = self.model.var_
 
-            # Influence score: mean difference across classes / average variance
-            mean_diff = np.abs(means.max(axis=0) - means.min(axis=0))
+            mean_diff        = np.abs(means.max(axis=0) - means.min(axis=0))
             influence_scores = mean_diff / variances.mean(axis=0)
 
-            ranked_indices = np.argsort(influence_scores)[::-1]
+            ranked_indices   = np.argsort(influence_scores)[::-1]
+            selected_indices = ranked_indices[:top_k] if top_k is not None else ranked_indices
 
-            if top_k is None:
-                selected_indices = ranked_indices
-            else:
-                selected_indices = ranked_indices[:top_k]
+            # Build boolean mask so _set_features stays consistent with other pipelines
+            mask = np.zeros(self.X_train.shape[1], dtype=bool)
+            mask[selected_indices] = True
 
-            # Reduce train/test sets
+            # Capture weights before column reduction drops unselected importances
+            self._set_features(
+                method=f"GaussianNB influence score (top_k={top_k!r})",
+                mask=mask,
+                importances=influence_scores,
+            )
+
             self.X_train = self.X_train[:, selected_indices]
             self.X_test  = self.X_test[:, selected_indices]
 
-            # Save selected feature names
-            if self.original_feature_names is not None:
-                self.selected_feature_names = [
-                    self.original_feature_names[i] for i in selected_indices
-                ]
-
-            # Retrain model on reduced features
             self.model.fit(self.X_train, self.y_train)
         else:
-            # If no feature selection, keep all original names
-            self.selected_feature_names = self.original_feature_names
+            self._set_features(method="none")
 
         return self

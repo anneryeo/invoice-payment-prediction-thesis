@@ -110,45 +110,45 @@ def go_to_step_3(confirm_clicks, current_step):
 )
 def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, balancing_data):
     if confirm_clicks:
-        # Reset flags for a fresh run
         progress_state["extraction_done"] = False
-        progress_state["survival_done"] = False
-        progress_state["training_done"] = False
-        progress_state["saving_done"] = False
+        progress_state["survival_done"]   = False
+        progress_state["training_done"]   = False
+        progress_state["saving_done"]     = False
         start_time = datetime.now()
 
         print("Running training...")
         df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
-        # extraction_done = True is now set inside clean_datasets()
 
         print("Getting best penalty...")
         best_penalty = calculate_best_penalty(df_data_surv)
-
-        # ✅ Signal step 2 complete
         progress_state["survival_done"] = True
 
         print("Proceeding to model training...")
         class Config:
             parameters_dir = r"machine_learning\parameters.json"
-            target_feature = 'dtp_bracket'
-            test_size = 0.3
-            time_points = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450]
+            target_feature  = "dtp_bracket"
+            test_size       = 0.3
+            time_points     = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300,
+                                330, 360, 390, 420, 450]
         args = Config()
 
-        results_dict, class_mappings_dict = run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty)
-
-        # ✅ Signal step 3 complete
+        results_df, class_mappings_dict = run_model_training(
+            df_data, df_data_surv, models_data, balancing_data, args, best_penalty
+        )
         progress_state["training_done"] = True
 
-        end_time = datetime.now()
+        end_time           = datetime.now()
         total_training_time = end_time - start_time
 
-        # Convert to JSON-serializable types before saving
-        start_time_str = start_time.isoformat()
-        end_time_str = end_time.isoformat()
-        total_training_time_str = str(total_training_time)
-
-        save_training_results(results_dict, class_mappings_dict, "Results", models_data, start_time_str, end_time_str, total_training_time_str)
+        save_training_results(
+            results_df,
+            class_mappings_dict,
+            "Results",
+            models_data,
+            start_time.isoformat(),
+            end_time.isoformat(),
+            str(total_training_time),
+        )
         progress_state["saving_done"] = True
 
         return "done"

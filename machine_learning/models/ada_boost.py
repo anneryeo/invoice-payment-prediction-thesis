@@ -1,7 +1,7 @@
-import numpy as np
 from sklearn.ensemble import AdaBoostClassifier
 from sklearn.feature_selection import SelectFromModel
 from .base_pipeline import BasePipeline
+
 
 class AdaBoostPipeline(BasePipeline):
     def initialize_model(self):
@@ -14,29 +14,23 @@ class AdaBoostPipeline(BasePipeline):
         if self.model is None:
             raise ValueError("Model not built. Call initialize_model() first.")
 
-        # Fit model on training data
         self.model.fit(self.X_train, self.y_train)
 
         if use_feature_selection:
-            # Fit selector
-            self.selector = SelectFromModel(self.model, threshold=threshold)
-            self.selector.fit(self.X_train, self.y_train)
+            self.selector = SelectFromModel(self.model, threshold=threshold, prefit=True)
 
-            # Transform train/test once
+            mask = self.selector.get_support()
             self.X_train = self.selector.transform(self.X_train)
             self.X_test  = self.selector.transform(self.X_test)
 
-            # Save selected feature names
-            if self.original_feature_names is not None:
-                mask = self.selector.get_support()
-                self.selected_feature_names = [
-                    name for name, keep in zip(self.original_feature_names, mask) if keep
-                ]
+            # Capture weights before retrain overwrites importances
+            self._set_features(
+                method=f"AdaBoost feature_importances_ (weighted estimator votes, threshold={threshold!r})",
+                mask=mask
+            )
 
-            # Retrain model on reduced features
             self.model.fit(self.X_train, self.y_train)
         else:
-            # If no feature selection, keep all original names
-            self.selected_feature_names = self.original_feature_names
+            self._set_features(method="none")
 
         return self

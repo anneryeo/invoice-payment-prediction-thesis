@@ -1,28 +1,35 @@
 import os
 import json
 import numpy as np
+import pandas as pd
 from datetime import datetime
 
-class _NumpyEncoder(json.JSONEncoder):
-    """Custom JSON encoder that converts numpy scalar types to native Python types."""
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        if isinstance(obj, np.floating):
-            return float(obj)
-        if isinstance(obj, np.ndarray):
-            return obj.tolist()
-        return super().default(obj)
 
-def save_training_results(results_dict, class_mappings_dict, base_output_folder, model_names, start_time, end_time, total_run_time):
+def _sanitize_for_json(obj):
+    """Recursively convert numpy types to native Python types for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_for_json(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_sanitize_for_json(i) for i in obj]
+    if isinstance(obj, np.integer):
+        return int(obj)
+    if isinstance(obj, np.floating):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    return obj
+
+
+def save_training_results(results_df, class_mappings_dict, base_output_folder, model_names, start_time, end_time, total_run_time):
     """
     Save training results, class mappings, and metadata to a dynamically created run folder.
 
     Parameters
     ----------
-    results_dict : dict
-        Dictionary keyed by model name containing evaluation results
-        (metrics + raw chart data) and features.
+    results_df : pd.DataFrame
+        Flat DataFrame where each row is one experiment run. Contains all
+        baseline and enhanced evaluation metrics, curve data, and feature
+        selection info as columns.
     class_mappings_dict : dict
         Dictionary mapping original class labels to their encoded
         integer representations.
@@ -30,12 +37,12 @@ def save_training_results(results_dict, class_mappings_dict, base_output_folder,
         Base path where run folders will be created.
     model_names : list of str
         List of model names that were trained in this experiment run.
-    start_time : float
-        Timestamp (from time.time()) when training started.
-    end_time : float
-        Timestamp (from time.time()) when training ended.
-    total_run_time : float
-        Total run time in seconds.
+    start_time : str
+        ISO format timestamp when training started.
+    end_time : str
+        ISO format timestamp when training ended.
+    total_run_time : str
+        Total run time as a formatted string.
 
     Returns
     -------
@@ -56,32 +63,32 @@ def save_training_results(results_dict, class_mappings_dict, base_output_folder,
             break
         run_index += 1
 
-    # Save results JSON
-    results_path = os.path.join(run_folder_path, "results.json")
-    with open(results_path, "w") as f:
-        json.dump(results_dict, f, indent=4, cls=_NumpyEncoder)
+    # Save results as parquet — preserves Python objects (lists, dicts) better than CSV
+    results_path = os.path.join(run_folder_path, "results.parquet")
+    results_df.to_parquet(results_path, index=False)
 
     # Save class mappings JSON
     class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
     with open(class_mappings_path, "w") as f:
-        json.dump(class_mappings_dict, f, indent=4, cls=_NumpyEncoder)
+        json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
 
     # Compute metadata
     metadata = {
-        "timestamp": datetime.now().isoformat(),
-        "num_models_trained": len(model_names),
-        "model_names": model_names,
-        "training_start_time": start_time,
-        "training_end_time": end_time,
-        "training_run_time": total_run_time,
-        "results_file_path": results_path,
-        "class_mappings_file_path": class_mappings_path
+        "timestamp":                datetime.now().isoformat(),
+        "num_models_trained":       len(model_names),
+        "model_names":              model_names,
+        "num_experiments":          len(results_df),
+        "training_start_time":      start_time,
+        "training_end_time":        end_time,
+        "training_run_time":        total_run_time,
+        "results_file_path":        results_path,
+        "class_mappings_file_path": class_mappings_path,
     }
 
     # Save metadata JSON
     metadata_path = os.path.join(run_folder_path, "metadata.json")
     with open(metadata_path, "w") as f:
-        json.dump(metadata, f, indent=4, cls=_NumpyEncoder)
+        json.dump(metadata, f, indent=4)
 
     print(f"Results, class mappings, and metadata saved to {run_folder_path}")
     return metadata, run_folder_path

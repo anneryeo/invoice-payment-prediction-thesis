@@ -1,4 +1,4 @@
-import json
+import pandas as pd
 from joblib import Parallel, delayed
 from joblib.externals.loky import get_reusable_executor
 from tqdm import tqdm
@@ -200,12 +200,13 @@ class SurvivalExperimentRunner:
     # Single experiment runner
     # -----------------------------
     def run_model_experiment(self, model_name, pipeline_class, param,
-                             dataset, balance_strategy, threshold):
+                            dataset, balance_strategy, threshold):
         """
         Run a single experiment for a given model, parameter set, and dataset.
 
-        Executes both baseline and enhanced pipelines, performs training, evaluation,
-        and feature selection, then returns a result entry with a unique composite key.
+        Executes both baseline and enhanced pipelines, performs training and
+        evaluation, then returns a flat result dict suitable for direct
+        concatenation into a pandas DataFrame.
 
         Parameters
         ----------
@@ -216,54 +217,58 @@ class SurvivalExperimentRunner:
         param : dict
             Parameter set for the model.
         dataset : tuple
-            Prepared dataset including survival features.
+            Prepared dataset of the form:
+            (X_train, X_test, y_train, y_test, X_survival_train, X_survival_test).
         balance_strategy : str
-            Balancing strategy used.
+            Balancing strategy used to prepare the dataset.
         threshold : float or None
-            Threshold for hybrid balancing strategy.
+            Threshold for hybrid balancing strategy. None if not applicable.
 
         Returns
         -------
-        tuple
-            (unique_key, result_dict) where unique_key is a composite of
-            model_name, balance_strategy, threshold, and param index.
+        dict
+            Flat dictionary with the following keys:
+            - model, parameters, balance_strategy, undersample_threshold
+            - baseline_accuracy, baseline_precision_macro, baseline_recall_macro,
+            baseline_f1_macro, baseline_roc_auc_macro, baseline_confusion_matrix,
+            baseline_roc_curve, baseline_pr_curve
+            - baseline_feature_method, baseline_feature_selected, baseline_feature_weights
+            - enhanced_accuracy, enhanced_precision_macro, enhanced_recall_macro,
+            enhanced_f1_macro, enhanced_roc_auc_macro, enhanced_confusion_matrix,
+            enhanced_roc_curve, enhanced_pr_curve
+            - enhanced_feature_method, enhanced_feature_selected, enhanced_feature_weights
         """
         (X_train, X_test, y_train, y_test,
-         X_survival_train, X_survival_test) = dataset
+        X_survival_train, X_survival_test) = dataset
 
         # Baseline pipeline
         pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, self.args, param)
         pipeline_baseline.initialize_model().fit(use_feature_selection=self.feature_selection_baseline)
         result_baseline = pipeline_baseline.evaluate().show_results()
-        features_baseline = pipeline_baseline.get_selected_features()
 
         # Enhanced pipeline
         pipeline_enhanced = pipeline_class(X_survival_train, X_survival_test, y_train, y_test, self.args, param)
         pipeline_enhanced.initialize_model().fit(use_feature_selection=self.feature_selection_enhanced)
         result_enhanced = pipeline_enhanced.evaluate().show_results()
-        features_enhanced = pipeline_enhanced.get_selected_features()
 
-        # Unique key: model + strategy + threshold + param fingerprint
-        threshold_str = str(threshold) if threshold is not None else "none"
         param_str = str(sorted(param.items())) if isinstance(param, dict) else str(param)
-        unique_key = f"{model_name}__{balance_strategy}__{threshold_str}__{param_str}"
 
-        result = {
-            "model": model_name,
-            "parameters": param_str,
-            "balance_strategy": balance_strategy,
+        return {
+            "model":                 model_name,
+            "parameters":            param_str,
+            "balance_strategy":      balance_strategy,
             "undersample_threshold": threshold,
-            "baseline": {
-                "evaluation": result_baseline,
-                "features": features_baseline,
-            },
-            "enhanced": {
-                "evaluation": result_enhanced,
-                "features": features_enhanced,
-            },
-        }
 
-        return unique_key, result
+            **{f"baseline_{k}": v for k, v in result_baseline.items()},
+            "baseline_feature_method":   pipeline_baseline.features.method,
+            "baseline_feature_selected": pipeline_baseline.features.selected,
+            "baseline_feature_weights":  pipeline_baseline.features.weights,
+
+            **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
+            "enhanced_feature_method":   pipeline_enhanced.features.method,
+            "enhanced_feature_selected": pipeline_enhanced.features.selected,
+            "enhanced_feature_weights":  pipeline_enhanced.features.weights,
+        }
 
     # -----------------------------
     # Main experiment runner
@@ -274,34 +279,32 @@ class SurvivalExperimentRunner:
 
         Iterates over balance strategies and thresholds, prepares datasets,
         builds tasks for all models and parameters, executes them in parallel
-        (or sequentially if specified), and aggregates results.
+        (or sequentially if specified), and aggregates all results into a
+        flat pandas DataFrame suitable for immediate analysis or export.
 
         Returns
         -------
         tuple
-            A 2-tuple of (all_results, class_mappings):
+            A 2-tuple of (results_df, class_mappings):
 
-            all_results : dict
-                Dictionary keyed by unique experiment key. Each entry contains:
-                - parameters: str
-                    Stringified parameter set used for the model.
-                - balance_strategy: str
-                    Balancing strategy applied to the dataset.
-                - undersample_threshold: float or None
-                    Threshold used for hybrid balancing strategy.
-                - baseline: dict
-                    Contains evaluation results (metrics + raw chart data)
-                    and selected features for the baseline pipeline.
-                - enhanced: dict
-                    Contains evaluation results (metrics + raw chart data)
-                    and selected features for the enhanced pipeline.
+            results_df : pd.DataFrame
+                Each row is one experiment run. Columns are:
+                - model, parameters, balance_strategy, undersample_threshold
+                - baseline_accuracy, baseline_precision_macro, baseline_recall_macro,
+                baseline_f1_macro, baseline_roc_auc_macro, baseline_confusion_matrix,
+                baseline_roc_curve, baseline_pr_curve
+                - baseline_feature_method, baseline_feature_selected, baseline_feature_weights
+                - enhanced_accuracy, enhanced_precision_macro, enhanced_recall_macro,
+                enhanced_f1_macro, enhanced_roc_auc_macro, enhanced_confusion_matrix,
+                enhanced_roc_curve, enhanced_pr_curve
+                - enhanced_feature_method, enhanced_feature_selected, enhanced_feature_weights
 
             class_mappings : dict
                 Dictionary mapping original class labels to their encoded
                 integer representations, as produced by the label encoder
                 during dataset preparation.
         """
-        parallel_tasks = []
+        parallel_tasks   = []
         sequential_tasks = []
 
         for balance_strategy in self.balance_strategies:
@@ -319,19 +322,18 @@ class SurvivalExperimentRunner:
                             parallel_tasks.append(delayed(self.run_model_experiment)(*task_args))
 
         total = len(parallel_tasks) + len(sequential_tasks)
-        progress_state["total"] = total
+        progress_state["total"]    = total
         progress_state["completed"] = 0
-        all_results = {}
+        all_results = []
 
         if parallel_tasks:
             with self.tqdm_joblib(len(parallel_tasks)) as pbar:
                 parallel_results = Parallel(n_jobs=self.n_jobs)(parallel_tasks)
-            for unique_key, result in parallel_results:
-                all_results[unique_key] = result
+            all_results.extend(parallel_results)
 
         for task_args in sequential_tasks:
-            unique_key, result = self.run_model_experiment(*task_args)
-            all_results[unique_key] = result
+            result = self.run_model_experiment(*task_args)
+            all_results.append(result)
             progress_state["completed"] += 1
 
-        return all_results, self.class_mappings
+        return pd.DataFrame(all_results), self.class_mappings

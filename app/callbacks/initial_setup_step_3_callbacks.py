@@ -115,7 +115,7 @@ def clean_datasets(revenues_content, enrollees_content):
     df_enrollees = pd.read_excel(io.BytesIO(enrollees_bytes))
 
     class Config:
-        observation_end = datetime(2026, 3, 3, 23, 59, 59)
+        observation_end = datetime(2026, 3, 5, 23, 59, 59)
     args = Config()
 
     cs = CreditSales(df_revenues, df_enrollees, args,
