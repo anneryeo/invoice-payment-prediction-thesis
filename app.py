@@ -1,7 +1,7 @@
 from dash import dcc, html, Input, Output
 import dash_bootstrap_components as dbc
 
-from MachineLearning.Utils.model_manager import has_trained_models
+from app.utils.model_manager import has_trained_models
 
 # Import the single Dash instance created in app/__init__.py
 from app import dash_app, server

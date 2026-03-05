@@ -129,7 +129,7 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
 
         print("Proceeding to model training...")
         class Config:
-            parameters_dir = r"MachineLearning\parameters.json"
+            parameters_dir = r"machine_learning\parameters.json"
             target_feature = 'dtp_bracket'
             test_size = 0.3
             time_points = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300, 330, 360, 390, 420, 450]
