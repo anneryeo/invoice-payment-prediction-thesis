@@ -96,9 +96,11 @@ def toggle_confirm_button(trees, prob, neighbors, nn, balancing, stored_models, 
     selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or [])
     selected_balancing = balancing or []
 
-    # Update stores safely
-    models_data = selected_models if selected_models else (stored_models or [])
-    balancing_data = selected_balancing if selected_balancing else (stored_balancing or [])
+    # Use selected values directly so that unchecking all correctly yields an empty list.
+    # Previously, the fallback to stored_* meant an empty selection was ignored,
+    # preventing the button from ever being disabled after initial load.
+    models_data = selected_models
+    balancing_data = selected_balancing
 
     # Button enabled only if both lists are non-empty
     disabled = not (models_data and balancing_data)
