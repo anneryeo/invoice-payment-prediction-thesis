@@ -1,8 +1,8 @@
-import time
 import base64
 import io
 import pandas as pd
 from datetime import datetime
+from time import time
 
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, html, dcc, no_update
@@ -19,7 +19,8 @@ from MachineLearning import (
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
-from MachineLearning.Utils.run_models_parallel import SurvivalExperimentRunner, progress_state
+from MachineLearning.Utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
+
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  HTML LAYOUT — STEP 3
@@ -35,14 +36,19 @@ html_step_3 = html.Div(
             children=[
 
                 # Left column  (labels that sit on the LEFT side)
+                # Mirrors center exactly: circle / connector / circle / connector / circle / connector / circle
                 html.Div(className="sub-col-left", children=[
-                    html.Div(className="sub-col-left-row sub-col-top", children=[
+                    html.Div(className="sub-col-left-row sub-col-circle", children=[       # beside step1 circle
                         html.Span("Extraction of Invoice Details.", id="step1-status", className="sub-label"),
                     ]),
-                    html.Div(className="sub-col-left-row sub-col-mid"),
-                    html.Div(className="sub-col-left-row sub-col-bot", children=[
-                        html.Span("Training of Model/s.", className="sub-label"),
+                    html.Div(className="sub-col-left-row sub-col-connector"),              # beside connector 1
+                    html.Div(className="sub-col-left-row sub-col-circle"),                 # beside step2 circle
+                    html.Div(className="sub-col-left-row sub-col-connector"),              # beside connector 2
+                    html.Div(className="sub-col-left-row sub-col-circle", children=[      # beside step3 circle
+                        html.Span("Training of Model/s.", id="step3-status", className="sub-label"),
                     ]),
+                    html.Div(className="sub-col-left-row sub-col-connector"),              # beside connector 3
+                    html.Div(className="sub-col-left-row sub-col-circle"),                 # beside step4 circle
                 ]),
 
                 # Center column  (circles + connecting line)
@@ -52,15 +58,24 @@ html_step_3 = html.Div(
                     html.Div(className="sub-circle future", id="sub-step2"),
                     html.Div(className="sub-connector"),
                     html.Div(className="sub-circle future", id="sub-step3"),
+                    html.Div(className="sub-connector"),
+                    html.Div(className="sub-circle future", id="sub-step4"),
                 ]),
 
                 # Right column  (labels that sit on the RIGHT side)
+                # Mirrors center exactly: circle / connector / circle / connector / circle / connector / circle
                 html.Div(className="sub-col-right", children=[
-                    html.Div(className="sub-col-right-row sub-col-top"),
-                    html.Div(className="sub-col-right-row sub-col-mid", children=[
-                        html.Span("Training Survival Analysis Model.", id="step2-status", className="sub-label"),
+                    html.Div(className="sub-col-right-row sub-col-circle"),                # beside step1 circle
+                    html.Div(className="sub-col-right-row sub-col-connector"),             # beside connector 1
+                    html.Div(className="sub-col-right-row sub-col-circle", children=[     # beside step2 circle
+                        html.Span("Train Survival Analysis Model.", id="step2-status", className="sub-label"),
                     ]),
-                    html.Div(className="sub-col-right-row sub-col-bot"),
+                    html.Div(className="sub-col-right-row sub-col-connector"),             # beside connector 2
+                    html.Div(className="sub-col-right-row sub-col-circle"),                # beside step3 circle
+                    html.Div(className="sub-col-right-row sub-col-connector"),             # beside connector 3
+                    html.Div(className="sub-col-right-row sub-col-circle", children=[     # beside step4 circle
+                        html.Span("Save Model Results.", id="step4-status", className="sub-label"),
+                    ]),
                 ]),
             ],
         ),
@@ -140,7 +155,7 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
     selected_pipelines = {m: PIPELINE_MAP[m] for m in models_data if m in PIPELINE_MAP}
 
     # GPU models — avoid parallel compute to prevent bugs
-    do_not_parallel_compute = ['xg_boost', 'nn_mlp', 'nn_transformer']
+    do_not_parallel_compute = ['nn_transformer']
 
     runner = SurvivalExperimentRunner(
         df_data=df_data,
@@ -152,12 +167,13 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         thresholds=None,
         n_jobs=-1,
         do_not_parallel_compute=do_not_parallel_compute,
-        output_path="MachineLearning/Results/model_results.xlsx",
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
     )
 
-    df_results = runner.run()
+    json_results = runner.run()
+
+    return json_results
 
 
 def evaluate_model(models_data):
@@ -172,23 +188,24 @@ def generate_reports():
 def finalize_pipeline():
     print("Finalizing pipeline...")
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  CALLBACKS — STEP 3
 # ══════════════════════════════════════════════════════════════════════════════
 
-progress_state["start_time"] = time.time()
+progress_state["start_time"] = time()
 
-# ── Step status text ──────────────────────────────────────────────────────────
-# Single callback owns both outputs — avoids duplicate-output conflict.
-# Inputs: interval for polling + stored data to detect file upload immediately.
+
+# ── Circle colors ─────────────────────────────────────────────────────────────
 @dash_app.callback(
     [Output("sub-step1", "className"),
      Output("sub-step2", "className"),
-     Output("sub-step3", "className")],
+     Output("sub-step3", "className"),
+     Output("sub-step4", "className")],
     Input("progress-interval", "n_intervals"),
 )
 def update_sub_steps(n):
-    # Step 1
+    # Step 1 — extraction
     if progress_state.get("extraction_done"):
         step1_class = "sub-circle complete"
     elif progress_state.get("start_time"):
@@ -196,7 +213,7 @@ def update_sub_steps(n):
     else:
         step1_class = "sub-circle future"
 
-    # Step 2
+    # Step 2 — survival analysis
     if progress_state.get("survival_done"):
         step2_class = "sub-circle complete"
     elif progress_state.get("extraction_done"):
@@ -204,7 +221,7 @@ def update_sub_steps(n):
     else:
         step2_class = "sub-circle future"
 
-    # Step 3
+    # Step 3 — model training
     completed = int(progress_state.get("completed", 0) or 0)
     total = int(progress_state.get("total", 0) or 0)
     if total > 0 and completed >= total:
@@ -214,12 +231,23 @@ def update_sub_steps(n):
     else:
         step3_class = "sub-circle future"
 
-    return step1_class, step2_class, step3_class
+    # Step 4 — saving results
+    if progress_state.get("saving_done"):
+        step4_class = "sub-circle complete"
+    elif total > 0 and completed >= total:
+        step4_class = "sub-circle active"
+    else:
+        step4_class = "sub-circle future"
+
+    return step1_class, step2_class, step3_class, step4_class
 
 
+# ── Step status text ──────────────────────────────────────────────────────────
 @dash_app.callback(
     [Output("step1-status", "children"),
-     Output("step2-status", "children")],
+     Output("step2-status", "children"),
+     Output("step3-status", "children"),
+     Output("step4-status", "children")],
     [Input("progress-interval", "n_intervals"),
      Input("stored_revenue", "data"),
      Input("stored_enrollees", "data")],
@@ -227,20 +255,35 @@ def update_sub_steps(n):
 )
 def update_step_statuses(n, revenue_data, enrollees_data):
     step1 = "Extraction of Invoice Details."
-    step2 = "Training Survival Analysis Model."
+    step2 = "Train Survival Analysis Model."
+    step3 = "Train All Models."
+    step4 = "Saving Model Results."
 
+    # Step 1
     if revenue_data and enrollees_data:
         step1 = "Extracting invoice details..."
-
     if progress_state.get("extraction_done"):
         step1 = "Invoice details extracted."
 
+    # Step 2
     if progress_state.get("survival_done"):
         step2 = "Survival analysis completed."
     elif progress_state.get("extraction_done"):
         step2 = "Training survival analysis model..."
 
-    return step1, step2
+    # Step 3
+    if progress_state.get("training_done"):
+        step3 = "Model training completed."
+    elif progress_state.get("training_done"):
+        step3 = "Training various model/s..."
+
+    # Step 4
+    if progress_state.get("saving_done"):
+        step4 = "Model results saved."
+    elif progress_state.get("saving_done", 0) >= progress_state.get("total", 1) > 0:
+        step4 = "Saving model results..."
+
+    return step1, step2, step3, step4
 
 
 # ── Progress bar + text + button enable ───────────────────────────────────────
@@ -256,7 +299,7 @@ def update_progress(n):
     start_time = progress_state.get("start_time")
 
     if total > 0 and completed > 0 and start_time:
-        elapsed = time.time() - start_time
+        elapsed = time() - start_time
         avg_per_exp = elapsed / completed
         remaining = avg_per_exp * (total - completed)
 
@@ -269,7 +312,9 @@ def update_progress(n):
 
         percent = int((completed / total) * 100)
         if completed >= total:
-            return 100, f"All {total} models trained (100%)", False
+            # Keep button disabled until saving is also done
+            saving_done = progress_state.get("saving_done", False)
+            return 100, f"All {total} models trained (100%)", not saving_done
         else:
             return percent, f"{completed}/{total} models trained ({percent}%) — {eta_str}", True
 
