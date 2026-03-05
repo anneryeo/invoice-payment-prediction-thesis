@@ -343,6 +343,9 @@ input[type="checkbox"] {
     background: #005a9e;
 }
 
+
+
+
 /* =================================
    SUB-PROGRESS VERTICAL LINE STYLES
    ================================= */
@@ -366,7 +369,7 @@ input[type="checkbox"] {
     width: 100%;
 }
 
-/* ── Side columns: mirror the center column's flex layout exactly ── */
+/* ── Side columns ── */
 .sub-col-left,
 .sub-col-right {
     display: flex;
@@ -374,58 +377,32 @@ input[type="checkbox"] {
     align-items: stretch;
 }
 
-/* Each side row stretches to match its corresponding center slot.
-   Circles and connectors in .sub-col-center use flex-shrink:0 and flex:1,
-   so we replicate that pattern here for pixel-perfect alignment. */
-
-/* Rows that sit beside a CIRCLE — fixed height matching the circle */
-.sub-col-top,
-.sub-col-bot {
+/* Row beside a CIRCLE — fixed height matching the circle size */
+.sub-col-circle {
     flex-shrink: 0;
-    height: 1.3em;          /* matches .sub-circle width/height */
-    display: flex;
-    align-items: center;    /* vertically center text with circle */
-}
-
-/* Row that sits beside a CONNECTOR — grows to fill the gap */
-.sub-col-mid {
-    flex: 1;
-    min-height: 2.5em;      /* matches .sub-connector min-height */
-    display: flex;
-    align-items: center;    /* vertically center "Training Survival Analysis" */
-}
-
-.sub-col-left .sub-col-top,
-.sub-col-left .sub-col-mid,
-.sub-col-left .sub-col-bot {
-    justify-content: flex-end;
-    padding-right: 1em;
-}
-
-.sub-col-right .sub-col-top,
-.sub-col-right .sub-col-mid,
-.sub-col-right .sub-col-bot {
-    justify-content: flex-start;
-    padding-left: 1em;
-}
-
-
-
-
-/* Each row in the side columns matches the height of one circle + connector */
-.sub-col-left-row,
-.sub-col-right-row {
+    height: 1.3em;
     display: flex;
     align-items: center;
-    flex: 1;                          /* stretch to fill available height */
 }
 
-.sub-col-left-row {
+/* Row beside a CONNECTOR — grows to fill the connector gap */
+.sub-col-connector {
+    flex: 1;
+    min-height: 2.5em;
+    display: flex;
+    align-items: center;
+}
+
+/* Left side: labels flush right toward the circle */
+.sub-col-left .sub-col-circle,
+.sub-col-left .sub-col-connector {
     justify-content: flex-end;
     padding-right: 1em;
 }
 
-.sub-col-right-row {
+/* Right side: labels flush left toward the circle */
+.sub-col-right .sub-col-circle,
+.sub-col-right .sub-col-connector {
     justify-content: flex-start;
     padding-left: 1em;
 }
@@ -440,8 +417,8 @@ input[type="checkbox"] {
 /* ── Connector line between circles ── */
 .sub-connector {
     width: 3px;
-    flex: 1;                          /* fills gap between circles exactly */
-    min-height: 2.5em;                /* minimum breathing room */
+    flex: 1;
+    min-height: 2.5em;
     background-color: #ccc;
 }
 
