@@ -546,7 +546,7 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
             "<b style='color:#94a3b8;'>Actual&#160;&#160;&#160;&#160;&#160;&#160;</b>%{customdata[0]}<br>"
             "<b style='color:#94a3b8;'>Predicted&#160;&#160;&#160;</b>%{customdata[1]}<br>"
             "<b style='color:#94a3b8;'>Count&#160;&#160;&#160;&#160;&#160;&#160;&#160;</b>%{customdata[2]}<br>"
-            "<b style='color:#94a3b8;'>Percentage&#160;</b>%{customdata[3]:.1f}%"
+            "<b style='color:#94a3b8;'>Percentage&#160;</b>&#160;%{customdata[3]:.1f}%"
             "<extra></extra>"
         ),
     ))
@@ -633,13 +633,13 @@ def build_features_figure(model_key: str, result_type: str,
     layout["xaxis"]["title"]      = "Importance Score"
     layout["xaxis"]["fixedrange"] = True
     layout["yaxis"]["autorange"]  = "reversed"
-    layout["yaxis"]["fixedrange"] = True
+    layout["yaxis"]["fixedrange"] = False  # must be False so Plotly.relayout can update on scroll
     layout["margin"]["l"] = left_margin
     layout["margin"]["r"] = 60
     layout["margin"]["t"] = 16    # small top margin since title is outside
     layout["margin"]["b"] = 48
-    # Height scales with features — scroll wrapper caps visible height
-    layout["height"] = max(300, 30 * len(features) + 90)
+    n = len(features)
+    layout["height"] = max(470, 25 * n)
 
     # Per-bar text color based on background luminance for contrast
     # #1d4ed8 (dark blue) → white text; #93c5fd (light blue) / #fca5a5 (light red) → dark text
@@ -724,7 +724,8 @@ html_step_4 = html.Div(
         dcc.Store(id="selected-model-store",    data=""),
         dcc.Store(id="page-store",              data=0),
         dcc.Store(id="step4-data-loaded",       data=False),
-        dcc.Store(id="features-positive-store", data=False),  # True = hide negatives
+        dcc.Store(id="features-positive-store", data=True),   # True = hide negatives
+        dcc.Store(id="features-scroll-store",   data={"top": 0, "bar_height": 30}),
 
         # ── Parameter tooltip (shown on model-row hover) ─────────────────────
         html.Div(id="params-tooltip", className="params-tooltip", children=[
@@ -756,15 +757,19 @@ html_step_4 = html.Div(
                     html.Div(className="features-card-header", children=[
                         html.Span("Selected Features · Importance", className="features-card-title"),
                         html.Button(
-                            "＋ / − Show All",
+                            "✦ Positive Only",
                             id="features-filter-btn",
-                            className="chart-toolbar-btn",
+                            className="chart-toolbar-btn chart-toolbar-btn-active",
                             title="Toggle: show all features / positive importance only",
                         ),
                     ]),
-                    html.Div(className="features-scroll-wrap", children=[
-                        dcc.Graph(id="chart-features", config={"displayModeBar": False}),
-                    ]),
+                    html.Div(
+                        id="features-scroll-wrap",
+                        className="features-scroll-wrap",
+                        children=[
+                            dcc.Graph(id="chart-features", config={"displayModeBar": False}),
+                        ]
+                    ),
                 ]),
             ]),
         ]),
@@ -1148,31 +1153,88 @@ def update_charts(model_key, result_type, _loaded, positives_only):
     )
 
 
-# ── Parameter tooltip — clientside hover ─────────────────────────────────────
+
+# ── Features scroll → reset to top + bind axis-update on figure change ────────
 dash_app.clientside_callback(
     """
-    function(n) {
-        if (window._paramsTooltipBound) return window.dash_clientside.no_update;
-        window._paramsTooltipBound = true;
+    function(figure) {
+        if (!figure || !figure.data) return window.dash_clientside.no_update;
 
+        var wrap = document.getElementById('features-scroll-wrap');
+        if (!wrap) return window.dash_clientside.no_update;
+
+        wrap.scrollTop = 0;
+
+        if (wrap._scrollHandler) {
+            wrap.removeEventListener('scroll', wrap._scrollHandler);
+        }
+
+        function updateAxes() {
+            var graphDiv = wrap.querySelector('.js-plotly-plot');
+            if (!graphDiv || !graphDiv.data || !graphDiv.data[0]) return;
+
+            var xVals = graphDiv.data[0].x;
+            if (!xVals || xVals.length === 0) return;
+
+            var n          = xVals.length;
+            var scrollH    = wrap.scrollHeight;
+            var clientH    = wrap.clientHeight;
+            var scrollTop  = wrap.scrollTop;
+            var barH       = scrollH / n;
+            var barsVisible = Math.round(clientH / barH);
+            var first      = Math.floor(scrollTop / barH);
+            var last       = Math.min(first + barsVisible - 1, n - 1);
+
+            var slice  = xVals.slice(first, last + 1);
+            var xMin   = Math.min.apply(null, slice);
+            var xMax   = Math.max.apply(null, slice);
+            var xStart = Math.min(0, xMin);
+            var xEnd   = xMax >= 0 ? xMax * 1.15 : xMax * 0.85;
+
+            Plotly.relayout(graphDiv, {
+                'yaxis.range':     [last + 0.5, first - 0.5],
+                'yaxis.autorange': false,
+                'xaxis.range':     [xStart, xEnd],
+                'xaxis.autorange': false
+            });
+        }
+
+        wrap._scrollHandler = function() {
+            if (wrap._raf) cancelAnimationFrame(wrap._raf);
+            wrap._raf = requestAnimationFrame(updateAxes);
+        };
+
+        wrap.addEventListener('scroll', wrap._scrollHandler);
+        setTimeout(updateAxes, 120);
+
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("features-scroll-store", "data"),
+    Input("chart-features", "figure"),
+    prevent_initial_call=True,
+)
+
+
+dash_app.clientside_callback(
+    """
+    function(tableChildren) {
         const tooltip = document.getElementById('params-tooltip');
         const content = document.getElementById('params-tooltip-content');
         if (!tooltip || !content) return window.dash_clientside.no_update;
 
+        // Remove previous listeners by replacing with cloned nodes (avoids stacking)
+        const newTooltip = tooltip.cloneNode(true);
+        tooltip.parentNode.replaceChild(newTooltip, tooltip);
+        const newContent = newTooltip.querySelector('#params-tooltip-content');
+
         let mouseX = 0, mouseY = 0;
-        document.addEventListener('mousemove', function(e) {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
-            if (tooltip.classList.contains('params-tooltip-visible')) {
-                positionTooltip();
-            }
-        });
 
         function positionTooltip() {
             const scrollY = window.scrollY || document.documentElement.scrollTop;
             const scrollX = window.scrollX || document.documentElement.scrollLeft;
-            const tipW = tooltip.offsetWidth  || 220;
-            const tipH = tooltip.offsetHeight || 100;
+            const tipW = newTooltip.offsetWidth  || 220;
+            const tipH = newTooltip.offsetHeight || 100;
             const vw   = window.innerWidth;
 
             let left = mouseX + scrollX + 14;
@@ -1181,44 +1243,20 @@ dash_app.clientside_callback(
             if (mouseX + 14 + tipW > vw) left = mouseX + scrollX - tipW - 14;
             if (mouseY - tipH - 10 < 0)  top  = mouseY + scrollY + 18;
 
-            tooltip.style.left = left + 'px';
-            tooltip.style.top  = top  + 'px';
+            newTooltip.style.left = left + 'px';
+            newTooltip.style.top  = top  + 'px';
         }
 
         function formatKey(k) {
-            // "learning_rate" → "Learning Rate"
-            return String(k)
-                .replace(/_/g, ' ')
-                .replace(/\\b\\w/g, c => c.toUpperCase());
+            return String(k).replace(/_/g, ' ').replace(/\\b\\w/g, c => c.toUpperCase());
         }
 
         function parseParams(raw) {
             if (!raw) return null;
-
-            // 1. Try standard JSON first
             try {
                 const obj = JSON.parse(raw);
                 if (obj && typeof obj === 'object' && !Array.isArray(obj)) return obj;
             } catch(_) {}
-
-            // 2. Handle Python repr: [('key', val), ...] or (('key', val), ...)
-            //    Also handles {"key": val, ...} with single quotes
-            const tupleMatch = raw.match(/[\\[\\(]\\s*\\(?\\s*['"](.*?)['"]/);
-            if (tupleMatch) {
-                const result = {};
-                const pairRe = /[\\(\\[]\\s*['"]([^'"]+)['"]\\s*,\\s*([^,\\)\\]]+?)\\s*[\\)\\]]/g;
-                let m;
-                while ((m = pairRe.exec(raw)) !== null) {
-                    const key = m[1].trim();
-                    let val = m[2].trim();
-                    // Coerce numerics
-                    const num = parseFloat(val);
-                    result[key] = isNaN(num) ? val : num;
-                }
-                if (Object.keys(result).length) return result;
-            }
-
-            // 3. Single-quoted dict: {'key': val, ...}
             try {
                 const jsonified = raw
                     .replace(/'/g, '"')
@@ -1228,27 +1266,40 @@ dash_app.clientside_callback(
                 const obj = JSON.parse(jsonified);
                 if (obj && typeof obj === 'object') return obj;
             } catch(_) {}
-
-            return null;
+            // Python list-of-tuples repr: [('key', val), ...]
+            const result = {};
+            const pairRe = /[\\(\\[]\\s*['"]([^'"]+)['"]\\s*,\\s*([^,\\)\\]]+?)\\s*[\\)\\]]/g;
+            let m;
+            while ((m = pairRe.exec(raw)) !== null) {
+                const num = parseFloat(m[2].trim());
+                result[m[1].trim()] = isNaN(num) ? m[2].trim() : num;
+            }
+            return Object.keys(result).length ? result : null;
         }
+
+        document.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            if (newTooltip.classList.contains('params-tooltip-visible')) positionTooltip();
+        });
 
         document.addEventListener('mouseover', function(e) {
             const row = e.target.closest('tr.model-row');
-            if (!row) { tooltip.classList.remove('params-tooltip-visible'); return; }
+            if (!row) { newTooltip.classList.remove('params-tooltip-visible'); return; }
 
             const raw = row.getAttribute('data-params');
             if (!raw || raw === '{}' || raw === '') {
-                tooltip.classList.remove('params-tooltip-visible');
+                newTooltip.classList.remove('params-tooltip-visible');
                 return;
             }
 
             const params = parseParams(raw);
             if (!params || !Object.keys(params).length) {
-                tooltip.classList.remove('params-tooltip-visible');
+                newTooltip.classList.remove('params-tooltip-visible');
                 return;
             }
 
-            content.innerHTML = Object.keys(params).map(k =>
+            newContent.innerHTML = Object.keys(params).map(k =>
                 '<div class="ptt-row">' +
                   '<span class="ptt-key">' + formatKey(k) + '</span>' +
                   '<span class="ptt-val">' + params[k] + '</span>' +
@@ -1256,13 +1307,13 @@ dash_app.clientside_callback(
             ).join('');
 
             positionTooltip();
-            tooltip.classList.add('params-tooltip-visible');
+            newTooltip.classList.add('params-tooltip-visible');
         });
 
         document.addEventListener('mouseout', function(e) {
             const row = e.target.closest('tr.model-row');
             if (row && !row.contains(e.relatedTarget)) {
-                tooltip.classList.remove('params-tooltip-visible');
+                newTooltip.classList.remove('params-tooltip-visible');
             }
         });
 
@@ -1270,8 +1321,8 @@ dash_app.clientside_callback(
     }
     """,
     Output("params-tooltip", "className"),
-    Input("step4-data-loaded", "data"),
-    prevent_initial_call=False,
+    Input("leaderboard-table-container", "children"),
+    prevent_initial_call=True,
 )
 
 

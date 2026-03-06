@@ -518,7 +518,7 @@
 .features-scroll-wrap {
     overflow-y: scroll;
     overflow-x: hidden;
-    max-height: 470px;
+    max-height: 470px;   /* 10 × 38px bars + ~90px margins */
     scrollbar-width: thin;
     scrollbar-color: #cbd5e1 transparent;
 }
