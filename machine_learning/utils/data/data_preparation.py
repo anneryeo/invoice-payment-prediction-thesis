@@ -1,11 +1,12 @@
 import pandas as pd
-from sklearn.preprocessing import LabelEncoder, StandardScaler
+from sklearn.preprocessing import LabelEncoder
 
 from imblearn.over_sampling import SMOTE, BorderlineSMOTE
 from imblearn.combine import SMOTEENN, SMOTETomek
 
 from .data_partitioning import data_partitioning_by_due_date
 from machine_learning.utils.balancing.hybrid_balance import HybridBalance
+from machine_learning.utils.data.normalize_data import normalize
 
 
 class DataPreparer:
@@ -102,7 +103,7 @@ class DataPreparer:
 
         return self
 
-    def resample(self, strategy="smote", undersample_threshold=0.5):
+    def resample(self, balance_strategy="smote", undersample_threshold=0.5):
         """
         Balance the training set using the specified resampling strategy.
 
@@ -127,18 +128,18 @@ class DataPreparer:
             "none": None,
         }
 
-        if strategy not in samplers:
+        if balance_strategy not in samplers:
             raise ValueError(
-                f"Invalid strategy '{strategy}'. "
+                f"Invalid strategy '{balance_strategy}'. "
                 f"Choose from: {list(samplers.keys())}"
             )
 
-        sampler = samplers[strategy]
+        sampler = samplers[balance_strategy]
 
         if sampler is None:
             self._log("No balancing applied.")
         else:
-            self._log(f"Applying {strategy}...")
+            self._log(f"Applying {balance_strategy}...")
             X_res, y_res = sampler.fit_resample(self.X_train, self.y_train)
             self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
             self.y_train = pd.Series(y_res, name=self.target_feature)
@@ -155,9 +156,9 @@ class DataPreparer:
         self
         """
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
-        scaler = StandardScaler()
-        self.X_train[numeric_cols] = scaler.fit_transform(self.X_train[numeric_cols])
-        self.X_test[numeric_cols] = scaler.transform(self.X_test[numeric_cols])
+
+        self.X_train[numeric_cols] = normalize(self.X_train[numeric_cols])
+        self.X_test[numeric_cols] = normalize(self.X_test[numeric_cols])
         return self
 
     def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
