@@ -104,7 +104,6 @@ dependencies:
   - lifelines=0.30.1=pyhd8ed1ab_0
   - llvm-openmp=21.1.8=h0d817ff_0
   - llvmlite=0.46.0=py312hdb9728c_0
-  - lz4-c=1.9.4=h2bbff1b_1
   - markdown-it-py=4.0.0=pyhd8ed1ab_0
   - markupsafe=3.0.3=py312h05f76fc_0
   - matplotlib-base=3.10.8=py312h26e45b9_0
@@ -196,7 +195,7 @@ dependencies:
   - zeromq=4.3.5=h5bddc39_9
   - zipp=3.23.0=py312haa95532_0
   - zlib=1.3.1=h02ab6af_0
-  - zstd=1.5.7=h56299aa_0
+  - zstd=1.5.7=h534d264_6
   - pip:
       - et-xmlfile==2.0.0
       - filelock==3.20.0
@@ -207,5 +206,6 @@ dependencies:
       - pandas==3.0.1
       - sympy==1.14.0
       - torch==2.10.0+cu126
+      - torchaudio==2.10.0
       - torchvision==0.25.0+cu126
 prefix: C:\Users\rjbel\anaconda3\envs\Thesis_IPPP
