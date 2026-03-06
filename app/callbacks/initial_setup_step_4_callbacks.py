@@ -308,11 +308,11 @@ def _base_layout(title_text: str) -> dict:
         paper_bgcolor="rgba(0,0,0,0)",
         plot_bgcolor="#f8fafc",
         font=dict(family="'IBM Plex Mono', monospace", color="#374151", size=10),
-        margin=dict(l=44, r=16, t=36, b=36),
+        margin=dict(l=52, r=28, t=60, b=48),
         title=dict(
             text=title_text,
             font=dict(family="'DM Serif Display', serif", size=13, color="#111827"),
-            x=0, xanchor="left", pad=dict(l=4),
+            x=0, xanchor="left", pad=dict(l=8, t=6),
         ),
         legend=dict(
             bgcolor="rgba(255,255,255,0.8)",
@@ -452,10 +452,10 @@ def build_pr_figure(model_key: str, result_type: str) -> go.Figure:
 # Short axis labels for the confusion matrix  (index → tick label)
 # Derived from _CLASS_MAPPINGS_RAW so they stay in sync automatically.
 _CM_TICK_LABELS: dict[int, str] = {
-    0: "30",
-    1: "60",
-    2: "90",
-    3: "OT",
+    0: "30 days",
+    1: "60 days",
+    2: "90 days",
+    3: "On Time",
 }
 
 
@@ -529,24 +529,24 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
     layout["xaxis"].update({"title": "Predicted", **axis_common})
     layout["yaxis"].update({"title": "Actual",    **axis_common})
 
+    # Standard convention: rows = Actual (Y), columns = Predicted (X).
+    # sklearn stores cm[actual][predicted], so cm_arr[i][j] = actual i, predicted j.
+    # Plotly Heatmap renders z[i] as row i from the bottom, so we transpose
+    # and flip the Y axis to get the canonical top-left = (Actual 0, Predicted 0) layout.
+    cm_plot = cm_arr.T
+
     fig = go.Figure(go.Heatmap(
-        z=cm_arr,
+        z=cm_plot,
         x=tick_vals,
         y=tick_vals,
         colorscale=[[0, "#eff6ff"], [0.5, "#93c5fd"], [1, "#1d4ed8"]],
         showscale=False,
         customdata=customdata,
         hovertemplate=(
-            "<span style='display:inline-block;padding:4px 6px;'>"
-            "<span style='color:#94a3b8;'>Actual</span>"
-            "<span style='float:right;margin-left:24px;font-weight:600;'>%{customdata[0]}</span><br>"
-            "<span style='color:#94a3b8;'>Predicted</span>"
-            "<span style='float:right;margin-left:24px;font-weight:600;'>%{customdata[1]}</span><br>"
-            "<span style='color:#94a3b8;'>Count</span>"
-            "<span style='float:right;margin-left:24px;font-weight:600;'>%{customdata[2]}</span><br>"
-            "<span style='color:#94a3b8;'>Percentage</span>"
-            "<span style='float:right;margin-left:24px;font-weight:600;'>%{customdata[3]:.1f}%</span>"
-            "</span>"
+            "<b style='color:#94a3b8;'>Actual&#160;&#160;&#160;&#160;&#160;&#160;</b>%{customdata[0]}<br>"
+            "<b style='color:#94a3b8;'>Predicted&#160;&#160;&#160;</b>%{customdata[1]}<br>"
+            "<b style='color:#94a3b8;'>Count&#160;&#160;&#160;&#160;&#160;&#160;&#160;</b>%{customdata[2]}<br>"
+            "<b style='color:#94a3b8;'>Percentage&#160;</b>%{customdata[3]:.1f}%"
             "<extra></extra>"
         ),
     ))
@@ -554,13 +554,17 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
     # ── Per-cell annotations with contrast-aware text colour ─────────────────
     for i in range(n):
         for j in range(n):
-            norm  = (float(cm_arr[i][j]) - z_min) / z_range
+            # cm_plot[i][j] = cm_arr[j][i]: predicted j, actual i in plot space
+            val  = cm_plot[i][j]
+            norm = (float(val) - z_min) / z_range
             r, g, b = _interp_color(norm)
             lum   = _relative_luminance(r, g, b)
             color = "#ffffff" if lum < 0.35 else "#111827"
+            # pct shown is row-normalised over the original cm_arr (actual rows)
+            pct_val = pct[j][i]
             fig.add_annotation(
                 x=j, y=i,
-                text=f"{cm_arr[i][j]}<br>{pct[i][j]:.1f}%",
+                text=f"{val}<br>{pct_val:.1f}%",
                 showarrow=False,
                 font=dict(size=10, color=color,
                           family="'IBM Plex Mono', monospace"),
@@ -609,21 +613,58 @@ def build_features_figure(model_key: str, result_type: str,
     importance = [p[0] for p in paired]
     features   = [p[1] for p in paired]
 
-    colors = [CHART_COLORS[0] if i == 0 else "#93c5fd" for i in range(len(features))]
+    # Per-bar colors: top bar accent blue, positive = light blue, negative = muted red-orange
+    colors = []
+    for idx, v in enumerate(importance):
+        if idx == 0:
+            colors.append(CHART_COLORS[0])          # #1d4ed8 — top feature
+        elif v >= 0:
+            colors.append("#93c5fd")                # light blue — positive
+        else:
+            colors.append("#fca5a5")                # light red — negative
 
-    title = "Selected Features · Importance" + (" (positive only)" if positives_only else "")
-    layout = _base_layout(title)
-    layout["xaxis"]["title"] = "Importance Score"
-    layout["yaxis"]["autorange"] = "reversed"
-    layout["margin"]["l"] = 120
+    # Dynamic left margin based on longest feature name to prevent label cutoff
+    max_label_len = max((len(f) for f in features), default=10)
+    left_margin   = max(100, min(max_label_len * 7, 220))
+
+    # Title is rendered as HTML outside the scroll area; use empty string here
+    layout = _base_layout("")
+    layout["title"]  = None
+    layout["xaxis"]["title"]      = "Importance Score"
+    layout["xaxis"]["fixedrange"] = True
+    layout["yaxis"]["autorange"]  = "reversed"
+    layout["yaxis"]["fixedrange"] = True
+    layout["margin"]["l"] = left_margin
+    layout["margin"]["r"] = 60
+    layout["margin"]["t"] = 16    # small top margin since title is outside
+    layout["margin"]["b"] = 48
+    # Height scales with features — scroll wrapper caps visible height
+    layout["height"] = max(300, 30 * len(features) + 90)
+
+    # Per-bar text color based on background luminance for contrast
+    # #1d4ed8 (dark blue) → white text; #93c5fd (light blue) / #fca5a5 (light red) → dark text
+    _bar_color_map = {
+        CHART_COLORS[0]: (0x1d/255, 0x4e/255, 0xd8/255),
+        "#93c5fd":        (0x93/255, 0xc5/255, 0xfd/255),
+        "#fca5a5":        (0xfc/255, 0xa5/255, 0xa5/255),
+    }
+    def _bar_lum(hex_color):
+        r, g, b = _bar_color_map.get(hex_color, (1, 1, 1))
+        def _lin(c):
+            return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
+        return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
+
+    text_colors = ["#ffffff" if _bar_lum(c) < 0.35 else "#1e3a5f" for c in colors]
 
     fig = go.Figure(go.Bar(
         x=importance, y=features,
         orientation="h",
         marker=dict(color=colors, line=dict(width=0)),
         text=[f"{v:.3f}" for v in importance],
-        textposition="outside",
-        textfont=dict(size=9, color="#6b7280"),
+        textposition="inside",
+        insidetextanchor="end",
+        textfont=dict(size=9, color=text_colors, family="'IBM Plex Mono', monospace"),
+        hovertemplate="<b>%{y}</b><br>Importance: %{x:.4f}<extra></extra>",
     ))
     fig.update_layout(**layout)
     return fig
@@ -659,8 +700,8 @@ html_step_4 = html.Div(
                 html.Div(className="result-toggle-wrap", children=[
                     html.Span("View:", className="toggle-label"),
                     html.Div(className="result-toggle", children=[
-                        html.Button("Baseline", id="toggle-baseline", className="toggle-btn active-toggle"),
-                        html.Button("Enhanced", id="toggle-enhanced", className="toggle-btn"),
+                        html.Button("Baseline", id="toggle-baseline", className="toggle-btn"),
+                        html.Button("Enhanced", id="toggle-enhanced", className="toggle-btn active-toggle"),
                     ]),
                 ]),
             ]),
@@ -679,7 +720,7 @@ html_step_4 = html.Div(
         # ── Hidden stores ────────────────────────────────────────────────────
         dcc.Store(id="sort-metric-store",       data="f1_macro"),
         dcc.Store(id="sort-dir-store",          data="desc"),
-        dcc.Store(id="result-type-store",       data="baseline"),
+        dcc.Store(id="result-type-store",       data="enhanced"),
         dcc.Store(id="selected-model-store",    data=""),
         dcc.Store(id="page-store",              data=0),
         dcc.Store(id="step4-data-loaded",       data=False),
@@ -711,8 +752,9 @@ html_step_4 = html.Div(
                 html.Div(className="chart-card", children=[dcc.Graph(id="chart-roc",      config={"displayModeBar": False})]),
                 html.Div(className="chart-card", children=[dcc.Graph(id="chart-pr",       config={"displayModeBar": False})]),
                 html.Div(className="chart-card", children=[dcc.Graph(id="chart-cm",       config={"displayModeBar": False})]),
-                html.Div(className="chart-card", children=[
-                    html.Div(className="chart-card-toolbar", children=[
+                html.Div(className="chart-card chart-card-features", children=[
+                    html.Div(className="features-card-header", children=[
+                        html.Span("Selected Features · Importance", className="features-card-title"),
                         html.Button(
                             "＋ / − Show All",
                             id="features-filter-btn",
@@ -720,7 +762,9 @@ html_step_4 = html.Div(
                             title="Toggle: show all features / positive importance only",
                         ),
                     ]),
-                    dcc.Graph(id="chart-features", config={"displayModeBar": False}),
+                    html.Div(className="features-scroll-wrap", children=[
+                        dcc.Graph(id="chart-features", config={"displayModeBar": False}),
+                    ]),
                 ]),
             ]),
         ]),
@@ -759,6 +803,29 @@ def load_step4_data(already_loaded):
     return True
 
 
+# ── Navigate to selected model's page when result-type toggles ───────────────
+@dash_app.callback(
+    Output("page-store", "data", allow_duplicate=True),
+    Input("result-type-store", "data"),
+    State("selected-model-store", "data"),
+    State("sort-metric-store", "data"),
+    State("sort-dir-store", "data"),
+    State("model-search", "value"),
+    prevent_initial_call=True,
+)
+def navigate_to_selected_on_toggle(result_type, selected_key, sort_metric, sort_dir, search_val):
+    if not selected_key or not MODELS:
+        return 0
+    all_rows = build_leaderboard_rows(sort_metric, search_val or "", result_type)
+    if sort_dir == "asc":
+        all_rows = list(reversed(all_rows))
+    keys = [r["key"] for r in all_rows]
+    if selected_key not in keys:
+        return 0
+    idx = keys.index(selected_key)
+    return idx // PAGE_SIZE
+
+
 # ── Result type toggle ────────────────────────────────────────────────────────
 @dash_app.callback(
     Output("result-type-store", "data"),
@@ -771,7 +838,7 @@ def load_step4_data(already_loaded):
 def update_result_type(n_base, n_enh):
     ctx = callback_context
     if not ctx.triggered or ctx.triggered[0]["prop_id"] == ".":
-        return "baseline", "toggle-btn active-toggle", "toggle-btn"
+        return "enhanced", "toggle-btn", "toggle-btn active-toggle"
     btn = ctx.triggered[0]["prop_id"].split(".")[0]
     if btn == "toggle-enhanced":
         return "enhanced", "toggle-btn", "toggle-btn active-toggle"
@@ -794,21 +861,34 @@ def update_result_type(n_base, n_enh):
     State("sort-dir-store", "data"),
     State("page-store", "data"),
     State("model-search", "value"),
+    State("selected-model-store", "data"),
     prevent_initial_call=True,
 )
 def update_sort_and_page(sort_btn_clicks, search, result_type,
                          first, prev, nxt, last,
-                         state_metric, state_dir, state_page, state_search):
+                         state_metric, state_dir, state_page, state_search,
+                         selected_key):
     ctx = callback_context
     if not ctx.triggered:
         return state_metric, state_dir, state_page
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
+    def _page_for_selected(metric, direction, result_type):
+        """Return the page index that contains the currently selected model."""
+        if not selected_key or not MODELS:
+            return 0
+        rows = build_leaderboard_rows(metric, state_search or "", result_type)
+        if direction == "asc":
+            rows = list(reversed(rows))
+        keys = [r["key"] for r in rows]
+        if selected_key not in keys:
+            return 0
+        return keys.index(selected_key) // PAGE_SIZE
+
     # ── Sort button clicked ──────────────────────────────────────────────────
     try:
         parsed = json.loads(trigger_id)
-        # Ignore model-row clicks — those are handled by select_model callback only
         if parsed.get("type") == "model-row":
             return state_metric, state_dir, state_page
         if parsed.get("type") == "sort-btn":
@@ -818,12 +898,16 @@ def update_sort_and_page(sort_btn_clicks, search, result_type,
     except (json.JSONDecodeError, KeyError):
         pass
 
-    # ── Search or result-type changed → back to page 0 ──────────────────────
-    if trigger_id in ("model-search", "result-type-store"):
+    # ── Search changed → back to page 0 ─────────────────────────────────────
+    if trigger_id == "model-search":
         return state_metric, state_dir, 0
 
+    # ── Result-type toggled → handled by navigate_to_selected_on_toggle ─────
+    if trigger_id == "result-type-store":
+        return state_metric, state_dir, no_update
+
     # ── Pagination buttons ───────────────────────────────────────────────────
-    total_rows = len(build_leaderboard_rows(state_metric, state_search or "", "baseline"))
+    total_rows = len(build_leaderboard_rows(state_metric, state_search or "", result_type))
     last_page  = max(0, (total_rows - 1) // PAGE_SIZE)
 
     if trigger_id == "page-first":
@@ -970,8 +1054,6 @@ def render_leaderboard(sort_metric, sort_dir, result_type, search_val, page, _lo
 
 
 # ── Row click → selected model ────────────────────────────────────────────────
-# Uses ALL pattern-matching so the callback is registered at import time even
-# when MODELS is still empty (populated lazily when Step 4 renders).
 @dash_app.callback(
     Output("selected-model-store", "data"),
     Input({"type": "model-row", "key": ALL}, "n_clicks"),
@@ -983,6 +1065,39 @@ def select_model(n_clicks_list):
         return no_update
     key = json.loads(ctx.triggered[0]["prop_id"].split(".")[0])["key"]
     return key
+
+
+# ── Highlight selected row in DOM directly (no table re-render needed) ────────
+dash_app.clientside_callback(
+    """
+    function(selected_key, result_type) {
+        if (!selected_key) return window.dash_clientside.no_update;
+
+        // Small delay to let Dash finish re-rendering the table after a toggle
+        setTimeout(function() {
+            document.querySelectorAll('tr.model-row').forEach(function(tr) {
+                tr.classList.remove('selected-row');
+            });
+            document.querySelectorAll('tr.model-row').forEach(function(tr) {
+                const idAttr = tr.id;
+                if (!idAttr) return;
+                try {
+                    const parsed = JSON.parse(idAttr);
+                    if (parsed.key === selected_key) {
+                        tr.classList.add('selected-row');
+                    }
+                } catch(_) {}
+            });
+        }, 50);
+
+        return window.dash_clientside.no_update;
+    }
+    """,
+    Output("params-tooltip", "style"),
+    Input("selected-model-store", "data"),
+    Input("result-type-store", "data"),
+    prevent_initial_call=True,
+)
 
 
 # ── Features filter toggle ────────────────────────────────────────────────────

@@ -483,13 +483,68 @@
     box-shadow: var(--shadow-sm);
     transition: box-shadow 0.15s, border-color 0.15s;
     min-width: 0;
+    padding: 6px;        /* inner breathing room between card edge and Plotly frame */
 }
 
 .chart-card:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--border-strong);
 }
-/* ── Strategy column ────────────────────────────────────────── */
+
+/* ── Features chart — fixed header + scrollable body ────────── */
+.chart-card-features {
+    display: flex;
+    flex-direction: column;
+    padding: 0 !important;
+}
+
+.features-card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.65rem 0.85rem 0.5rem;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
+    gap: 0.75rem;
+}
+
+.features-card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 13px;
+    color: #111827;
+    white-space: nowrap;
+}
+
+.features-scroll-wrap {
+    overflow-y: scroll;
+    overflow-x: hidden;
+    max-height: 470px;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.features-scroll-wrap::-webkit-scrollbar {
+    width: 5px;
+}
+
+.features-scroll-wrap::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 99px;
+}
+
+.features-scroll-wrap::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 99px;
+}
+
+.features-scroll-wrap::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+.features-scroll-wrap .js-plotly-plot,
+.features-scroll-wrap .plot-container {
+    width: 100% !important;
+}
 .th-strategy {
     min-width: 100px;
 }
@@ -559,6 +614,7 @@
     cursor: not-allowed;
     pointer-events: none;
 }
+
 /* ── Chart card toolbar (features filter toggle) ────────────── */
 .chart-card-toolbar {
     display: flex;
