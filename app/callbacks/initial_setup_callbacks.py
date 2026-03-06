@@ -82,7 +82,7 @@ def update_progress_classes(current_step):
 )
 def go_to_step_2(upload_clicks):
     if upload_clicks:
-        return "progress-2"
+        return "progress-4"
     return no_update
 
 
@@ -148,7 +148,7 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
             start_time.isoformat(),
             end_time.isoformat(),
             str(total_training_time),
-            format='xlsx'
+            format='sqlite'
         )
         progress_state["saving_done"] = True
 

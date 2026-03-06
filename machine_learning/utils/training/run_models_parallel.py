@@ -337,9 +337,6 @@ class SurvivalExperimentRunner:
             all_results.append(result)
             progress_state["completed"] += 1
 
-        print(f"Parallel tasks: {len(parallel_tasks)}")
-        print(f"Sequential tasks: {len(sequential_tasks)}")
-        print(f"Total results collected: {len(all_results)}")
         for r in all_results:
             print(type(r), list(r.keys()) if isinstance(r, dict) else r)
 
