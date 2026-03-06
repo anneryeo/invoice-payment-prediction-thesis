@@ -137,7 +137,7 @@ def clean_datasets(revenues_content, enrollees_content):
     return df_data, df_data_surv
 
 
-def run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_penalty):
+def run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_parameters):
     PIPELINE_MAP = {
         "ada_boost": AdaBoostPipeline,
         "decision_tree": DecisionTreePipeline,
@@ -159,7 +159,7 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         models=selected_pipelines,
         balance_strategies=balancing_data,
         args=args,
-        best_penalty=best_penalty,
+        best_parameters=best_parameters,
         thresholds=None,
         n_jobs=-1,
         do_not_parallel_compute=do_not_parallel_compute,

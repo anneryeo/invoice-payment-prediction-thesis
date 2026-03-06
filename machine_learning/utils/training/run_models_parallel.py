@@ -59,7 +59,7 @@ class SurvivalExperimentRunner:
         Preparer object for dataset splitting and balancing.
     """
     def __init__(self, df_data, df_data_surv, models, balance_strategies, args,
-                 best_penalty, thresholds=None, n_jobs=-1,
+                 best_parameters, thresholds=None, n_jobs=-1,
                  do_not_parallel_compute=None,
                  feature_selection_baseline=True, feature_selection_enhanced=True):
         self.df_data = df_data
@@ -67,7 +67,7 @@ class SurvivalExperimentRunner:
         self.models = models
         self.balance_strategies = balance_strategies
         self.args = args
-        self.best_penalty = best_penalty
+        self.best_parameters = best_parameters
         self.thresholds = thresholds
         self.n_jobs = n_jobs
         self.do_not_parallel_compute = do_not_parallel_compute or []
@@ -178,19 +178,21 @@ class SurvivalExperimentRunner:
             A tuple containing (X_train, X_test, y_train, y_test,
             X_survival_train, X_survival_test).
         """
-        self.preparer.prep_data(balance_strategy=balance_strategy,
+        self.preparer.resample(balance_strategy=balance_strategy,
                                 undersample_threshold=threshold)
 
         X_train, X_test = self.preparer.X_train, self.preparer.X_test
         y_train, y_test = self.preparer.y_train, self.preparer.y_test
 
-        # Generate survival features
+        # --- Generate survival features ---
         X_surv = self.df_data_surv.drop(columns=['days_elapsed_until_fully_paid', 'censor'])
         T = adjust_payment_period(self.df_data_surv['days_elapsed_until_fully_paid'])
         E = self.df_data_surv['censor']
 
         X_survival_train, X_survival_test = generate_survival_features(
-            X_surv, T, E, X_train, X_test, self.best_penalty, time_points=self.args.time_points
+            X_surv, T, E, X_train, X_test,
+            best_params=self.best_parameters,
+            time_points=self.args.time_points
         )
 
         return (X_train, X_test, y_train, y_test,
@@ -336,8 +338,5 @@ class SurvivalExperimentRunner:
             result = self.run_model_experiment(*task_args)
             all_results.append(result)
             progress_state["completed"] += 1
-
-        for r in all_results:
-            print(type(r), list(r.keys()) if isinstance(r, dict) else r)
 
         return pd.DataFrame(all_results), self.class_mappings
