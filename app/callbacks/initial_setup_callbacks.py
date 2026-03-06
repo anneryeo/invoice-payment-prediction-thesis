@@ -9,7 +9,9 @@ from app.callbacks.initial_setup_step_3_callbacks import html_step_3, clean_data
 from app.callbacks.initial_setup_step_4_callbacks import html_step_4
 from app.callbacks.initial_setup_step_5_callbacks import html_step_5
 
-from machine_learning.utils.training.calculate_best_penalty import calculate_best_penalty
+from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
+from machine_learning.utils.features.get_slope_time_points import get_slope_timepoints
+from machine_learning.utils.training.tune_cox_hyperparameters import tune_cox_hyperparameters
 from machine_learning.utils.training.run_models_parallel import progress_state
 from machine_learning.utils.io.save_results_to_folder import save_training_results
 
@@ -82,7 +84,7 @@ def update_progress_classes(current_step):
 )
 def go_to_step_2(upload_clicks):
     if upload_clicks:
-        return "progress-4"
+        return "progress-2"
     return no_update
 
 
@@ -119,23 +121,32 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         print("Running training...")
         df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
 
-        print("Getting best penalty...")
-        best_penalty = calculate_best_penalty(df_data_surv)
+
+        print("Getting best parameters for the CoxPH Model...")
+        X_surv = df_data_surv.drop(columns=['days_elapsed_until_fully_paid', 'censor'])
+        T = df_data_surv['days_elapsed_until_fully_paid']
+        T = adjust_payment_period(T)
+        E = df_data_surv['censor']
+
+        best_surv_parameters, _ = tune_cox_hyperparameters(X_surv, T, E)
         progress_state["survival_done"] = True
+
 
         print("Proceeding to model training...")
         class Config:
             parameters_dir = r"machine_learning\parameters.json"
             target_feature  = "dtp_bracket"
             test_size       = 0.3
-            time_points     = [30, 60, 90, 120, 150, 180, 210, 240, 270, 300,
-                                330, 360, 390, 420, 450]
+            time_points     = get_slope_timepoints(T, E, n_points=9)
         args = Config()
 
+        print(f"Using timepoints: {args.time_points}")
+
         results_df, class_mappings_dict = run_model_training(
-            df_data, df_data_surv, models_data, balancing_data, args, best_penalty
+            df_data, df_data_surv, models_data, balancing_data, args, best_surv_parameters
         )
         progress_state["training_done"] = True
+
 
         end_time           = datetime.now()
         total_training_time = end_time - start_time
