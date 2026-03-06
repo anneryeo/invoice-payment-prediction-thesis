@@ -171,20 +171,6 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
 
     return json_results
 
-
-def evaluate_model(models_data):
-    print("Evaluating the trained model...")
-    print("Models used:", models_data)
-
-
-def generate_reports():
-    print("Generating reports...")
-
-
-def finalize_pipeline():
-    print("Finalizing pipeline...")
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 #  CALLBACKS — STEP 3
 # ══════════════════════════════════════════════════════════════════════════════

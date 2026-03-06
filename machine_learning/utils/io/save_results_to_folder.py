@@ -1,6 +1,7 @@
 import os
 import json
 import pickle
+import sqlite3
 import numpy as np
 import pandas as pd
 from datetime import datetime
@@ -36,9 +37,117 @@ def _prepare_df_for_excel(df):
     return df
 
 
+def _prepare_df_for_sqlite(df):
+    """
+    Coerce object columns containing dicts, lists, or numpy types to JSON
+    strings so that SQLite can store them.  Numeric numpy scalars in
+    otherwise-numeric columns are also cast to native Python floats/ints.
+    """
+    df = df.copy()
+    for col in df.columns:
+        if df[col].dtype == object:
+            df[col] = df[col].apply(
+                lambda x: json.dumps(_sanitize_for_json(x))
+                if isinstance(x, (dict, list, np.ndarray)) else x
+            )
+        elif np.issubdtype(df[col].dtype, np.integer):
+            df[col] = df[col].astype(int)
+        elif np.issubdtype(df[col].dtype, np.floating):
+            df[col] = df[col].astype(float)
+    return df
+
+
+def _save_sqlite(results_df, class_mappings_dict, metadata, run_folder_path):
+    """
+    Write all three artefacts into a single SQLite database file
+    (results.db) inside *run_folder_path*.
+
+    Tables
+    ------
+    results         – one row per experiment, columns mirror the DataFrame.
+    class_mappings  – single row: id=1, data TEXT (JSON blob).
+    metadata        – single row: id=1, data TEXT (JSON blob).
+    """
+    db_path = os.path.join(run_folder_path, "results.db")
+    con = sqlite3.connect(db_path)
+    try:
+        # ── results table ────────────────────────────────────────────────────
+        _prepare_df_for_sqlite(results_df).to_sql(
+            "results", con, if_exists="replace", index=False
+        )
+
+        # ── class_mappings table ─────────────────────────────────────────────
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS class_mappings (id INTEGER PRIMARY KEY, data TEXT)"
+        )
+        con.execute("DELETE FROM class_mappings")
+        con.execute(
+            "INSERT INTO class_mappings (id, data) VALUES (1, ?)",
+            (json.dumps(_sanitize_for_json(class_mappings_dict)),),
+        )
+
+        # ── metadata table ───────────────────────────────────────────────────
+        con.execute(
+            "CREATE TABLE IF NOT EXISTS metadata (id INTEGER PRIMARY KEY, data TEXT)"
+        )
+        con.execute("DELETE FROM metadata")
+        con.execute(
+            "INSERT INTO metadata (id, data) VALUES (1, ?)",
+            (json.dumps(metadata),),
+        )
+
+        con.commit()
+    finally:
+        con.close()
+
+    return db_path
+
+
+def _load_sqlite(run_folder_path):
+    """
+    Load results, class_mappings, and metadata from results.db.
+
+    Columns that contain JSON-serialized dicts or lists are automatically
+    deserialized back to native Python objects.
+
+    Returns
+    -------
+    pd.DataFrame, dict, dict
+    """
+    db_path = os.path.join(run_folder_path, "results.db")
+    con = sqlite3.connect(db_path)
+    try:
+        results_df = pd.read_sql("SELECT * FROM results", con)
+
+        # Deserialize any JSON-encoded object columns
+        for col in results_df.columns:
+            if results_df[col].dtype == object:
+                results_df[col] = results_df[col].apply(_try_json_loads)
+
+        row = con.execute("SELECT data FROM class_mappings WHERE id=1").fetchone()
+        class_mappings = json.loads(row[0]) if row else {}
+
+        row = con.execute("SELECT data FROM metadata WHERE id=1").fetchone()
+        metadata = json.loads(row[0]) if row else {}
+    finally:
+        con.close()
+
+    return results_df, class_mappings, metadata
+
+
+def _try_json_loads(value):
+    """Attempt to deserialize a JSON string; return the original value on failure."""
+    if not isinstance(value, str):
+        return value
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, ValueError):
+        return value
+
+
 def save_training_results(results_df, class_mappings_dict, base_output_folder,
                           model_names, start_time, end_time, total_run_time,
-                          format="pickle"):
+                          format="sqlite"):
     """
     Save training results, class mappings, and metadata to a dynamically created run folder.
 
@@ -61,13 +170,18 @@ def save_training_results(results_df, class_mappings_dict, base_output_folder,
         ISO format timestamp when training ended.
     total_run_time : str
         Total run time as a formatted string.
-    format : {"pickle", "excel"}, default "pickle"
+    format : {"pickle", "excel", "sqlite"}, default "pickle"
         Storage format for the results DataFrame.
         - "pickle" : saves as results.pkl. Preserves all Python objects
           (dicts, lists) exactly. Recommended for further programmatic use.
         - "excel"  : saves as results.xlsx. Columns containing dicts or
           lists are serialized to JSON strings for compatibility. Recommended
           for manual inspection or sharing.
+        - "sqlite" : saves as results.db. All three artefacts (results,
+          class_mappings, metadata) are stored in a single SQLite database
+          with three tables. Dict/list columns are JSON-serialized and
+          transparently deserialized on load. Recommended when you want
+          SQL query access or a self-contained, language-agnostic file.
 
     Returns
     -------
@@ -79,10 +193,10 @@ def save_training_results(results_df, class_mappings_dict, base_output_folder,
     Raises
     ------
     ValueError
-        If format is not one of "pickle" or "excel".
+        If format is not one of "pickle", "excel", or "sqlite".
     """
-    if format not in ("pickle", "excel"):
-        raise ValueError(f"Invalid format {format!r}. Must be 'pickle' or 'excel'.")
+    if format not in ("pickle", "excel", "sqlite"):
+        raise ValueError(f"Invalid format {format!r}. Must be 'pickle', 'excel', or 'sqlite'.")
 
     os.makedirs(base_output_folder, exist_ok=True)
 
@@ -96,21 +210,7 @@ def save_training_results(results_df, class_mappings_dict, base_output_folder,
             break
         run_index += 1
 
-    # Save results in requested format
-    if format == "pickle":
-        results_path = os.path.join(run_folder_path, "results.pkl")
-        with open(results_path, "wb") as f:
-            pickle.dump(results_df, f)
-    else:
-        results_path = os.path.join(run_folder_path, "results.xlsx")
-        _prepare_df_for_excel(results_df).to_excel(results_path, index=False)
-
-    # Save class mappings JSON
-    class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
-    with open(class_mappings_path, "w") as f:
-        json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
-
-    # Save metadata JSON
+    # Build metadata first so it can be embedded in the SQLite db too
     metadata = {
         "timestamp":                datetime.now().isoformat(),
         "num_models_trained":       len(model_names),
@@ -120,12 +220,41 @@ def save_training_results(results_df, class_mappings_dict, base_output_folder,
         "training_start_time":      start_time,
         "training_end_time":        end_time,
         "training_run_time":        total_run_time,
-        "results_file_path":        results_path,
-        "class_mappings_file_path": class_mappings_path,
+        "run_folder_path":          run_folder_path,
     }
-    metadata_path = os.path.join(run_folder_path, "metadata.json")
-    with open(metadata_path, "w") as f:
-        json.dump(metadata, f, indent=4)
+
+    if format == "pickle":
+        results_path = os.path.join(run_folder_path, "results.pkl")
+        with open(results_path, "wb") as f:
+            pickle.dump(results_df, f)
+        metadata["results_file_path"] = results_path
+
+        class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
+        with open(class_mappings_path, "w") as f:
+            json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
+        metadata["class_mappings_file_path"] = class_mappings_path
+
+        metadata_path = os.path.join(run_folder_path, "metadata.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=4)
+
+    elif format == "excel":
+        results_path = os.path.join(run_folder_path, "results.xlsx")
+        _prepare_df_for_excel(results_df).to_excel(results_path, index=False)
+        metadata["results_file_path"] = results_path
+
+        class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
+        with open(class_mappings_path, "w") as f:
+            json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
+        metadata["class_mappings_file_path"] = class_mappings_path
+
+        metadata_path = os.path.join(run_folder_path, "metadata.json")
+        with open(metadata_path, "w") as f:
+            json.dump(metadata, f, indent=4)
+
+    else:  # sqlite
+        db_path = _save_sqlite(results_df, class_mappings_dict, metadata, run_folder_path)
+        metadata["results_file_path"] = db_path
 
     print(f"Results saved as {format} to {run_folder_path}")
     return metadata, run_folder_path
@@ -134,8 +263,8 @@ def save_training_results(results_df, class_mappings_dict, base_output_folder,
 def load_training_results(run_folder_path):
     """
     Load training results, class mappings, and metadata from a run folder.
-    Automatically detects whether results were saved as pickle or Excel
-    based on the format recorded in metadata.json.
+    Automatically detects whether results were saved as pickle, Excel, or
+    SQLite based on the format recorded in metadata.json (or results.db).
 
     Parameters
     ----------
@@ -155,11 +284,24 @@ def load_training_results(run_folder_path):
     -----
     Excel-loaded DataFrames will have dict/list columns stored as JSON strings.
     Use json.loads() to deserialize individual cells if needed.
+
+    SQLite-loaded DataFrames have JSON columns deserialized automatically.
     """
+    # SQLite stores metadata inside the db; detect it by file presence
+    db_path = os.path.join(run_folder_path, "results.db")
+    if os.path.exists(db_path) and not os.path.exists(
+        os.path.join(run_folder_path, "metadata.json")
+    ):
+        return _load_sqlite(run_folder_path)
+
     with open(os.path.join(run_folder_path, "metadata.json"), "r") as f:
         metadata = json.load(f)
 
-    if metadata.get("results_format", "pickle") == "excel":
+    fmt = metadata.get("results_format", "pickle")
+
+    if fmt == "sqlite":
+        return _load_sqlite(run_folder_path)
+    elif fmt == "excel":
         results_df = pd.read_excel(os.path.join(run_folder_path, "results.xlsx"))
     else:
         with open(os.path.join(run_folder_path, "results.pkl"), "rb") as f:

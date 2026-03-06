@@ -53,6 +53,7 @@
     font-family: var(--text-sans);
     min-width: 0;
     box-sizing: border-box;
+    overflow-x: hidden;   /* let leaderboard-wrap handle its own scroll */
 }
 
 /* ── Page header ────────────────────────────────────────────── */
@@ -213,18 +214,23 @@
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    overflow-x: auto;          /* horizontal scroll on narrow viewports */
+    overflow-x: auto;
     overflow-y: visible;
     margin-bottom: 1.5rem;
     box-shadow: var(--shadow-sm);
+    /* Prevent parent from clipping horizontal scroll */
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 /* ── Table ──────────────────────────────────────────────────── */
 .leaderboard-table {
     width: 100%;
-    min-width: 560px;          /* prevents collapse below readable width */
+    min-width: 900px;           /* enough for all 5 metric pairs to show */
     border-collapse: collapse;
     font-family: var(--text-mono);
+    table-layout: fixed;
 }
 
 /* Header row 1 — metric group labels + sort buttons */
@@ -273,10 +279,12 @@
     font-family: var(--text-mono);
     font-size: 0.58rem;
     color: var(--text-muted);
-    letter-spacing: 0.1em;
+    letter-spacing: 0.06em;
     text-align: center;
-    padding: 0.18rem 0.35rem;
+    padding: 0.18rem 0.2rem;
     text-transform: uppercase;
+    width: 62px;
+    min-width: 54px;
 }
 
 .th-sub-active {
@@ -291,8 +299,12 @@
     letter-spacing: 0.1em;
     text-transform: uppercase;
     text-align: left;
-    padding: 0.45rem 0.6rem;
+    padding: 0.45rem 0.5rem;
 }
+
+.th-rank     { width: 44px;  }
+.th-model    { width: 140px; }
+.th-strategy { width: 90px;  min-width: 90px; }
 
 /* Body rows */
 .model-row {
@@ -316,30 +328,35 @@
 
 /* Cells */
 .td-rank {
-    padding: 0.55rem 0.5rem;
+    padding: 0.5rem 0.4rem;
     text-align: center;
-    width: 40px;
+    width: 44px;
 }
 
 .td-model {
-    padding: 0.55rem 0.6rem;
-    font-size: 0.78rem;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.76rem;
     font-weight: 500;
     color: var(--text-primary);
     white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
     font-family: var(--text-sans);
 }
 
 .td-strategy {
     padding: 0.55rem 0.5rem;
-    text-align: center;
+    text-align: left;
 }
 
 .td-metric {
-    padding: 0.45rem 0.4rem;
+    padding: 0.4rem 0.25rem;
     text-align: center;
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     border-left: 1px solid #f1f5f9;
+    width: 62px;
+    min-width: 54px;
+    overflow: hidden;
 }
 
 .enh-col {
@@ -358,9 +375,10 @@
 /* Metric value */
 .metric-val {
     font-family: var(--text-mono);
-    font-size: 0.76rem;
+    font-size: 0.72rem;
     color: var(--text-primary);
     display: block;
+    white-space: nowrap;
 }
 
 .enh-cell-inner {
@@ -470,4 +488,173 @@
 .chart-card:hover {
     box-shadow: var(--shadow-md);
     border-color: var(--border-strong);
+}
+/* ── Strategy column ────────────────────────────────────────── */
+.th-strategy {
+    min-width: 100px;
+}
+
+/* ── Pagination bar ─────────────────────────────────────────── */
+.pagination-bar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.5rem;
+    padding: 0.6rem 0.85rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-thead);
+    border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+}
+
+.page-indicator {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    letter-spacing: 0.04em;
+    padding: 0 0.5rem 0 0;
+    white-space: nowrap;
+    margin-right: auto;   /* pushes indicator to the far left, buttons to the right */
+}
+
+.page-btn-group {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.page-btn {
+    font-family: var(--text-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--bg-card);
+    border: none;
+    border-right: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    padding: 0;
+    line-height: 1;
+}
+
+.page-btn:last-child {
+    border-right: none;
+}
+
+.page-btn:hover {
+    background: #eff6ff;
+    color: var(--accent-blue);
+}
+
+.page-btn:disabled,
+.page-btn[disabled] {
+    opacity: 0.35;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+/* ── Chart card toolbar (features filter toggle) ────────────── */
+.chart-card-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding: 0.45rem 0.65rem 0;
+    gap: 0.4rem;
+}
+
+.chart-toolbar-btn {
+    font-family: var(--text-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 0.22rem 0.65rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.chart-toolbar-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: #eff6ff;
+}
+
+.chart-toolbar-btn-active {
+    background: var(--accent-blue) !important;
+    border-color: var(--accent-blue) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
+.chart-toolbar-btn-active:hover {
+    background: #1d4ed8 !important;
+    border-color: #1d4ed8 !important;
+    color: #ffffff !important;
+}
+
+/* ── Parameter tooltip ──────────────────────────────────────── */
+.params-tooltip {
+    position: absolute;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(4px);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+    min-width: 180px;
+    max-width: 260px;
+}
+
+.params-tooltip-visible {
+    opacity: 1 !important;
+    transform: translateY(0) !important;
+}
+
+.params-tooltip-content {
+    background: #1e293b;
+    border: 1px solid #334155;
+    border-radius: var(--radius);
+    padding: 0.55rem 0.75rem;
+    box-shadow: var(--shadow-md);
+}
+
+.ptt-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.12rem 0;
+    border-bottom: 1px solid #2d3f55;
+}
+
+.ptt-row:last-child {
+    border-bottom: none;
+}
+
+.ptt-key {
+    font-family: var(--text-mono);
+    font-size: 0.62rem;
+    color: #94a3b8;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.ptt-val {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    text-align: right;
+    white-space: nowrap;
 }
