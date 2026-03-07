@@ -14,43 +14,49 @@ class InitialSetupScreen:
                 dcc.Store(id="stored_revenue"),
                 dcc.Store(id="stored_enrollees"),
 
-                # Top Title Section
+                # Sticky top — title + progress bar stay visible while scrolling
                 html.Div(
-                    className="setup-header",
+                    className="setup-sticky-top",
                     children=[
-                        html.H2("Initial Setup", className="setup-title"),
-                        html.Hr(className="setup-divider")
-                    ]
-                ),
+                        # Top Title Section
+                        html.Div(
+                            className="setup-header",
+                            children=[
+                                html.H2("Initial Setup", className="setup-title"),
+                                html.Hr(className="setup-divider")
+                            ]
+                        ),
 
-                # Progress Header
-                html.Div(
-                    className="progress-header",
-                    children=[
-                        html.Div([
-                            html.Div("1", className="step-number"),
-                            html.Span("Upload Dataset", className="step-label")
-                        ], id="progress-1", className="progress-step active"),
+                        # Progress Header
+                        html.Div(
+                            className="progress-header",
+                            children=[
+                                html.Div([
+                                    html.Div("1", className="step-number"),
+                                    html.Span("Upload Dataset", className="step-label")
+                                ], id="progress-1", className="progress-step active"),
 
-                        html.Div([
-                            html.Div("2", className="step-number"),
-                            html.Span("Model Training Selection", className="step-label")
-                        ], id="progress-2", className="progress-step future"),
+                                html.Div([
+                                    html.Div("2", className="step-number"),
+                                    html.Span("Model Training Selection", className="step-label")
+                                ], id="progress-2", className="progress-step future"),
 
-                        html.Div([
-                            html.Div("3", className="step-number"),
-                            html.Span("Waiting for Model Results", className="step-label")
-                        ], id="progress-3", className="progress-step future"),
+                                html.Div([
+                                    html.Div("3", className="step-number"),
+                                    html.Span("Waiting for Model Results", className="step-label")
+                                ], id="progress-3", className="progress-step future"),
 
-                        html.Div([
-                            html.Div("4", className="step-number"),
-                            html.Span("Model Result Analysis", className="step-label")
-                        ], id="progress-4", className="progress-step future"),
+                                html.Div([
+                                    html.Div("4", className="step-number"),
+                                    html.Span("Model Result Analysis", className="step-label")
+                                ], id="progress-4", className="progress-step future"),
 
-                        html.Div([
-                            html.Div("5", className="step-number"),
-                            html.Span("Finalization", className="step-label")
-                        ], id="progress-5", className="progress-step future"),
+                                html.Div([
+                                    html.Div("5", className="step-number"),
+                                    html.Span("Finalization", className="step-label")
+                                ], id="progress-5", className="progress-step future"),
+                            ]
+                        ),
                     ]
                 ),
 
