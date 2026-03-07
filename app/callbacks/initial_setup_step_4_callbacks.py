@@ -190,9 +190,12 @@ def load_models_from_results() -> dict:
             raw_selected = _json_deserialize(_get(f"{prefix}_feature_selected"))
             features: list = raw_selected if isinstance(raw_selected, list) else []
 
+            feature_method: str = str(_get(f"{prefix}_feature_method") or "").strip()
+
             return {
                 "evaluation": {"metrics": metrics, "charts": charts},
                 "features": features,
+                "feature_method": feature_method,
             }
 
         models[key] = {
@@ -238,10 +241,10 @@ MODEL_LABELS = {
     "xgboost":              "XGBoost",
     "nn_mlp":               "MLP Neural Net",
     "decision_tree":        "Decision Tree",
-    "logistic_regression":  "Logistic Regression",
-    "svm":                  "SVM",
+    #"logistic_regression":  "Logistic Regression",
+    #"svm":                  "SVM",
     "knn":                  "K-Nearest Neighbors",
-    "gradient_boosting":    "Gradient Boosting",
+    #"gradient_boosting":    "Gradient Boosting",
 }
 
 # Full strategy name -> short variant label shown in the pill
@@ -252,9 +255,9 @@ STRATEGY_LABELS = {
     "borderline_smote":   "Borderline",
     "smote_tomek":        "Tomek",
     "smote_enn":          "ENN",
-    "adasyn":             "ADASYN",
-    "random_oversample":  "Random OS",
-    "random_undersample": "Random US",
+    #"adasyn":             "ADASYN",
+    #"random_oversample":  "Random OS",
+    #"random_undersample": "Random US",
 }
 
 # Reverse of class_mappings.json: int index (as str) -> readable label
@@ -341,9 +344,19 @@ def delta_badge(val: float, ref: float):
     return html.Span(f"{sign}{abs(diff):.3f}", className=cls)
 
 
-def build_leaderboard_rows(sort_metric: str, search_val: str, result_type: str) -> list:
+def build_leaderboard_rows(sort_metric: str, result_type: str,
+                           sort_result_type: str = None,
+                           model_filter: list = None,
+                           strategy_filter: list = None) -> list:
+    _sort_rt = sort_result_type if sort_result_type is not None else result_type
     rows = []
     for key, data in MODELS.items():
+        # Apply model type filter
+        if model_filter is not None and data["model"] not in model_filter:
+            continue
+        # Apply strategy filter
+        if strategy_filter is not None and data["balance_strategy"] not in strategy_filter:
+            continue
         base_m = get_metrics(key, "baseline")
         enh_m  = get_metrics(key, "enhanced")
         rows.append({
@@ -353,10 +366,8 @@ def build_leaderboard_rows(sort_metric: str, search_val: str, result_type: str) 
             "parameters": data.get("parameters", {}),
             **{f"base_{m}": base_m.get(m, 0) for m in METRICS},
             **{f"enh_{m}":  enh_m.get(m, 0)  for m in METRICS},
-            "sort_val": (enh_m if result_type == "enhanced" else base_m).get(sort_metric, 0),
+            "sort_val": (enh_m if _sort_rt == "enhanced" else base_m).get(sort_metric, 0),
         })
-    if search_val:
-        rows = [r for r in rows if search_val.lower() in r["name"].lower() or search_val.lower() in _model_display(r["name"]).lower()]
     rows.sort(key=lambda x: x["sort_val"], reverse=True)
     return rows
 
@@ -469,28 +480,25 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
         cm_arr = np.array(cm_raw)
 
     n = cm_arr.shape[0]
-    tick_vals   = list(range(n))
+    tick_vals = list(range(n))
     tick_labels = [_CM_TICK_LABELS.get(i, str(i)) for i in range(n)]
 
     _full_labels = {0: "30 Days", 1: "60 Days", 2: "90 Days", 3: "On Time"}
     full_labels = [_full_labels.get(i, tick_labels[i]) for i in range(n)]
 
-    total = cm_arr.sum(axis=1, keepdims=True)
-    pct   = np.where(total > 0, cm_arr / total * 100, 0)
+    # cm_arr[actual][predicted]; flip rows so index 0 appears at top in Plotly
+    cm_plot = cm_arr[::-1]
 
-    # ── Per-cell text colour based on normalised cell intensity ──────────────
-    # Colorscale: #eff6ff (low=0) → #93c5fd (mid=0.5) → #1d4ed8 (high=1).
-    # Interpolate each cell's normalised value to an approximate luminance and
-    # pick white text above a threshold, dark text below.
-    z_min = float(cm_arr.min())
-    z_max = float(cm_arr.max())
+    total_plot = cm_plot.sum(axis=1, keepdims=True)
+    pct_plot   = np.where(total_plot > 0, cm_plot / total_plot * 100, 0)
+
+    z_min   = float(cm_plot.min())
+    z_max   = float(cm_plot.max())
     z_range = z_max - z_min if z_max != z_min else 1.0
 
-    # RGB for the three colorscale stops
     _cs = [(0xef, 0xf6, 0xff), (0x93, 0xc5, 0xfd), (0x1d, 0x4e, 0xd8)]
 
     def _interp_color(norm: float):
-        """Linearly interpolate across the three colorscale stops."""
         if norm <= 0.5:
             t = norm / 0.5
             r = _cs[0][0] + t * (_cs[1][0] - _cs[0][0])
@@ -504,36 +512,41 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
         return r / 255, g / 255, b / 255
 
     def _relative_luminance(r, g, b):
-        """WCAG relative luminance."""
         def _lin(c):
             return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
         return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
 
-    # customdata for hover
+    # Y tick labels must also be flipped to match the flipped rows
+    tick_labels_y = tick_labels[::-1]
+    full_labels_y = full_labels[::-1]
+
+    # customdata: row i in cm_plot corresponds to full_labels_y[i] (actual)
+    #             col j corresponds to full_labels[j] (predicted)
     customdata = [
         [
-            [full_labels[i], full_labels[j], int(cm_arr[i][j]), float(pct[i][j])]
+            [full_labels_y[i], full_labels[j], int(cm_plot[i][j]), float(pct_plot[i][j])]
             for j in range(n)
         ]
         for i in range(n)
     ]
 
     layout = _base_layout("Confusion Matrix")
-    axis_common = dict(
+    axis_common_x = dict(
         fixedrange=True,
         tickmode="array",
         tickvals=tick_vals,
         ticktext=tick_labels,
         tickfont=dict(size=10, family="'IBM Plex Mono', monospace"),
     )
-    layout["xaxis"].update({"title": "Predicted", **axis_common})
-    layout["yaxis"].update({"title": "Actual",    **axis_common})
-
-    # Standard convention: rows = Actual (Y), columns = Predicted (X).
-    # sklearn stores cm[actual][predicted], so cm_arr[i][j] = actual i, predicted j.
-    # Plotly Heatmap renders z[i] as row i from the bottom, so we transpose
-    # and flip the Y axis to get the canonical top-left = (Actual 0, Predicted 0) layout.
-    cm_plot = cm_arr.T
+    axis_common_y = dict(
+        fixedrange=True,
+        tickmode="array",
+        tickvals=tick_vals,
+        ticktext=tick_labels_y,
+        tickfont=dict(size=10, family="'IBM Plex Mono', monospace"),
+    )
+    layout["xaxis"].update({"title": "Predicted", **axis_common_x})
+    layout["yaxis"].update({"title": "Actual",    **axis_common_y})
 
     fig = go.Figure(go.Heatmap(
         z=cm_plot,
@@ -551,17 +564,14 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
         ),
     ))
 
-    # ── Per-cell annotations with contrast-aware text colour ─────────────────
     for i in range(n):
         for j in range(n):
-            # cm_plot[i][j] = cm_arr[j][i]: predicted j, actual i in plot space
-            val  = cm_plot[i][j]
-            norm = (float(val) - z_min) / z_range
+            val     = cm_plot[i][j]
+            norm    = (float(val) - z_min) / z_range
             r, g, b = _interp_color(norm)
-            lum   = _relative_luminance(r, g, b)
-            color = "#ffffff" if lum < 0.35 else "#111827"
-            # pct shown is row-normalised over the original cm_arr (actual rows)
-            pct_val = pct[j][i]
+            lum     = _relative_luminance(r, g, b)
+            color   = "#ffffff" if lum < 0.35 else "#111827"
+            pct_val = pct_plot[i][j]
             fig.add_annotation(
                 x=j, y=i,
                 text=f"{val}<br>{pct_val:.1f}%",
@@ -587,7 +597,7 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
 
 
 def build_features_figure(model_key: str, result_type: str,
-                          positives_only: bool = False) -> go.Figure:
+                          top15_only: bool = True) -> go.Figure:
     features = MODELS[model_key][result_type].get("features", [])
 
     # Use real weights if available, otherwise fall back to rank-based estimates
@@ -603,68 +613,87 @@ def build_features_figure(model_key: str, result_type: str,
             reverse=True,
         )
 
-    # Sort both lists together by importance descending
-    paired = sorted(zip(importance, features), reverse=True)
+    # Sort by absolute value descending so magnitude drives rank regardless of sign
+    paired = sorted(zip(importance, features), key=lambda p: abs(p[0]), reverse=True)
 
-    # Optionally filter out negative-importance features
-    if positives_only:
-        paired = [(v, f) for v, f in paired if v >= 0]
+    # Optionally cap to top 15 by absolute importance
+    if top15_only:
+        paired = paired[:15]
 
     importance = [p[0] for p in paired]
     features   = [p[1] for p in paired]
 
-    # Per-bar colors: top bar accent blue, positive = light blue, negative = muted red-orange
-    colors = []
-    for idx, v in enumerate(importance):
-        if idx == 0:
-            colors.append(CHART_COLORS[0])          # #1d4ed8 — top feature
-        elif v >= 0:
-            colors.append("#93c5fd")                # light blue — positive
-        else:
-            colors.append("#fca5a5")                # light red — negative
+    # Compute absolute values for bar lengths
+    # We use abs() so that all bars are drawn with positive lengths
+    abs_importance = [abs(v) for v in importance]
 
-    # Dynamic left margin based on longest feature name to prevent label cutoff
-    max_label_len = max((len(f) for f in features), default=10)
-    left_margin   = max(100, min(max_label_len * 7, 220))
+    # Track whether each original value was negative
+    is_negative = [v < 0 for v in importance]
 
-    # Title is rendered as HTML outside the scroll area; use empty string here
+    # Track whether each original value was positive
+    is_positive = [v > 0 for v in importance]
+
+    # Build y-axis labels:
+    # - Append " (−)" marker for originally-negative scores
+    # - Append " (+)" marker for originally-positive scores
+    # - Leave unchanged if the value was exactly zero
+    display_labels = [
+        f"{f}  (−)" if neg else (f"{f}  (+)" if pos else f)
+        for f, neg, pos in zip(features, is_negative, is_positive)
+    ]
+
+    # Define colors for the bars:
+    # - First bar uses accent blue (from CHART_COLORS[0])
+    # - Remaining bars use a lighter blue
+    colors = [
+        CHART_COLORS[0] if idx == 0 else "#93c5fd"
+        for idx in range(len(abs_importance))
+    ]
+
+    # Dynamic left margin — account for the extra " (−)" suffix (4 chars) on negative labels
+    max_label_len = max((len(lbl) for lbl in display_labels), default=10)
+    left_margin   = max(100, min(max_label_len * 7, 260))
+
+    # Title is rendered as HTML outside the scroll area
     layout = _base_layout("")
     layout["title"]  = None
-    layout["xaxis"]["title"]      = "Importance Score"
+    layout["xaxis"]["title"]      = "Importance Score (absolute)"
     layout["xaxis"]["fixedrange"] = True
+    layout["xaxis"]["autorange"]  = True   # fixed range — driven by data, no scroll adjustment
     layout["yaxis"]["autorange"]  = "reversed"
-    layout["yaxis"]["fixedrange"] = False  # must be False so Plotly.relayout can update on scroll
+    layout["yaxis"]["fixedrange"] = False   # False so container scroll can drive relayout if needed
     layout["margin"]["l"] = left_margin
     layout["margin"]["r"] = 60
-    layout["margin"]["t"] = 16    # small top margin since title is outside
+    layout["margin"]["t"] = 16
     layout["margin"]["b"] = 48
     n = len(features)
-    layout["height"] = max(470, 25 * n)
+    # Height grows with bar count so all bars are visible without a scrollbar
+    layout["height"] = max(470, 28 * n)
 
-    # Per-bar text color based on background luminance for contrast
-    # #1d4ed8 (dark blue) → white text; #93c5fd (light blue) / #fca5a5 (light red) → dark text
-    _bar_color_map = {
-        CHART_COLORS[0]: (0x1d/255, 0x4e/255, 0xd8/255),
-        "#93c5fd":        (0x93/255, 0xc5/255, 0xfd/255),
-        "#fca5a5":        (0xfc/255, 0xa5/255, 0xa5/255),
-    }
-    def _bar_lum(hex_color):
-        r, g, b = _bar_color_map.get(hex_color, (1, 1, 1))
-        def _lin(c):
-            return c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4
-        return 0.2126 * _lin(r) + 0.7152 * _lin(g) + 0.0722 * _lin(b)
+    # Bar text: show original signed value so the reader knows the true score
+    bar_texts = [
+        f"{v:.3f}" if not neg else f"−{abs(v):.3f}"
+        for v, neg in zip(importance, is_negative)
+    ]
 
-    text_colors = ["#ffffff" if _bar_lum(c) < 0.35 else "#1e3a5f" for c in colors]
+    # Text color: white on dark blue (top bar), dark on light blue (rest)
+    text_colors = [
+        "#ffffff" if idx == 0 else "#1e3a5f"
+        for idx in range(len(colors))
+    ]
 
     fig = go.Figure(go.Bar(
-        x=importance, y=features,
+        x=abs_importance,
+        y=display_labels,
         orientation="h",
         marker=dict(color=colors, line=dict(width=0)),
-        text=[f"{v:.3f}" for v in importance],
+        text=bar_texts,
         textposition="inside",
         insidetextanchor="end",
         textfont=dict(size=9, color=text_colors, family="'IBM Plex Mono', monospace"),
-        hovertemplate="<b>%{y}</b><br>Importance: %{x:.4f}<extra></extra>",
+        # Hover shows original signed value for full transparency
+        customdata=importance,
+        hovertemplate="<b>%{y}</b><br>Score: %{customdata:.4f}<extra></extra>",
     ))
     fig.update_layout(**layout)
     return fig
@@ -709,23 +738,85 @@ html_step_4 = html.Div(
 
         # ── Global controls ──────────────────────────────────────────────────
         html.Div(className="global-controls", children=[
-            dcc.Input(id="model-search", placeholder="Filter models…",
-                      className="search-input", debounce=True),
+            # Filter toggle button
+            html.Button(
+                "⊞ Filter",
+                id="filter-panel-toggle",
+                className="filter-toggle-btn",
+            ),
             html.Div(className="controls-right", children=[
                 html.Button("↓ Export CSV", id="export-csv-btn", className="export-btn"),
                 dcc.Download(id="download-csv"),
             ]),
         ]),
 
+        # ── Filter panel (collapsible) ────────────────────────────────────────
+        html.Div(id="filter-panel", className="filter-panel filter-panel-hidden", children=[
+            # Model type filter
+            html.Div(className="filter-group", children=[
+                html.Div(className="filter-group-header", children=[
+                    html.Span("Model Type", className="filter-group-title"),
+                    html.Button("All", id="filter-model-all",   className="filter-select-btn"),
+                    html.Button("None", id="filter-model-none", className="filter-select-btn"),
+                ]),
+                html.Div(
+                    id="filter-model-checks",
+                    className="filter-checks",
+                    children=[
+                        html.Label(className="filter-check-item", children=[
+                            dcc.Checklist(
+                                id={"type": "model-filter", "key": k},
+                                options=[{"label": "", "value": k}],
+                                value=[k],
+                                className="filter-checklist",
+                            ),
+                            html.Span(v, className="filter-check-label"),
+                        ])
+                        for k, v in MODEL_LABELS.items()
+                    ]
+                ),
+            ]),
+            # Strategy filter
+            html.Div(className="filter-group", children=[
+                html.Div(className="filter-group-header", children=[
+                    html.Span("SMOTE Variant", className="filter-group-title"),
+                    html.Button("All", id="filter-strategy-all",   className="filter-select-btn"),
+                    html.Button("None", id="filter-strategy-none", className="filter-select-btn"),
+                ]),
+                html.Div(
+                    id="filter-strategy-checks",
+                    className="filter-checks",
+                    children=[
+                        html.Label(className="filter-check-item", children=[
+                            dcc.Checklist(
+                                id={"type": "strategy-filter", "key": k},
+                                options=[{"label": "", "value": k}],
+                                value=[k],
+                                className="filter-checklist",
+                            ),
+                            html.Span(v, className="filter-check-label"),
+                        ])
+                        for k, v in STRATEGY_LABELS.items()
+                    ]
+                ),
+            ]),
+        ]),
+
         # ── Hidden stores ────────────────────────────────────────────────────
         dcc.Store(id="sort-metric-store",       data="f1_macro"),
         dcc.Store(id="sort-dir-store",          data="desc"),
+        dcc.Store(id="sort-result-type-store",  data="enhanced"),
         dcc.Store(id="result-type-store",       data="enhanced"),
         dcc.Store(id="selected-model-store",    data=""),
+        dcc.Store(id="row-clicks-store",        data={}),
         dcc.Store(id="page-store",              data=0),
+        dcc.Store(id="page-size-store",         data=5),
         dcc.Store(id="step4-data-loaded",       data=False),
-        dcc.Store(id="features-positive-store", data=True),   # True = hide negatives
+        dcc.Store(id="features-positive-store", data=True),
         dcc.Store(id="features-scroll-store",   data={"top": 0, "bar_height": 30}),
+        # Active filter sets — lists of selected keys; None means "all"
+        dcc.Store(id="filter-model-store",    data=list(MODEL_LABELS.keys())),
+        dcc.Store(id="filter-strategy-store", data=list(STRATEGY_LABELS.keys())),
 
         # ── Parameter tooltip (shown on model-row hover) ─────────────────────
         html.Div(id="params-tooltip", className="params-tooltip", children=[
@@ -743,6 +834,23 @@ html_step_4 = html.Div(
                     html.Button("›", id="page-next",  className="page-btn", title="Next page"),
                     html.Button("»", id="page-last",  className="page-btn", title="Last page"),
                 ]),
+                html.Div(className="page-size-wrap", children=[
+                    html.Span("Show", className="page-size-label"),
+                    dcc.Dropdown(
+                        id="page-size-dropdown",
+                        options=[
+                            {"label": "5",  "value": 5},
+                            {"label": "10", "value": 10},
+                            {"label": "20", "value": 20},
+                            {"label": "50", "value": 50},
+                        ],
+                        value=5,
+                        clearable=False,
+                        searchable=False,
+                        className="page-size-dropdown",
+                    ),
+                    html.Span("per page", className="page-size-label"),
+                ]),
             ]),
         ]),
 
@@ -755,12 +863,12 @@ html_step_4 = html.Div(
                 html.Div(className="chart-card", children=[dcc.Graph(id="chart-cm",       config={"displayModeBar": False})]),
                 html.Div(className="chart-card chart-card-features", children=[
                     html.Div(className="features-card-header", children=[
-                        html.Span("Selected Features · Importance", className="features-card-title"),
+                        html.Span("Selected Features · Importance", id="features-card-title", className="features-card-title"),
                         html.Button(
-                            "✦ Positive Only",
+                            "✦ Top 15",
                             id="features-filter-btn",
                             className="chart-toolbar-btn chart-toolbar-btn-active",
-                            title="Toggle: show all features / positive importance only",
+                            title="Toggle: show top 15 features / show all features",
                         ),
                     ]),
                     html.Div(
@@ -808,6 +916,26 @@ def load_step4_data(already_loaded):
     return True
 
 
+# ── Set default selection once data is loaded ────────────────────────────────
+@dash_app.callback(
+    Output("selected-model-store", "data", allow_duplicate=True),
+    Input("step4-data-loaded", "data"),
+    State("selected-model-store", "data"),
+    prevent_initial_call=True,
+)
+def initialise_selection(loaded, current_selected):
+    """Write rank-#1 key to the store exactly once on load, if nothing is
+    already selected.  This ensures render_leaderboard, update_charts, and
+    the page-indicator all see a real key from the very first render."""
+    if not loaded or not MODELS:
+        return no_update
+    if current_selected:          # user already has a selection — don't overwrite
+        return no_update
+    # Rank-#1 under default sort (f1_macro desc, enhanced)
+    rows = build_leaderboard_rows("f1_macro", "enhanced", sort_result_type="enhanced")
+    return rows[0]["key"] if rows else no_update
+
+
 # ── Navigate to selected model's page when result-type toggles ───────────────
 @dash_app.callback(
     Output("page-store", "data", allow_duplicate=True),
@@ -815,20 +943,28 @@ def load_step4_data(already_loaded):
     State("selected-model-store", "data"),
     State("sort-metric-store", "data"),
     State("sort-dir-store", "data"),
-    State("model-search", "value"),
+    State("sort-result-type-store", "data"),
+    State("filter-model-store", "data"),
+    State("filter-strategy-store", "data"),
+    State("page-size-store", "data"),
     prevent_initial_call=True,
 )
-def navigate_to_selected_on_toggle(result_type, selected_key, sort_metric, sort_dir, search_val):
+def navigate_to_selected_on_toggle(result_type, selected_key, sort_metric, sort_dir,
+                                   sort_result_type, model_filter, strategy_filter, page_size):
     if not selected_key or not MODELS:
         return 0
-    all_rows = build_leaderboard_rows(sort_metric, search_val or "", result_type)
+    page_size        = page_size or 5
+    sort_result_type = sort_result_type or "enhanced"
+    all_rows = build_leaderboard_rows(sort_metric, result_type,
+                                      sort_result_type=sort_result_type,
+                                      model_filter=model_filter,
+                                      strategy_filter=strategy_filter)
     if sort_dir == "asc":
         all_rows = list(reversed(all_rows))
     keys = [r["key"] for r in all_rows]
     if selected_key not in keys:
         return 0
-    idx = keys.index(selected_key)
-    return idx // PAGE_SIZE
+    return keys.index(selected_key) // page_size
 
 
 # ── Result type toggle ────────────────────────────────────────────────────────
@@ -850,81 +986,117 @@ def update_result_type(n_base, n_enh):
     return "baseline", "toggle-btn active-toggle", "toggle-btn"
 
 
+# ── Page size dropdown → store ────────────────────────────────────────────────
+@dash_app.callback(
+    Output("page-size-store", "data"),
+    Output("page-store", "data", allow_duplicate=True),
+    Input("page-size-dropdown", "value"),
+    State("selected-model-store", "data"),
+    State("sort-metric-store", "data"),
+    State("sort-dir-store", "data"),
+    State("sort-result-type-store", "data"),
+    State("result-type-store", "data"),
+    State("filter-model-store", "data"),
+    State("filter-strategy-store", "data"),
+    prevent_initial_call=True,
+)
+def update_page_size(value, selected_key, sort_metric, sort_dir,
+                     sort_result_type, result_type, model_filter, strategy_filter):
+    new_size         = value or 5
+    sort_result_type = sort_result_type or "enhanced"
+    if not selected_key or not MODELS:
+        return new_size, 0
+    all_rows = build_leaderboard_rows(sort_metric, result_type,
+                                      sort_result_type=sort_result_type,
+                                      model_filter=model_filter,
+                                      strategy_filter=strategy_filter)
+    if sort_dir == "asc":
+        all_rows = list(reversed(all_rows))
+    keys     = [r["key"] for r in all_rows]
+    new_page = keys.index(selected_key) // new_size if selected_key in keys else 0
+    return new_size, new_page
+
+
 # ── Sort metric store — also resets page to 0 ────────────────────────────────
 @dash_app.callback(
     Output("sort-metric-store", "data"),
     Output("sort-dir-store", "data"),
+    Output("sort-result-type-store", "data"),
     Output("page-store", "data"),
+    Output("selected-model-store", "data", allow_duplicate=True),
     Input({"type": "sort-btn", "metric": ALL}, "n_clicks"),
-    Input("model-search", "value"),
-    Input("result-type-store", "data"),
     Input("page-first", "n_clicks"),
     Input("page-prev",  "n_clicks"),
     Input("page-next",  "n_clicks"),
     Input("page-last",  "n_clicks"),
+    State("result-type-store", "data"),
     State("sort-metric-store", "data"),
     State("sort-dir-store", "data"),
+    State("sort-result-type-store", "data"),
     State("page-store", "data"),
-    State("model-search", "value"),
     State("selected-model-store", "data"),
+    State("page-size-store", "data"),
+    State("filter-model-store", "data"),
+    State("filter-strategy-store", "data"),
     prevent_initial_call=True,
 )
-def update_sort_and_page(sort_btn_clicks, search, result_type,
-                         first, prev, nxt, last,
-                         state_metric, state_dir, state_page, state_search,
-                         selected_key):
+def update_sort_and_page(sort_btn_clicks, first, prev, nxt, last,
+                         result_type,
+                         state_metric, state_dir, state_sort_rt,
+                         state_page, selected_key, page_size,
+                         model_filter, strategy_filter):
+    PAGINATION_IDS = {"page-first", "page-prev", "page-next", "page-last"}
+
+    page_size     = page_size or 5
+    state_sort_rt = state_sort_rt or "enhanced"
+    no_change     = (state_metric, state_dir, state_sort_rt, state_page, no_update)
+
     ctx = callback_context
     if not ctx.triggered:
-        return state_metric, state_dir, state_page
+        return no_change
 
     trigger_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
-    def _page_for_selected(metric, direction, result_type):
-        """Return the page index that contains the currently selected model."""
-        if not selected_key or not MODELS:
-            return 0
-        rows = build_leaderboard_rows(metric, state_search or "", result_type)
+    def _first_row_key(metric, direction, sort_rt):
+        rows = build_leaderboard_rows(metric, result_type, sort_result_type=sort_rt,
+                                      model_filter=model_filter, strategy_filter=strategy_filter)
         if direction == "asc":
             rows = list(reversed(rows))
-        keys = [r["key"] for r in rows]
-        if selected_key not in keys:
-            return 0
-        return keys.index(selected_key) // PAGE_SIZE
+        return rows[0]["key"] if rows else ""
 
-    # ── Sort button clicked ──────────────────────────────────────────────────
+    # ── Pattern-match trigger: sort-btn only, n_clicks > 0 ───────────────────
     try:
         parsed = json.loads(trigger_id)
-        if parsed.get("type") == "model-row":
-            return state_metric, state_dir, state_page
-        if parsed.get("type") == "sort-btn":
+        ptype  = parsed.get("type")
+        if ptype == "sort-btn":
+            if not ctx.triggered[0]["value"]:
+                return no_change
             metric  = parsed["metric"]
             new_dir = "asc" if (metric == state_metric and state_dir == "desc") else "desc"
-            return metric, new_dir, 0
+            new_srt = result_type
+            top_key = _first_row_key(metric, new_dir, new_srt)
+            return metric, new_dir, new_srt, 0, top_key
+        return no_change
     except (json.JSONDecodeError, KeyError):
         pass
 
-    # ── Search changed → back to page 0 ─────────────────────────────────────
-    if trigger_id == "model-search":
-        return state_metric, state_dir, 0
-
-    # ── Result-type toggled → handled by navigate_to_selected_on_toggle ─────
-    if trigger_id == "result-type-store":
-        return state_metric, state_dir, no_update
-
     # ── Pagination buttons ───────────────────────────────────────────────────
-    total_rows = len(build_leaderboard_rows(state_metric, state_search or "", result_type))
-    last_page  = max(0, (total_rows - 1) // PAGE_SIZE)
+    if trigger_id in PAGINATION_IDS:
+        total_rows = len(build_leaderboard_rows(state_metric, result_type,
+                                                sort_result_type=state_sort_rt,
+                                                model_filter=model_filter,
+                                                strategy_filter=strategy_filter))
+        last_page  = max(0, (total_rows - 1) // page_size)
+        if trigger_id == "page-first":
+            return state_metric, state_dir, state_sort_rt, 0, no_update
+        if trigger_id == "page-prev":
+            return state_metric, state_dir, state_sort_rt, max(0, state_page - 1), no_update
+        if trigger_id == "page-next":
+            return state_metric, state_dir, state_sort_rt, min(last_page, state_page + 1), no_update
+        if trigger_id == "page-last":
+            return state_metric, state_dir, state_sort_rt, last_page, no_update
 
-    if trigger_id == "page-first":
-        return state_metric, state_dir, 0
-    if trigger_id == "page-prev":
-        return state_metric, state_dir, max(0, state_page - 1)
-    if trigger_id == "page-next":
-        return state_metric, state_dir, min(last_page, state_page + 1)
-    if trigger_id == "page-last":
-        return state_metric, state_dir, last_page
-
-    return state_metric, state_dir, state_page
+    return no_change
 
 
 # ── Leaderboard render ────────────────────────────────────────────────────────
@@ -933,26 +1105,33 @@ def update_sort_and_page(sort_btn_clicks, search, result_type,
     Output("page-indicator", "children"),
     Input("sort-metric-store", "data"),
     Input("sort-dir-store", "data"),
+    Input("sort-result-type-store", "data"),
     Input("result-type-store", "data"),
-    Input("model-search", "value"),
     Input("page-store", "data"),
     Input("step4-data-loaded", "data"),
-    State("selected-model-store", "data"),
+    Input("page-size-store", "data"),
+    Input("selected-model-store", "data"),
+    Input("filter-model-store", "data"),
+    Input("filter-strategy-store", "data"),
 )
-def render_leaderboard(sort_metric, sort_dir, result_type, search_val, page, _loaded, selected_key):
-    # After data loads, default selection to first model if none chosen yet
-    if not selected_key and MODELS:
-        selected_key = list(MODELS.keys())[0]
-    all_rows = build_leaderboard_rows(sort_metric, search_val or "", result_type)
+def render_leaderboard(sort_metric, sort_dir, sort_result_type, result_type,
+                       page, _loaded, page_size, selected_key,
+                       model_filter, strategy_filter):
+    page_size        = page_size or 5
+    sort_result_type = sort_result_type or "enhanced"
+    all_rows = build_leaderboard_rows(sort_metric, result_type,
+                                      sort_result_type=sort_result_type,
+                                      model_filter=model_filter,
+                                      strategy_filter=strategy_filter)
     if sort_dir == "asc":
         all_rows = list(reversed(all_rows))
 
     total_rows = len(all_rows)
-    last_page  = max(0, (total_rows - 1) // PAGE_SIZE) if total_rows else 0
+    last_page  = max(0, (total_rows - 1) // page_size) if total_rows else 0
     page       = max(0, min(page, last_page))
 
-    start = page * PAGE_SIZE
-    rows  = all_rows[start : start + PAGE_SIZE]
+    start = page * page_size
+    rows  = all_rows[start : start + page_size]
 
     # Best values computed across ALL rows (not just current page)
     best = {}
@@ -994,9 +1173,12 @@ def render_leaderboard(sort_metric, sort_dir, result_type, search_val, page, _lo
     tbody_rows = []
     for i, row in enumerate(rows):
         global_rank = all_rows.index(row) + 1
-        rank_cls = "gold" if global_rank == 1 else "silver" if global_rank == 2 else "bronze" if global_rank == 3 else "default"
+        # When sorting ascending (worst-first), display rank as n, n-1, n-2...
+        # so that the worst model shows the highest number and #1 = best.
+        display_rank = (total_rows - global_rank + 1) if sort_dir == "asc" else global_rank
+        rank_cls = "gold" if display_rank == 1 else "silver" if display_rank == 2 else "bronze" if display_rank == 3 else "default"
         cells = [
-            html.Td(html.Span(f"#{global_rank}", className=f"rank-badge rank-{rank_cls}"), className="td-rank"),
+            html.Td(html.Span(f"#{display_rank}", className=f"rank-badge rank-{rank_cls}"), className="td-rank"),
             html.Td(
                 html.Div([html.Span(_model_display(row["name"]), className="model-name")]),
                 className="td-model",
@@ -1059,50 +1241,131 @@ def render_leaderboard(sort_metric, sort_dir, result_type, search_val, page, _lo
 
 
 # ── Row click → selected model ────────────────────────────────────────────────
+# Uses row-clicks-store to distinguish real user clicks from phantom triggers
+# caused by render_leaderboard rebuilding the table and resetting n_clicks=0.
+# A click is real only when the current n_clicks for a key is GREATER than the
+# last known value for that key in the store.
 @dash_app.callback(
     Output("selected-model-store", "data"),
+    Output("row-clicks-store", "data"),
     Input({"type": "model-row", "key": ALL}, "n_clicks"),
+    State({"type": "model-row", "key": ALL}, "id"),
+    State("row-clicks-store", "data"),
+    State("selected-model-store", "data"),
     prevent_initial_call=True,
 )
-def select_model(n_clicks_list):
+def select_model(n_clicks_list, id_list, prev_clicks, current_selected):
     ctx = callback_context
-    if not ctx.triggered:
-        return no_update
-    key = json.loads(ctx.triggered[0]["prop_id"].split(".")[0])["key"]
-    return key
+    if not ctx.triggered or not id_list:
+        return no_update, no_update
+
+    prev_clicks = prev_clicks or {}
+
+    # Build current snapshot: {key: n_clicks}
+    current_clicks = {
+        id_obj["key"]: (n or 0)
+        for id_obj, n in zip(id_list, n_clicks_list)
+    }
+
+    # Find keys where n_clicks strictly increased — these are real clicks
+    clicked_key = None
+    for key, count in current_clicks.items():
+        if count > prev_clicks.get(key, 0):
+            clicked_key = key
+            break
+
+    # Always update the store snapshot so next call has fresh baseline
+    new_store = current_clicks
+
+    if clicked_key is None:
+        # No real click — phantom trigger from table re-render; keep selection
+        return no_update, new_store
+
+    return clicked_key, new_store
 
 
 # ── Highlight selected row in DOM directly (no table re-render needed) ────────
-dash_app.clientside_callback(
-    """
-    function(selected_key, result_type) {
-        if (!selected_key) return window.dash_clientside.no_update;
+# REMOVED — render_leaderboard now has selected-model-store as an Input and
+# stamps selected-row in Python on every render. No clientside DOM mutation
+# needed, which eliminates the race condition between Python and JS highlighting.
 
-        // Small delay to let Dash finish re-rendering the table after a toggle
-        setTimeout(function() {
-            document.querySelectorAll('tr.model-row').forEach(function(tr) {
-                tr.classList.remove('selected-row');
-            });
-            document.querySelectorAll('tr.model-row').forEach(function(tr) {
-                const idAttr = tr.id;
-                if (!idAttr) return;
-                try {
-                    const parsed = JSON.parse(idAttr);
-                    if (parsed.key === selected_key) {
-                        tr.classList.add('selected-row');
-                    }
-                } catch(_) {}
-            });
-        }, 50);
 
-        return window.dash_clientside.no_update;
-    }
-    """,
-    Output("params-tooltip", "style"),
-    Input("selected-model-store", "data"),
-    Input("result-type-store", "data"),
+# ── Filter panel toggle ───────────────────────────────────────────────────────
+@dash_app.callback(
+    Output("filter-panel", "className"),
+    Output("filter-panel-toggle", "className"),
+    Input("filter-panel-toggle", "n_clicks"),
+    State("filter-panel", "className"),
     prevent_initial_call=True,
 )
+def toggle_filter_panel(n, current_class):
+    hidden = "filter-panel-hidden" in current_class
+    if hidden:
+        return "filter-panel filter-panel-visible", "filter-toggle-btn filter-toggle-active"
+    return "filter-panel filter-panel-hidden", "filter-toggle-btn"
+
+
+# ── Select-All / None for model type ─────────────────────────────────────────
+@dash_app.callback(
+    Output({"type": "model-filter", "key": ALL}, "value"),
+    Input("filter-model-all",  "n_clicks"),
+    Input("filter-model-none", "n_clicks"),
+    State({"type": "model-filter", "key": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def select_all_none_model(n_all, n_none, id_list):
+    ctx = callback_context
+    if not ctx.triggered or not id_list:
+        return [no_update] * len(id_list)
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "filter-model-all":
+        return [[id_obj["key"]] for id_obj in id_list]
+    return [[] for _ in id_list]
+
+
+# ── Select-All / None for strategy ───────────────────────────────────────────
+@dash_app.callback(
+    Output({"type": "strategy-filter", "key": ALL}, "value"),
+    Input("filter-strategy-all",  "n_clicks"),
+    Input("filter-strategy-none", "n_clicks"),
+    State({"type": "strategy-filter", "key": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def select_all_none_strategy(n_all, n_none, id_list):
+    ctx = callback_context
+    if not ctx.triggered or not id_list:
+        return [no_update] * len(id_list)
+    trigger = ctx.triggered[0]["prop_id"].split(".")[0]
+    if trigger == "filter-strategy-all":
+        return [[id_obj["key"]] for id_obj in id_list]
+    return [[] for _ in id_list]
+
+
+# ── Aggregate checkbox values → filter stores ─────────────────────────────────
+@dash_app.callback(
+    Output("filter-model-store", "data"),
+    Input({"type": "model-filter", "key": ALL}, "value"),
+    State({"type": "model-filter", "key": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def update_model_filter(values, id_list):
+    if not id_list:
+        return no_update
+    selected = [id_obj["key"] for id_obj, val in zip(id_list, values) if val]
+    return selected if selected else list(MODEL_LABELS.keys())  # never show 0 rows
+
+
+@dash_app.callback(
+    Output("filter-strategy-store", "data"),
+    Input({"type": "strategy-filter", "key": ALL}, "value"),
+    State({"type": "strategy-filter", "key": ALL}, "id"),
+    prevent_initial_call=True,
+)
+def update_strategy_filter(values, id_list):
+    if not id_list:
+        return no_update
+    selected = [id_obj["key"] for id_obj, val in zip(id_list, values) if val]
+    return selected if selected else list(STRATEGY_LABELS.keys())
 
 
 # ── Features filter toggle ────────────────────────────────────────────────────
@@ -1114,20 +1377,20 @@ dash_app.clientside_callback(
     State("features-positive-store", "data"),
     prevent_initial_call=True,
 )
-def toggle_features_filter(n, currently_positive):
-    new_state = not currently_positive
+def toggle_features_filter(n, currently_top15):
+    new_state = not currently_top15
     if new_state:
-        return new_state, "✦ Positive Only", "chart-toolbar-btn chart-toolbar-btn-active"
-    return new_state, "＋ / − Show All", "chart-toolbar-btn"
+        return new_state, "✦ Top 15", "chart-toolbar-btn chart-toolbar-btn-active"
+    return new_state, "+ / − Show All", "chart-toolbar-btn"
 
 
-# ── Charts update ─────────────────────────────────────────────────────────────
 @dash_app.callback(
-    Output("chart-roc",      "figure"),
-    Output("chart-pr",       "figure"),
-    Output("chart-cm",       "figure"),
-    Output("chart-features", "figure"),
-    Output("charts-model-label", "children"),
+    Output("chart-roc",           "figure"),
+    Output("chart-pr",            "figure"),
+    Output("chart-cm",            "figure"),
+    Output("chart-features",      "figure"),
+    Output("charts-model-label",  "children"),
+    Output("features-card-title", "children"),
     Input("selected-model-store",    "data"),
     Input("result-type-store",       "data"),
     Input("step4-data-loaded",       "data"),
@@ -1137,76 +1400,40 @@ def update_charts(model_key, result_type, _loaded, positives_only):
     if not model_key or model_key not in MODELS:
         empty = go.Figure()
         empty.update_layout(**_base_layout(""))
-        return empty, empty, empty, empty, ""
+        return empty, empty, empty, empty, "", "Selected Features · Importance"
 
     name  = _model_display(MODELS[model_key]["model"])
     label = html.Div([
         html.Span(name, className="charts-model-name"),
         html.Span(f" · {result_type.capitalize()}", className="charts-model-type"),
     ])
+
+    raw_method = MODELS[model_key][result_type].get("feature_method", "")
+    method_label = raw_method.upper() if raw_method else "Importance"
+    features_title = f"Selected Features · {method_label}"
+
     return (
         build_roc_figure(model_key, result_type),
         build_pr_figure(model_key, result_type),
         build_cm_figure(model_key, result_type),
-        build_features_figure(model_key, result_type, positives_only=bool(positives_only)),
+        build_features_figure(model_key, result_type, top15_only=bool(positives_only)),
         label,
+        features_title,
     )
 
 
 
-# ── Features scroll → reset to top + bind axis-update on figure change ────────
+# ── Selected Features: reset scroll to top on figure change ─────────────────
+# The chart now auto-sizes its height to fit all bars (no scrollbar needed),
+# and the x-axis uses autorange so no dynamic relayout is required.
+# This callback only resets the wrapper scroll position when a new model is
+# selected so the user always sees the top-ranked feature first.
 dash_app.clientside_callback(
     """
     function(figure) {
         if (!figure || !figure.data) return window.dash_clientside.no_update;
-
         var wrap = document.getElementById('features-scroll-wrap');
-        if (!wrap) return window.dash_clientside.no_update;
-
-        wrap.scrollTop = 0;
-
-        if (wrap._scrollHandler) {
-            wrap.removeEventListener('scroll', wrap._scrollHandler);
-        }
-
-        function updateAxes() {
-            var graphDiv = wrap.querySelector('.js-plotly-plot');
-            if (!graphDiv || !graphDiv.data || !graphDiv.data[0]) return;
-
-            var xVals = graphDiv.data[0].x;
-            if (!xVals || xVals.length === 0) return;
-
-            var n          = xVals.length;
-            var scrollH    = wrap.scrollHeight;
-            var clientH    = wrap.clientHeight;
-            var scrollTop  = wrap.scrollTop;
-            var barH       = scrollH / n;
-            var barsVisible = Math.round(clientH / barH);
-            var first      = Math.floor(scrollTop / barH);
-            var last       = Math.min(first + barsVisible - 1, n - 1);
-
-            var slice  = xVals.slice(first, last + 1);
-            var xMin   = Math.min.apply(null, slice);
-            var xMax   = Math.max.apply(null, slice);
-            var xStart = Math.min(0, xMin);
-            var xEnd   = xMax >= 0 ? xMax * 1.15 : xMax * 0.85;
-
-            Plotly.relayout(graphDiv, {
-                'yaxis.range':     [last + 0.5, first - 0.5],
-                'yaxis.autorange': false,
-                'xaxis.range':     [xStart, xEnd],
-                'xaxis.autorange': false
-            });
-        }
-
-        wrap._scrollHandler = function() {
-            if (wrap._raf) cancelAnimationFrame(wrap._raf);
-            wrap._raf = requestAnimationFrame(updateAxes);
-        };
-
-        wrap.addEventListener('scroll', wrap._scrollHandler);
-        setTimeout(updateAxes, 120);
-
+        if (wrap) wrap.scrollTop = 0;
         return window.dash_clientside.no_update;
     }
     """,
@@ -1332,12 +1559,18 @@ dash_app.clientside_callback(
     Input("export-csv-btn", "n_clicks"),
     State("sort-metric-store", "data"),
     State("result-type-store", "data"),
+    State("sort-result-type-store", "data"),
+    State("filter-model-store", "data"),
+    State("filter-strategy-store", "data"),
     prevent_initial_call=True,
 )
-def export_csv(n, sort_metric, result_type):
+def export_csv(n, sort_metric, result_type, sort_result_type, model_filter, strategy_filter):
     if not n:
         return no_update
-    rows = build_leaderboard_rows(sort_metric, "", result_type)
+    rows = build_leaderboard_rows(sort_metric, result_type,
+                                  sort_result_type=sort_result_type or "enhanced",
+                                  model_filter=model_filter,
+                                  strategy_filter=strategy_filter)
     records = [{
         "Model":    r["name"],
         "Strategy": r["strategy"],

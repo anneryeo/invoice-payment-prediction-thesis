@@ -1,8 +1,25 @@
 /* ===========================
    HEADER STYLES
    =========================== */
+
+/* Sticky wrapper — glues the title + progress bar to the top of the
+   viewport as the user scrolls through long step content.            */
+.setup-sticky-top {
+    position: sticky;
+    top: 0;
+    z-index: 200;
+    background: #ffffff;
+    /* re-bleed the container's horizontal padding so bar is full-width */
+    margin-left:  -40px;
+    margin-right: -40px;
+    padding-left:  40px;
+    padding-right: 40px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+}
+
 .setup-header {
-    margin-bottom: 25px;
+    margin-bottom: 0;
+    padding-top: 18px;
     text-align: center;
 }
 
@@ -18,6 +35,11 @@
     border-top: 2px solid #eee;
     width: 100%;
     margin: 0 auto;
+}
+
+/* Progress bar sits inside the sticky wrapper — no extra bottom margin */
+.setup-sticky-top .progress-header {
+    margin-bottom: 1;
 }
 
 
