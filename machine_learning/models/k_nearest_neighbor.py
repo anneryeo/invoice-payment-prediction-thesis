@@ -32,7 +32,8 @@ class KnearestNeighborPipeline(BasePipeline):
             mask[selected_indices] = True
 
             self._set_features(
-                method=f"Permutation Importance (top_k={top_k!r}, n_repeats={n_repeats})",
+                method_text=f"Permutation Importance",
+                method_parameters=f"top_k={top_k!r}, n_repeats={n_repeats}",
                 mask=mask,
                 importances=importance_scores,
             )
@@ -42,6 +43,6 @@ class KnearestNeighborPipeline(BasePipeline):
 
             self.model.fit(self.X_train, self.y_train)
         else:
-            self._set_features(method="none")
+            self._set_features(method_text="none")
 
         return self

@@ -24,12 +24,13 @@ class DecisionTreePipeline(BasePipeline):
             self.X_test  = self.selector.transform(self.X_test)
 
             self._set_features(
-                method=f"Gini Importance, threshold={threshold!r})",
+                method_text=f"Gini Importance",
+                method_parameters=f"threshold={threshold!r}",
                 mask=mask
             )
 
             self.model.fit(self.X_train, self.y_train)
         else:
-            self._set_features(method="none")
+            self._set_features(method_text="none")
 
         return self

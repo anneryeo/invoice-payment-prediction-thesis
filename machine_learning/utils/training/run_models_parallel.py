@@ -263,12 +263,14 @@ class SurvivalExperimentRunner:
             #                                                                       performs worst than the built in SMOTE technques
 
             **{f"baseline_{k}": v for k, v in result_baseline.items()},
-            "baseline_feature_method":   pipeline_baseline.features.method,
+            "baseline_feature_method":   pipeline_baseline.features.method_text,
+            "baseline_feature_parameters":   pipeline_baseline.features.method_parameters,
             "baseline_feature_selected": pipeline_baseline.features.selected,
             "baseline_feature_weights":  pipeline_baseline.features.weights,
 
             **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
-            "enhanced_feature_method":   pipeline_enhanced.features.method,
+            "enhanced_feature_method":   pipeline_enhanced.features.method_text,
+            "enhanced_feature_parameters":   pipeline_enhanced.features.method_parameters,
             "enhanced_feature_selected": pipeline_enhanced.features.selected,
             "enhanced_feature_weights":  pipeline_enhanced.features.weights,
         }
