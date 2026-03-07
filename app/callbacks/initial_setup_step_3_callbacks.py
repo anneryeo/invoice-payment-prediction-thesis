@@ -119,9 +119,9 @@ def clean_datasets(revenues_content, enrollees_content):
     args = Config()
 
     cs = CreditSales(df_revenues, df_enrollees, args,
-                     drop_demographic_columns=True,
                      drop_helper_columns=True,
-                     drop_plan_type_columns=True,
+                     drop_demographic_columns=True,
+                     drop_plan_type_columns=False,
                      drop_missing_dtp=True)
     df_credit_sales = cs.show_data()
 
@@ -130,7 +130,7 @@ def clean_datasets(revenues_content, enrollees_content):
     survival_columns = ['days_elapsed_until_fully_paid', 'censor']
     non_survival_columns = ['due_date', 'dtp_bracket']
 
-    df_data = df_credit_sales[df_credit_sales['censor'] == 1]
+    df_data = df_credit_sales[df_credit_sales['censor'] == 1].copy()
     df_data.drop(columns=survival_columns, inplace=True)
     df_data_surv = df_credit_sales.drop(columns=non_survival_columns)
 
