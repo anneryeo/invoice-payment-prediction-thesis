@@ -24,10 +24,13 @@ class RandomForestPipeline(BasePipeline):
             self.X_train = self.selector.transform(self.X_train)
             self.X_test  = self.selector.transform(self.X_test)
 
-            self._set_features(method=f"Mean Decrease Impurity (threshold={threshold!r})", mask=mask)
+            self._set_features(
+                method_text=f"Mean Decrease Impurity",
+                method_parameters=f"threshold={threshold!r}",
+                mask=mask)
 
             self.model.fit(self.X_train, self.y_train)
         else:
-            self._set_features(method="none")
+            self._set_features(method_text="none")
 
         return self

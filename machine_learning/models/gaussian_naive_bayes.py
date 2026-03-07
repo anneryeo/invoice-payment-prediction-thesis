@@ -32,7 +32,8 @@ class GaussianNaiveBayesPipeline(BasePipeline):
 
             # Capture weights before column reduction drops unselected importances
             self._set_features(
-                method=f"GaussianNB influence score (top_k={top_k!r})",
+                method_text=f"GaussianNB influence score",
+                method_parameters=f"top_k={top_k!r}",
                 mask=mask,
                 importances=influence_scores,
             )
@@ -42,6 +43,6 @@ class GaussianNaiveBayesPipeline(BasePipeline):
 
             self.model.fit(self.X_train, self.y_train)
         else:
-            self._set_features(method="none")
+            self._set_features(method_text="none")
 
         return self

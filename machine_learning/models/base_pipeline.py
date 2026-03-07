@@ -7,7 +7,8 @@ from ..utils.training.data_evaluation import data_evaluation
 
 @dataclass
 class FeatureInfo:
-    method: Optional[str] = None
+    method_text: Optional[str] = None
+    method_parameters: Optional[str] = None
     selected: Optional[list] = None
     weights: Optional[dict] = None
 
@@ -52,10 +53,10 @@ class BasePipeline(ABC):
             raise ValueError("Model not built. Call initialize_model() first.")
 
         self.model.fit(self.X_train, self.y_train)
-        self._set_features(method="none")
+        self._set_features(method_text="none", method_parameters="none")
         return self
 
-    def _set_features(self, method, mask=None, importances=None):
+    def _set_features(self, method_text, method_parameters, mask=None, importances=None):
         """
         Populate self.features (a FeatureInfo dataclass) after a model has been fitted.
 
@@ -65,10 +66,15 @@ class BasePipeline(ABC):
 
         Parameters
         ----------
-        method : str
+        method_text : str
             A human-readable description of the feature selection strategy applied.
-            Use "none" when no selection was performed, or a descriptive string such
-            as "SelectFromModel(threshold='median')" when a selector was used.
+            Use "none" when no selection was performed, or provide a descriptive string
+            such as "SelectFromModel" when a selector was used.
+
+        method_parameters : dict
+            A dictionary of parameters associated with the feature selection method.
+            For example, {"threshold": "median"} if using SelectFromModel with a median threshold.
+            Use an empty dict when no parameters are applicable.
 
         mask : array-like of bool, optional
             A boolean array of shape (n_original_features,) where True indicates a
@@ -83,8 +89,11 @@ class BasePipeline(ABC):
 
         Sets
         ----
-        self.features.method : str
-            Mirrors the method argument directly.
+        self.features.method_text : str
+            Name of the method used in feature selection
+
+        self.features.method_parameters : str
+            The parameters used for that specific feature selection method.
 
         self.features.selected : list of str or None
             Names of the features that were kept. None if original_feature_names
@@ -126,7 +135,7 @@ class BasePipeline(ABC):
                 if names is not None and importances is not None else None
             )
 
-        self.features = FeatureInfo(method=method, selected=selected, weights=weights)
+        self.features = FeatureInfo(method_text=method_text, method_parameters=method_parameters, selected=selected, weights=weights)
 
     def predict(self, X):
         """Generate predictions for new data."""

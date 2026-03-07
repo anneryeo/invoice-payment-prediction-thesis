@@ -93,7 +93,8 @@ class MultiLayerPerceptronPipeline(BasePipeline):
             mask[selected_indices] = True
 
             self._set_features(
-                method=f"SHAP KernelExplainer (top_k={top_k})",
+                method_text=f"SHAP Kernel Explainer",
+                method_parameters=f"top_k={top_k}",
                 mask=mask,
                 importances=shap_scores,
             )
@@ -104,7 +105,7 @@ class MultiLayerPerceptronPipeline(BasePipeline):
             self.initialize_model()
             self._run_training_loop(epochs, batch_size, lr)
         else:
-            self._set_features(method="none")
+            self._set_features(method_text="none")
 
         return self
 
