@@ -56,12 +56,13 @@ html_step_2 = (
         dcc.Checklist(
             id="balancing_selection",
             options=[
+                {"label": "None (No balancing technique will be used)", "value": "none"},
                 {"label": "SMOTE (Synthetic Minority Over Sampling Technique)", "value": "smote"},
                 {"label": "Borderline SMOTE", "value": "borderline_smote"},
                 {"label": "SMOTE-ENN (Edited Nearest Neighbors)", "value": "smote_enn"},
                 {"label": "SMOTE Tomek (Tomek Links)", "value": "smote_tomek"},
             ],
-            value=["smote", "borderline_smote", "smote_enn", "smote_tomek"],
+            value=["none", "smote", "borderline_smote", "smote_enn", "smote_tomek"],
             className="checklist"
         ),
 
