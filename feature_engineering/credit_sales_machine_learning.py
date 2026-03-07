@@ -4,6 +4,11 @@ from datetime import datetime
 from multiprocessing import Pool, cpu_count
 from sklearn.preprocessing import OneHotEncoder
 
+
+# Silence FutureWarning about implicit downcasting behavior in pandas operations
+pd.set_option('future.no_silent_downcasting', True)
+
+
 class CreditSales:
     """
     Organizes and processes student credit sales by due-date type, applying discounts,
@@ -593,8 +598,8 @@ class CreditSales:
 
         days_diff = (date_current - date_previous).dt.days
         trend = (df[col_current] - df[col_previous]) / days_diff.replace(0, pd.NA)
-
-        return trend.fillna(0)
+        trend = trend.fillna(0).infer_objects(copy=False)
+        return trend
     
     def _merge_amount_due_cum_sum(self, df_cs: pd.DataFrame, df_revenues: pd.DataFrame) -> pd.DataFrame:
         """
@@ -725,7 +730,7 @@ class CreditSales:
         df_cs = df_cs[
             (df_cs['due_date'] <= observation_end_date) |
             ((df_cs['due_date'] > observation_end_date) & df_cs['date_fully_paid'].notna())
-        ]
+        ].copy()
 
         # Update only censored rows
         df_cs.loc[df_cs['censor'] == 0, 'days_elapsed_until_fully_paid'] = (
