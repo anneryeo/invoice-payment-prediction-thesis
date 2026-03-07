@@ -44,6 +44,10 @@
     --shadow-md:      0 4px 12px rgba(0,0,0,0.07), 0 2px 4px rgba(0,0,0,0.04);
     --radius:         6px;
     --radius-lg:      10px;
+
+    /* Height of the sticky .setup-sticky-top bar (title + progress steps).
+       Increase this value if the header is taller on your screen.          */
+    --sticky-header-h: 158px;
 }
 
 /* ── Root container ─────────────────────────────────────────── */
@@ -53,7 +57,7 @@
     font-family: var(--text-sans);
     min-width: 0;
     box-sizing: border-box;
-    overflow-x: hidden;   /* let leaderboard-wrap handle its own scroll */
+    overflow-x: auto;   /* horizontal scroll for narrow screens, far enough up to not trap sticky */
 }
 
 /* ── Page header ────────────────────────────────────────────── */
@@ -158,28 +162,144 @@
     margin-bottom: 1rem;
 }
 
-.search-input {
+.filter-toggle-btn {
     font-family: var(--text-mono);
-    font-size: 0.78rem;
-    background: var(--bg-input);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.38rem 0.85rem;
+    background: var(--bg-card);
     border: 1px solid var(--border-strong);
     border-radius: var(--radius);
-    color: var(--text-primary);
-    padding: 0.4rem 0.85rem;
-    width: 100%;
-    max-width: 220px;
-    outline: none;
-    transition: border-color 0.15s, box-shadow 0.15s;
-    box-sizing: border-box;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
 }
 
-.search-input:focus {
+.filter-toggle-btn:hover {
     border-color: var(--accent-blue);
-    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+    color: var(--accent-blue);
+    background: #eff6ff;
 }
 
-.search-input::placeholder {
+.filter-toggle-active {
+    background: var(--accent-blue) !important;
+    color: #ffffff !important;
+    border-color: var(--accent-blue) !important;
+}
+
+/* ── Filter panel ───────────────────────────────────────────── */
+.filter-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 1rem 1.25rem;
+    margin-bottom: 1rem;
+    display: flex;
+    gap: 2rem;
+    flex-wrap: wrap;
+    box-shadow: var(--shadow-sm);
+    overflow: hidden;
+    transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
+    max-height: 500px;
+    opacity: 1;
+}
+
+.filter-panel-hidden {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    padding-top: 0 !important;
+    padding-bottom: 0 !important;
+    border-color: transparent !important;
+    margin-bottom: 0 !important;
+    pointer-events: none;
+}
+
+.filter-group {
+    flex: 1;
+    min-width: 200px;
+}
+
+.filter-group-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 1px solid var(--border);
+}
+
+.filter-group-title {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
     color: var(--text-muted);
+    text-transform: uppercase;
+    flex: 1;
+}
+
+.filter-select-btn {
+    font-family: var(--text-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.04em;
+    padding: 0.15rem 0.45rem;
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.12s;
+}
+
+.filter-select-btn:hover {
+    border-color: var(--accent-blue);
+    color: var(--accent-blue);
+    background: #eff6ff;
+}
+
+.filter-checks {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.filter-check-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+    border-radius: 4px;
+    transition: background 0.1s;
+}
+
+.filter-check-item:hover {
+    background: var(--bg-root);
+}
+
+.filter-checklist .form-check-input,
+.filter-checklist input[type="checkbox"] {
+    width: 13px;
+    height: 13px;
+    margin: 0;
+    accent-color: var(--accent-blue);
+    cursor: pointer;
+    flex-shrink: 0;
+}
+
+/* Hide the default Dash checklist label — we supply our own span */
+.filter-checklist .form-check-label {
+    display: none;
+}
+
+.filter-check-label {
+    font-family: var(--text-sans);
+    font-size: 0.73rem;
+    color: var(--text-secondary);
+    line-height: 1;
+    user-select: none;
 }
 
 .controls-right {
@@ -210,15 +330,15 @@
 }
 
 /* ── Leaderboard wrapper ────────────────────────────────────── */
+/* NO overflow set here at all — any overflow (even overflow-x:auto)
+   can create a scroll context in some browsers that traps sticky.
+   Horizontal scroll for narrow viewports is handled at the body level. */
 .leaderboard-wrap {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius-lg);
-    overflow-x: auto;
-    overflow-y: visible;
     margin-bottom: 1.5rem;
     box-shadow: var(--shadow-sm);
-    /* Prevent parent from clipping horizontal scroll */
     min-width: 0;
     width: 100%;
     box-sizing: border-box;
@@ -227,16 +347,27 @@
 /* ── Table ──────────────────────────────────────────────────── */
 .leaderboard-table {
     width: 100%;
-    min-width: 900px;           /* enough for all 5 metric pairs to show */
-    border-collapse: collapse;
+    min-width: 900px;
+    border-collapse: separate;   /* required — border-collapse breaks position:sticky */
+    border-spacing: 0;
     font-family: var(--text-mono);
     table-layout: fixed;
+}
+
+/* Sticky thead — sticks to the page viewport below the setup sticky header.
+   Uses --sticky-header-h variable — adjust in :root if the header is taller. */
+.leaderboard-table thead {
+    position: sticky;
+    top: var(--sticky-header-h);
+    z-index: 100;
 }
 
 /* Header row 1 — metric group labels + sort buttons */
 .leaderboard-table thead tr:first-child th {
     background: var(--bg-thead);
     border-bottom: 1px solid var(--border);
+    /* outline replaces the collapsed border on the bottom edge */
+    box-shadow: inset 0 -1px 0 var(--border);
     padding: 0.5rem 0.4rem 0.3rem;
     text-align: center;
 }
@@ -244,7 +375,8 @@
 /* Header row 2 — Base / Enh sub-labels */
 .leaderboard-table thead tr:last-child th {
     background: var(--bg-thead);
-    border-bottom: 2px solid var(--border-strong);
+    border-bottom: none;
+    box-shadow: inset 0 -2px 0 var(--border-strong);   /* replaces border-bottom: 2px */
     padding: 0.2rem 0.4rem 0.3rem;
 }
 
@@ -313,17 +445,34 @@
     transition: background 0.1s;
 }
 
+/* With border-separate, borders go on the cells not the row */
+.model-row td {
+    border-bottom: 1px solid var(--border);
+}
+
 .model-row:hover {
     background: var(--bg-card-hover);
 }
 
-.model-row:last-child {
+.model-row:last-child td {
     border-bottom: none;
 }
 
 .selected-row {
     background: var(--bg-selected) !important;
-    border-left: 3px solid var(--accent-blue);
+    position: relative;
+    z-index: 1;   /* always below thead z-index:100 */
+}
+
+/* border-left on <tr> is ignored with border-collapse:separate —
+   apply it to the first cell instead */
+.selected-row td:first-child {
+    border-left: 3px solid var(--accent-blue) !important;
+}
+
+/* Non-selected rows get 0px left border to prevent layout shift */
+.model-row:not(.selected-row) td:first-child {
+    border-left: 3px solid transparent;
 }
 
 /* Cells */
@@ -613,6 +762,105 @@
     opacity: 0.35;
     cursor: not-allowed;
     pointer-events: none;
+}
+
+/* ── Page-size dropdown ─────────────────────────────────────── */
+.page-size-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: 0.75rem;
+    flex-shrink: 0;
+}
+
+.page-size-label {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    letter-spacing: 0.05em;
+    white-space: nowrap;
+}
+
+/* Outer Dash dropdown container */
+.page-size-dropdown {
+    width: 72px !important;
+    min-width: 72px !important;
+}
+
+/* Control box (the visible "button") */
+.page-size-dropdown .VirtualizedSelectFocusedOption,
+.page-size-dropdown .Select-control,
+.page-size-dropdown .dropdown {
+    font-family: var(--text-mono) !important;
+    font-size: 0.68rem !important;
+}
+
+/* Dash 2.x uses div.Select > div.Select-control */
+.page-size-dropdown .Select > .Select-control {
+    height: 28px !important;
+    min-height: 28px !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius) !important;
+    background: var(--bg-card) !important;
+    box-shadow: none !important;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.page-size-dropdown .Select > .Select-control:hover {
+    border-color: var(--accent-blue) !important;
+}
+
+/* Selected value text */
+.page-size-dropdown .Select-value-label,
+.page-size-dropdown .Select-placeholder {
+    font-family: var(--text-mono) !important;
+    font-size: 0.68rem !important;
+    color: var(--text-secondary) !important;
+    line-height: 28px !important;
+}
+
+/* Caret */
+.page-size-dropdown .Select-arrow {
+    border-top-color: var(--text-muted) !important;
+}
+
+.page-size-dropdown .Select-arrow-zone:hover .Select-arrow {
+    border-top-color: var(--accent-blue) !important;
+}
+
+/* Dropdown menu panel */
+.page-size-dropdown .Select-menu-outer {
+    font-family: var(--text-mono) !important;
+    font-size: 0.68rem !important;
+    border: 1px solid var(--border-strong) !important;
+    border-radius: var(--radius) !important;
+    box-shadow: var(--shadow-md) !important;
+    background: var(--bg-card) !important;
+    z-index: 9999 !important;
+    min-width: 72px !important;
+}
+
+/* Individual options */
+.page-size-dropdown .Select-option {
+    font-family: var(--text-mono) !important;
+    font-size: 0.68rem !important;
+    color: var(--text-secondary) !important;
+    padding: 0.3rem 0.65rem !important;
+    background: var(--bg-card) !important;
+    cursor: pointer;
+}
+
+.page-size-dropdown .Select-option.is-focused {
+    background: #eff6ff !important;
+    color: var(--accent-blue) !important;
+}
+
+.page-size-dropdown .Select-option.is-selected {
+    background: var(--accent-blue) !important;
+    color: #ffffff !important;
+    font-weight: 600;
 }
 
 /* ── Chart card toolbar (features filter toggle) ────────────── */
