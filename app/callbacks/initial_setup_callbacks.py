@@ -11,7 +11,7 @@ from app.callbacks.initial_setup_step_5_callbacks import html_step_5
 
 from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
 from machine_learning.utils.features.get_slope_time_points import get_slope_timepoints
-from machine_learning.utils.training.tune_cox_hyperparameters import tune_cox_hyperparameters
+from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperparameterTuner
 from machine_learning.utils.training.run_models_parallel import progress_state
 from machine_learning.utils.io.save_results_to_folder import save_training_results
 
@@ -128,7 +128,10 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         T = adjust_payment_period(T)
         E = df_data_surv['censor']
 
-        best_surv_parameters, _ = tune_cox_hyperparameters(X_surv, T, E)
+        tuner = CoxHyperparameterTuner(save_report_path="Results/")
+        tuner.fit(X_surv, T, E)
+
+        best_surv_parameters = tuner.best_params_
         progress_state["survival_done"] = True
 
 
