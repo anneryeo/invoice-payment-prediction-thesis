@@ -255,7 +255,7 @@ class SurvivalExperimentRunner:
 
         param_str = str(sorted(param.items())) if isinstance(param, dict) else str(param)
 
-        return {
+        results = {
             "model":                 model_name,
             "parameters":            param_str,
             "balance_strategy":      balance_strategy,
@@ -274,6 +274,8 @@ class SurvivalExperimentRunner:
             "enhanced_feature_selected": pipeline_enhanced.features.selected,
             "enhanced_feature_weights":  pipeline_enhanced.features.weights,
         }
+
+        return results
 
     # -----------------------------
     # Main experiment runner
