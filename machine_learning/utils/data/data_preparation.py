@@ -181,7 +181,7 @@ class DataPreparer:
             self
             .encode_labels()
             .train_test_split()
-            .resample(strategy=balance_strategy, undersample_threshold=undersample_threshold)
+            .resample(balance_strategy=balance_strategy, undersample_threshold=undersample_threshold)
             .normalize()
         )
 
