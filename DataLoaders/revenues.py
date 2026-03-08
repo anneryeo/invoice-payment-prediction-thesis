@@ -8,7 +8,7 @@ import warnings         # silencing openpyxl warning
 import aiofiles
 from io import BytesIO
 
-from Thesis.Utils.Pseudonymizer.pseudonymizer import Pseudonymizer
+from utils.pseudonymizer import Pseudonymizer
 
 
 class Revenues:
