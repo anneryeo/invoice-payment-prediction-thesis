@@ -4,11 +4,11 @@ import numpy as np
 import plotly.graph_objects as go
 from dash import html
 
-from app.utils.model_comparison_dashboard.constants import (
+from app.screens.comparative_model_dashboard_template.constants import (
     MODELS, METRICS, CHART_COLORS,
     _class_label
 )
-from app.utils.model_comparison_dashboard.data_loaders import json_deserialize
+from app.screens.comparative_model_dashboard_template.utils.data_loaders import json_deserialize
 
 
 # ══════════════════════════════════════════════════════════════════════════════

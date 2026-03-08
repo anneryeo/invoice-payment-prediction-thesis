@@ -1,5 +1,3 @@
-import pandas as pd
-
 from dash import Input, Output, State, html, dcc
 from app import dash_app
 
