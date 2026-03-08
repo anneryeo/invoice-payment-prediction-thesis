@@ -4,7 +4,7 @@ from sklearn.inspection import permutation_importance
 from .base_pipeline import BasePipeline
 
 
-class KnearestNeighborPipeline(BasePipeline):
+class KNearestNeighborPipeline(BasePipeline):
     def initialize_model(self):
         """Initialize KNN with provided parameters."""
         self.model = KNeighborsClassifier(**self.parameters)

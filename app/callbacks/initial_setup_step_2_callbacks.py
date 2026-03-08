@@ -48,6 +48,14 @@ html_step_2 = (
                 value=["nn_mlp"],
                 className="checklist"
             ),
+
+            html.H5("Ensemble Models", className="sub-sub-header"),
+            dcc.Checklist(
+                id="model_selection_ensemble",
+                options=[{"label": "Stacked Ensemble (AdaBoost + Random Forest)", "value": "stacked_ensemble"}],
+                value=["stacked_ensemble"],
+                className="checklist"
+            ),
         ], className="section-block"),
 
         # Balancing Strategies Section
@@ -85,6 +93,7 @@ html_step_2 = (
         Input("model_selection_prob", "value"),
         Input("model_selection_neighbors", "value"),
         Input("model_selection_nn", "value"),
+        Input("model_selection_ensemble", "value"),
         Input("balancing_selection", "value"),
     ],
     [
@@ -92,9 +101,9 @@ html_step_2 = (
         State("stored_balancing", "data"),
     ]
 )
-def toggle_confirm_button(trees, prob, neighbors, nn, balancing, stored_models, stored_balancing):
+def toggle_confirm_button(trees, prob, neighbors, nn, ensemble, balancing, stored_models, stored_balancing):
     # Combine all selected models
-    selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or [])
+    selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or []) + (ensemble or [])
     selected_balancing = balancing or []
 
     # Use selected values directly so that unchecking all correctly yields an empty list.

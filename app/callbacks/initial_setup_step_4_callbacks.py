@@ -239,6 +239,7 @@ MODEL_LABELS = {
     "gaussian_naive_bayes": "Gaussian Naive Bayes",
     "ada_boost":            "AdaBoost",
     "xgboost":              "XGBoost",
+    "stacked_ensemble":     "Stacked Ensemble",
     "nn_mlp":               "MLP Neural Net",
     "decision_tree":        "Decision Tree",
     #"logistic_regression":  "Logistic Regression",

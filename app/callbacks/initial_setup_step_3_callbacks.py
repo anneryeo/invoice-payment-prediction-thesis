@@ -13,9 +13,10 @@ from machine_learning import (
     AdaBoostPipeline,
     DecisionTreePipeline,
     GaussianNaiveBayesPipeline,
-    KnearestNeighborPipeline,
+    KNearestNeighborPipeline,
     RandomForestPipeline,
     XGBoostPipeline,
+    StackedEnsemblePipeline,
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
@@ -142,14 +143,27 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         "ada_boost": AdaBoostPipeline,
         "decision_tree": DecisionTreePipeline,
         "gaussian_naive_bayes": GaussianNaiveBayesPipeline,
-        "knn": KnearestNeighborPipeline,
+        "knn": KNearestNeighborPipeline,
         "random_forest": RandomForestPipeline,
         "xgboost": XGBoostPipeline,
+        "stacked_ensemble": StackedEnsemblePipeline,
         "nn_mlp": MultiLayerPerceptronPipeline,
         "nn_transformer": TransformerPipeline,
     }
 
-    selected_pipelines = {m: PIPELINE_MAP[m] for m in models_data if m in PIPELINE_MAP}
+    # Build selected pipelines and track missing ones
+    selected_pipelines = {}
+    missing_models = []
+
+    for m in models_data:
+        if m in PIPELINE_MAP:
+            selected_pipelines[m] = PIPELINE_MAP[m]
+        else:
+            missing_models.append(m)
+
+    # Print missing models if any
+    if missing_models:
+        print("Models not found:", ", ".join(missing_models))
 
     do_not_parallel_compute = ['xg_boost', 'nn_transformer']
 
