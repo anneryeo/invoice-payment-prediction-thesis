@@ -131,8 +131,14 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         tuner = CoxHyperparameterTuner(save_report_path="Results/")
         tuner.fit(X_surv, T, E)
 
+        best_c_index = tuner.best_c_index_
         best_surv_parameters = tuner.best_params_
         progress_state["survival_done"] = True
+
+        survival_results_dict = {
+            "best_c_index": best_c_index,
+            "best_surv_parameters": best_surv_parameters,
+        }
 
 
         print("Proceeding to model training...")
@@ -145,7 +151,7 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
 
         print(f"Using timepoints: {args.time_points}")
 
-        results_df, class_mappings_dict = run_model_training(
+        model_results_df, class_mappings_dict = run_model_training(
             df_data, df_data_surv, models_data, balancing_data, args, best_surv_parameters
         )
         progress_state["training_done"] = True
@@ -155,7 +161,8 @@ def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, bala
         total_training_time = end_time - start_time
 
         save_training_results(
-            results_df,
+            model_results_df,
+            survival_results_dict,
             class_mappings_dict,
             "Results",
             models_data,
