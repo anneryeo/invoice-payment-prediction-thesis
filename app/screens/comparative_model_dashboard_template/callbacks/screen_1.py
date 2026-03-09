@@ -4,9 +4,13 @@ from app import dash_app
 from app.screens.comparative_model_dashboard_template.constants import MODELS
 from ..utils.chart_builders import build_leaderboard_rows
 from ..utils.data_loaders import (
-    latest_results_path,
     load_models_from_results,
 )
+from utils.io.read_settings_json import read_settings_json
+from app.utils.io.latest_results_path import get_latest_results_path
+
+
+
 
 
 @dash_app.callback(
@@ -24,6 +28,7 @@ def load_step4_data(already_loaded):
         return True
 
     try:
+        latest_results_path = _get_latest_results_path_from_settings()
         MODELS.update(load_models_from_results(latest_results_path))
         print(f"[screen1] Loaded {len(MODELS)} models from {latest_results_path}")
     except Exception as exc:
@@ -47,3 +52,12 @@ def initialise_selection(loaded, current_selected):
         return no_update
     rows = build_leaderboard_rows("f1_macro", "enhanced", sort_result_type="enhanced")
     return rows[0]["key"] if rows else no_update
+
+
+def _get_latest_results_path_from_settings():
+    settings_json = read_settings_json()
+    config = settings_json.get("Config", [{}])[0]
+    results_root = config.get("RESULTS_ROOT")
+    latest_results_path = get_latest_results_path(results_root)
+
+    return latest_results_path
