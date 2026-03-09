@@ -15,5 +15,12 @@
       // Training specific constants
       "RESULTS_ROOT": "Results"
     }
+  ],
+  "Training": [
+    {
+      "observation_end": "",
+      "target_feature": "dtp_bracket",
+      "test_size": "0.3"
+    }
   ]
 }
