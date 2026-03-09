@@ -5,7 +5,7 @@ from app.screens.comparative_model_dashboard_template.constants import MODELS
 from ..utils.chart_builders import build_leaderboard_rows
 from ..utils.data_loaders import load_models_from_results
 from utils.io.read_settings_json import read_settings_json
-from utils.io.latest_results_path import get_latest_results_path
+from app.utils.io.latest_results_path import get_latest_results_path
 
 
 @dash_app.callback(
