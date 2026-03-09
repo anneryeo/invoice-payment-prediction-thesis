@@ -33,6 +33,7 @@ html_step_4 = build_dashboard_layout(
     Output("modal-params-content",   "children"),
     Output("modal-baseline-metrics", "children"),
     Output("modal-enhanced-metrics", "children"),
+    Output("selected-model-data",    "data"),
     Input("confirm-model-btn",  "n_clicks"),
     Input("modal-close-btn",    "n_clicks"),
     Input("modal-cancel-btn",   "n_clicks"),
@@ -42,15 +43,15 @@ html_step_4 = build_dashboard_layout(
 def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
     ctx = callback_context
     if not ctx.triggered:
-        return no_update, no_update, no_update, no_update, no_update, no_update
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if trigger in ("modal-close-btn", "modal-cancel-btn"):
-        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update
+        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update, no_update
 
     if not model_key or model_key not in MODELS:
-        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update
+        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update, no_update
 
     data = MODELS[model_key]
 
@@ -76,6 +77,16 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
             for k in METRICS
         ])
 
+    # ── Full snapshot written to persistent store for Step 5 ─────────────────
+    snapshot = {
+        "key":      model_key,
+        "name":     model_name,
+        "strategy": strategy_label,
+        "parameters": params,
+        "baseline": data["baseline"]["evaluation"]["metrics"],
+        "enhanced": data["enhanced"]["evaluation"]["metrics"],
+    }
+
     return (
         "modal-overlay modal-visible",
         model_name,
@@ -83,6 +94,7 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
         params_content,
         _metric_rows("baseline"),
         _metric_rows("enhanced"),
+        snapshot,
     )
 
 
