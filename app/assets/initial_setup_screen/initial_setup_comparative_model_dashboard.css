@@ -962,3 +962,415 @@
     text-align: right;
     white-space: nowrap;
 }
+
+/* ============================================================
+   MODAL — Confirm Selected Model
+   Follows the same editorial aesthetic as the dashboard:
+   IBM Plex Mono numerics, DM Serif Display headings,
+   slate-blue accent, warm off-white backgrounds.
+   ============================================================ */
+
+/* ── Overlay ─────────────────────────────────────────────── */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(15, 23, 42, 0.45);   /* --text-primary at 45% */
+    backdrop-filter: blur(3px);
+    -webkit-backdrop-filter: blur(3px);
+    padding: 1.5rem;
+    box-sizing: border-box;
+    /* Visibility controlled by class swap, not display:none,
+       so transitions work correctly */
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.modal-hidden {
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+.modal-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+/* ── Modal box ───────────────────────────────────────────── */
+.modal-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius-lg);
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.18), 0 4px 16px rgba(0, 0, 0, 0.08);
+    width: 100%;
+    max-width: 560px;
+    max-height: 88vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Slide up on open */
+    transform: translateY(0);
+    transition: transform 0.2s ease;
+}
+
+.modal-hidden .modal-box {
+    transform: translateY(12px);
+}
+
+/* ── Header ──────────────────────────────────────────────── */
+.modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1rem 1.25rem 0.85rem;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.modal-title {
+    font-family: var(--text-display);
+    font-size: 1.15rem;
+    font-weight: 400;
+    color: var(--text-primary);
+    margin: 0;
+    line-height: 1.2;
+}
+
+.modal-close-btn {
+    font-family: var(--text-mono);
+    font-size: 0.85rem;
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: var(--radius);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.12s ease;
+    padding: 0;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.modal-close-btn:hover {
+    background: var(--bg-card-hover);
+    border-color: var(--border-strong);
+    color: var(--text-primary);
+}
+
+/* ── Body ────────────────────────────────────────────────── */
+.modal-body {
+    padding: 1.25rem;
+    overflow-y: auto;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+}
+
+.modal-body::-webkit-scrollbar        { width: 5px; }
+.modal-body::-webkit-scrollbar-track  { background: #f1f5f9; border-radius: 99px; }
+.modal-body::-webkit-scrollbar-thumb  { background: #cbd5e1; border-radius: 99px; }
+.modal-body::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* ── Model identity row ──────────────────────────────────── */
+.modal-model-identity {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.modal-model-name {
+    font-family: var(--text-display);
+    font-size: 1.25rem;
+    color: var(--text-primary);
+    line-height: 1.2;
+}
+
+/* Reuses .strategy-pill style but slightly larger in the modal */
+.modal-strategy-pill {
+    font-family: var(--text-mono);
+    font-size: 0.62rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    background: #f1f5f9;
+    border: 1px solid var(--border-strong);
+    border-radius: 3px;
+    padding: 0.18rem 0.55rem;
+    color: var(--text-secondary);
+    display: inline-block;
+    flex-shrink: 0;
+}
+
+/* ── Section labels ──────────────────────────────────────── */
+.modal-section-label {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 0.6rem;
+}
+
+/* ── Hyperparameters block ───────────────────────────────── */
+.modal-params-wrap {
+    background: var(--bg-root);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+}
+
+.modal-params-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+}
+
+.modal-param-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 1rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-param-row:last-child {
+    border-bottom: none;
+}
+
+.modal-param-key {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.03em;
+}
+
+.modal-param-val {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
+    white-space: nowrap;
+}
+
+.modal-param-empty {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+/* ── Metrics block ───────────────────────────────────────── */
+.modal-metrics-wrap {
+    background: var(--bg-root);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+}
+
+.modal-metrics-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.25rem;
+}
+
+.modal-metrics-col-label {
+    font-family: var(--text-mono);
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    margin: 0 0 0.5rem;
+}
+
+.modal-metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.18rem;
+}
+
+.modal-metric-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--border);
+}
+
+.modal-metric-row:last-child {
+    border-bottom: none;
+}
+
+.modal-metric-label {
+    font-family: var(--text-mono);
+    font-size: 0.63rem;
+    color: var(--text-secondary);
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+}
+
+.modal-metric-val {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ── Footer ──────────────────────────────────────────────── */
+.modal-footer {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.65rem;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid var(--border);
+    background: var(--bg-root);
+    flex-shrink: 0;
+}
+
+.modal-btn {
+    font-family: var(--text-mono);
+    font-size: 0.72rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.45rem 1.1rem;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+    border: 1px solid transparent;
+}
+
+.modal-btn-cancel {
+    background: var(--bg-card);
+    border-color: var(--border-strong);
+    color: var(--text-secondary);
+}
+
+.modal-btn-cancel:hover {
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+    background: #fff1f2;
+}
+
+.modal-btn-confirm {
+    background: var(--accent-blue);
+    border-color: var(--accent-blue);
+    color: #ffffff;
+}
+
+.modal-btn-confirm:hover {
+    background: #1d4ed8;
+    border-color: #1d4ed8;
+}
+
+/* ── Confirm bar (in-flow, just above the leaderboard) ──────── */
+.confirm-bar-wrap {
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    margin-bottom: 0;
+    pointer-events: none;
+    transition: max-height 0.28s ease, opacity 0.22s ease, margin-bottom 0.28s ease;
+}
+
+.confirm-fab-hidden {
+    max-height: 0 !important;
+    opacity: 0 !important;
+    margin-bottom: 0 !important;
+    pointer-events: none !important;
+}
+
+.confirm-fab-visible {
+    max-height: 120px;
+    opacity: 1;
+    margin-bottom: 0.85rem;
+    pointer-events: auto;
+}
+
+.confirm-bar-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 1rem;
+    background: var(--bg-selected);
+    border: 1px solid var(--border-accent);
+    border-radius: var(--radius-lg);
+    padding: 0.85rem 1.25rem;
+    box-shadow: var(--shadow-sm);
+}
+
+.confirm-bar-left {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    min-width: 0;
+    flex: 1;
+}
+
+.confirm-bar-eyebrow {
+    font-family: var(--text-mono);
+    font-size: 0.58rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+}
+
+.confirm-bar-label {
+    font-family: var(--text-display);
+    font-size: 1rem;
+    color: var(--text-primary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.confirm-bar-btn {
+    font-family: var(--text-mono);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 0.5rem 1.25rem;
+    background: var(--accent-blue);
+    border: none;
+    border-radius: var(--radius);
+    color: #ffffff;
+    cursor: pointer;
+    transition: background 0.15s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.confirm-bar-btn:hover {
+    background: #1d4ed8;
+}
+
+/* ── Responsive — stack metrics to single column on narrow modal ── */
+@media (max-width: 480px) {
+    .modal-metrics-grid {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+    }
+
+    .modal-box {
+        max-width: 100%;
+    }
+}

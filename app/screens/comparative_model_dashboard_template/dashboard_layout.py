@@ -3,7 +3,11 @@ from dash import html, dcc
 from .constants import MODEL_LABELS, STRATEGY_LABELS
 
 
-def build_dashboard_layout(*, show_session_selector: bool = False) -> html.Div:
+def build_dashboard_layout(
+    *,
+    show_session_selector: bool = False,
+    show_confirm_button: bool = False,
+) -> html.Div:
     """
     Returns the full Step 4 dashboard layout.
 
@@ -12,10 +16,12 @@ def build_dashboard_layout(*, show_session_selector: bool = False) -> html.Div:
     show_session_selector : bool
         When True, renders a session-picker dropdown above the dashboard
         (Screen 2 — Standalone Analysis).
-        When False, no selector is shown and the latest session is loaded
-        automatically (Screen 1 — Initial Setup).
+    show_confirm_button : bool
+        When True, renders a "Confirm Selected Model" button in the header
+        and a summary modal (Screen 1 — Initial Setup only).
     """
 
+    # ── Session selector (Screen 2 only) ─────────────────────────────────────
     session_selector = html.Div(
         id="session-selector-wrap",
         className="session-selector-wrap",
@@ -30,15 +36,106 @@ def build_dashboard_layout(*, show_session_selector: bool = False) -> html.Div:
             ),
         ],
     ) if show_session_selector else html.Div(id="session-selector-wrap")
-    # ↑ Always render the wrapper div so the layout tree is identical and
-    #   Dash never complains about a missing output target.
+
+    # ── Inline confirm bar (Screen 1 only) ───────────────────────────────────
+    # Sits between the leaderboard and charts. Hidden until a model is selected.
+    # Always rendered so Dash output targets always exist.
+    confirm_bar = html.Div(
+        id="confirm-fab-wrap",
+        className="confirm-bar-wrap confirm-fab-hidden",
+        children=[
+            html.Div(className="confirm-bar-inner", children=[
+                html.Div(className="confirm-bar-left", children=[
+                    html.Span("Selected model", className="confirm-bar-eyebrow"),
+                    html.Span(id="confirm-fab-label", className="confirm-bar-label"),
+                ]),
+                html.Button(
+                    "Confirm & Proceed to Step 5 →",
+                    id="confirm-model-btn",
+                    className="confirm-bar-btn",
+                    n_clicks=0,
+                ),
+            ]),
+        ],
+    ) if show_confirm_button else html.Div(id="confirm-fab-wrap")
+
+    # ── Model summary modal ───────────────────────────────────────────────────
+    # Always rendered so Dash never complains about missing output targets.
+    # Only shown (via className) when the user clicks Confirm on Screen 1.
+    model_summary_modal = html.Div(
+        id="model-summary-modal",
+        className="modal-overlay modal-hidden",
+        children=[
+            html.Div(className="modal-box", children=[
+
+                # Header
+                html.Div(className="modal-header", children=[
+                    html.H3("Confirm Selected Model", className="modal-title"),
+                    html.Button(
+                        "✕",
+                        id="modal-close-btn",
+                        className="modal-close-btn",
+                        n_clicks=0,
+                    ),
+                ]),
+
+                # Body — populated by callback when modal opens
+                html.Div(id="modal-body", className="modal-body", children=[
+
+                    html.Div(className="modal-model-identity", children=[
+                        html.Span(id="modal-model-name",    className="modal-model-name"),
+                        html.Span(id="modal-strategy-pill", className="modal-strategy-pill"),
+                    ]),
+
+                    html.Div(className="modal-params-wrap", children=[
+                        html.P("Hyperparameters", className="modal-section-label"),
+                        html.Div(id="modal-params-content", className="modal-params-content"),
+                    ]),
+
+                    html.Div(className="modal-metrics-wrap", children=[
+                        html.P("Performance Summary", className="modal-section-label"),
+                        html.Div(className="modal-metrics-grid", children=[
+                            html.Div(className="modal-metrics-col", children=[
+                                html.P("Baseline", className="modal-metrics-col-label"),
+                                html.Div(id="modal-baseline-metrics", className="modal-metrics-list"),
+                            ]),
+                            html.Div(className="modal-metrics-col", children=[
+                                html.P("Enhanced", className="modal-metrics-col-label"),
+                                html.Div(id="modal-enhanced-metrics", className="modal-metrics-list"),
+                            ]),
+                        ]),
+                    ]),
+                ]),
+
+                # Footer
+                html.Div(className="modal-footer", children=[
+                    html.Button(
+                        "Cancel",
+                        id="modal-cancel-btn",
+                        className="modal-btn modal-btn-cancel",
+                        n_clicks=0,
+                    ),
+                    # Does NOT have a Dash callback — clicks the persistent
+                    # finalize_btn in initial_setup_layout via clientside JS,
+                    # avoiding the removeChild error caused by Dash unmounting
+                    # step-content at the same time a callback fires on it.
+                    html.Button(
+                        "Proceed to Step 5",
+                        id="modal-proceed-btn",
+                        className="modal-btn modal-btn-confirm",
+                        n_clicks=0,
+                    ),
+                ]),
+            ]),
+        ],
+    )
 
     return html.Div(
         className="dashboard-root",
         children=[
 
-            # ── Session selector (Screen 2 only) ─────────────────────────────
             session_selector,
+            model_summary_modal,
 
             # ── Page header ──────────────────────────────────────────────────
             html.Div(className="dash-page-header", children=[
@@ -140,6 +237,9 @@ def build_dashboard_layout(*, show_session_selector: bool = False) -> html.Div:
                 html.Div(id="params-tooltip-content", className="params-tooltip-content"),
             ]),
 
+            # ── Confirm banner (Screen 1 only, appears when a model is selected) ─
+            confirm_bar,
+
             # ── Leaderboard ──────────────────────────────────────────────────
             html.Div(className="leaderboard-wrap", children=[
                 html.Div(id="leaderboard-table-container"),
@@ -170,6 +270,9 @@ def build_dashboard_layout(*, show_session_selector: bool = False) -> html.Div:
                     ]),
                 ]),
             ]),
+
+            # ── Confirm bar (Screen 1 only) ───────────────────────────────────
+            confirm_bar,
 
             # ── Charts ───────────────────────────────────────────────────────
             html.Div(className="charts-section", children=[
