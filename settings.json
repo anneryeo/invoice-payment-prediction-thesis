@@ -1,0 +1,19 @@
+{
+  "Root Folders": [
+    {
+      "user": "rjbel",
+      "install_folder": "C:/Users/rjbel/Python/Notebooks/Mapua/Thesis"
+    },
+    {
+      "user": "julliane",
+      "install_folder": "C:/Users/..."
+    }
+  ],
+  "Config": [
+    {
+      "debug_mode": "False",
+      // Training specific constants
+      "RESULTS_ROOT": "Results"
+    }
+  ]
+}
