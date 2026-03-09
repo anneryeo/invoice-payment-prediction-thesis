@@ -3,14 +3,9 @@ from dash import Input, Output, State, no_update
 from app import dash_app
 from app.screens.comparative_model_dashboard_template.constants import MODELS
 from ..utils.chart_builders import build_leaderboard_rows
-from ..utils.data_loaders import (
-    load_models_from_results,
-)
+from ..utils.data_loaders import load_models_from_results
 from utils.io.read_settings_json import read_settings_json
-from app.utils.io.latest_results_path import get_latest_results_path
-
-
-
+from utils.io.latest_results_path import get_latest_results_path
 
 
 @dash_app.callback(
