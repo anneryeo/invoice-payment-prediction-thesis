@@ -5,19 +5,10 @@ import re
 import sqlite3
 import numpy as np
 
-from utils.io.read_settings_json import read_settings_json
-from app.utils.io.latest_results_path import get_latest_results_path
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  DATA LOADER  —  reads results.db from the latest dated folder under Results/
 # ══════════════════════════════════════════════════════════════════════════════
-
-settings_json = read_settings_json()
-config = settings_json.get("Config", [{}])[0]
-results_root = config.get("RESULTS_ROOT")
-latest_results_path = get_latest_results_path(results_root)
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
