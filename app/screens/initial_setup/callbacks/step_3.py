@@ -4,10 +4,12 @@ import pandas as pd
 from datetime import datetime
 from time import time
 
+from app import dash_app
 import dash_bootstrap_components as dbc
 from dash import Input, Output, State, html, dcc, no_update
 
-from app import dash_app
+from utils.data_loaders.read_settings_json import read_settings_json
+
 from feature_engineering.credit_sales_machine_learning import CreditSales
 from machine_learning import (
     AdaBoostPipeline,
@@ -20,7 +22,12 @@ from machine_learning import (
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
+from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
+from machine_learning.utils.features.get_slope_time_points import get_slope_timepoints
+from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperparameterTuner
+
 from machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
+from machine_learning.utils.io.save_results_to_folder import save_training_results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -135,7 +142,27 @@ def clean_datasets(revenues_content, enrollees_content):
     df_data.drop(columns=survival_columns, inplace=True)
     df_data_surv = df_credit_sales.drop(columns=non_survival_columns)
 
-    return df_data, df_data_surv
+    return df_data, df_data_surv, df_credit_sales
+
+
+def tune_cox_model(df_data_surv):
+    X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+    T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
+    E      = df_data_surv["censor"]
+
+    tuner = CoxHyperparameterTuner(save_report_path="Results/")
+    tuner.fit(X_surv, T, E)
+    progress_state["survival_done"] = True
+
+    best_time_points = get_slope_timepoints(T, E, n_points=9)
+
+    survival_results_dict = {
+        "best_c_index":          tuner.best_c_index_,
+        "best_surv_parameters":  tuner.best_params_,
+        "best_time_points":      best_time_points
+    }
+
+    return survival_results_dict
 
 
 def run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_parameters):
@@ -190,6 +217,71 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
 # ══════════════════════════════════════════════════════════════════════════════
 
 progress_state["start_time"] = time()
+
+
+@dash_app.callback(
+    Output("training_status", "data"),
+    Output("stored_credit_sales", "data"),
+    Input("current_step", "data"),
+    State("stored_revenue", "data"),
+    State("stored_enrollees", "data"),
+    State("stored_models", "data"),
+    State("stored_balancing", "data"),
+    prevent_initial_call=True,
+)
+def run_training(current_step, revenue_data, enrollees_data, models_data, balancing_data):
+    if current_step != "progress-3":
+        return no_update, no_update
+
+    progress_state["extraction_done"] = False
+    progress_state["survival_done"]   = False
+    progress_state["training_done"]   = False
+    progress_state["saving_done"]     = False
+    start_time = datetime.now()
+
+
+    print("Running training...")
+    df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
+    stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+
+    print("Getting best parameters for the CoxPH Model...")
+    survival_results_dict = tune_cox_model(df_data_surv)
+    best_surv_params = survival_results_dict['best_surv_parameters']
+    best_time_points = survival_results_dict['best_time_points']
+
+    print("Proceeding to model training...")
+    settings = read_settings_json()
+
+    class Config:
+        parameters_dir = settings["Training"]["MODEL_PARAMETERS"]
+        target_feature = settings["Training"]["target_feature"]
+        test_size      = float(settings["Training"]["test_size"])
+        time_points    = best_time_points
+    args = Config()
+    print(f"Using timepoints: {best_time_points}")
+
+    model_results_df, class_mappings_dict = run_model_training(
+        df_data, df_data_surv, models_data, balancing_data, args, best_surv_params
+    )
+    progress_state["training_done"] = True
+
+    end_time            = datetime.now()
+    total_training_time = end_time - start_time
+
+    save_training_results(
+        model_results_df,
+        survival_results_dict,
+        class_mappings_dict,
+        settings['Training']['RESULTS_ROOT'],
+        models_data,
+        start_time.isoformat(),
+        end_time.isoformat(),
+        str(total_training_time),
+        format="sqlite",
+    )
+    progress_state["saving_done"] = True
+
+    return "done", stored_credit_sales
 
 
 # ── Circle colors ─────────────────────────────────────────────────────────────
