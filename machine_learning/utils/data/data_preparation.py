@@ -33,13 +33,13 @@ class DataPreparer:
 
         self.label_encoder = None
         self.class_mapping = None
-        self.cut_off_date = None
+        self.cut_off_date  = None
 
         # Outputs
         self.X_train = None
-        self.X_test = None
+        self.X_test  = None   # Optional — None when training on the full dataset
         self.y_train = None
-        self.y_test = None
+        self.y_test  = None   # Optional — None when training on the full dataset
 
     def _log(self, message):
         if self.verbose:
@@ -99,7 +99,38 @@ class DataPreparer:
             index=X_test_raw.index
         )
         self.y_train = y_train_raw
-        self.y_test = y_test_raw
+        self.y_test  = y_test_raw
+
+        return self
+
+    def use_full_dataset(self):
+        """
+        Skip train/test split and use the entire dataset for training.
+
+        Selects only numeric columns and casts to float64 — the same
+        dtype contract that train_test_split enforces — so that resample()
+        and normalize() work correctly without a split.
+
+        X_test / y_test are left as None; normalize() already guards
+        against this.
+        """
+        self._log("Using full dataset for training (no split)...")
+
+        X = self.df_data.drop(columns=[self.target_feature])
+        y = self.df_data[self.target_feature]
+
+        # Keep only numeric columns and cast to float64,
+        # matching the dtype contract of train_test_split
+        numeric_cols = X.select_dtypes(include=["number"]).columns
+        X = pd.DataFrame(
+            X[numeric_cols].to_numpy(dtype="float64"),
+            columns=numeric_cols,
+            index=X.index,
+        )
+
+        self.X_train = X
+        self.y_train = y
+        # X_test / y_test intentionally left as None
 
         return self
 
@@ -120,12 +151,12 @@ class DataPreparer:
         self
         """
         samplers = {
-            "smote": SMOTE(random_state=42),
+            "smote":            SMOTE(random_state=42),
             "borderline_smote": BorderlineSMOTE(random_state=42),
-            "smote_enn": SMOTEENN(random_state=42),
-            "smote_tomek": SMOTETomek(random_state=42),
-            "hybrid": HybridBalance(undersample_threshold=undersample_threshold, random_state=42),
-            "none": None,
+            "smote_enn":        SMOTEENN(random_state=42),
+            "smote_tomek":      SMOTETomek(random_state=42),
+            "hybrid":           HybridBalance(undersample_threshold=undersample_threshold, random_state=42),
+            "none":             None,
         }
 
         if balance_strategy not in samplers:
@@ -148,17 +179,19 @@ class DataPreparer:
 
     def normalize(self):
         """
-        Fit StandardScaler on training data and transform both
-        train and test sets.
+        Fit StandardScaler on training data and transform both train and test
+        sets.
 
-        Returns
-        -------
-        self
+        X_test is optional — when None (e.g. full-dataset finalization in
+        Step 5), only X_train is normalized and X_test is left as None.
         """
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
 
         self.X_train[numeric_cols] = normalize(self.X_train[numeric_cols])
-        self.X_test[numeric_cols] = normalize(self.X_test[numeric_cols])
+
+        if self.X_test is not None:
+            self.X_test[numeric_cols] = normalize(self.X_test[numeric_cols])
+
         return self
 
     def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
@@ -181,6 +214,16 @@ class DataPreparer:
             self
             .encode_labels()
             .train_test_split()
+            .resample(balance_strategy=balance_strategy, undersample_threshold=undersample_threshold)
+            .normalize()
+        )
+
+    def prep_full_data(self, balance_strategy="smote", undersample_threshold=0.5):
+        """Full pipeline without split: encode → full dataset → resample → normalize."""
+        return (
+            self
+            .encode_labels()
+            .use_full_dataset()
             .resample(balance_strategy=balance_strategy, undersample_threshold=undersample_threshold)
             .normalize()
         )
