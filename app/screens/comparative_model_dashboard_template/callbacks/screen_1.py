@@ -7,12 +7,16 @@ from app.screens.comparative_model_dashboard_template.constants import (
     _strategy_display,
 )
 from app.screens.comparative_model_dashboard_template.utils.chart_builders import build_leaderboard_rows
-from app.screens.comparative_model_dashboard_template.utils.data_loaders import (
-    load_models_from_results,
-)
-from utils.io.read_settings_json import read_settings_json
-from app.utils.io.latest_results_path import get_latest_results_path
+from app.screens.comparative_model_dashboard_template.utils.data_loaders import load_models_from_results
+from utils.data_loaders.read_settings_json import read_settings_json
+from machine_learning.utils.io.load_results_from_folder import SessionStore
 
+
+# ── Session store ─────────────────────────────────────────────────────────────
+_store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
+
+
+# ── Callbacks ─────────────────────────────────────────────────────────────────
 
 @dash_app.callback(
     Output("step4-data-loaded", "data"),
@@ -29,9 +33,9 @@ def load_step4_data(already_loaded):
         return True
 
     try:
-        latest_results_path = _get_latest_results_path_from_settings()
-        MODELS.update(load_models_from_results(latest_results_path))
-        print(f"[screen1] Loaded {len(MODELS)} models from {latest_results_path}")
+        db_path = _store.path()   # index 0 — most recent session
+        MODELS.update(load_models_from_results(db_path))
+        print(f"[screen1] Loaded {len(MODELS)} models from {db_path}")
     except Exception as exc:
         print(f"[screen1] WARNING – could not load results.db: {exc}")
         MODELS.clear()
@@ -74,11 +78,3 @@ def toggle_confirm_fab(model_key):
     label    = f"{name}  ·  {strategy}"
 
     return "confirm-fab-wrap confirm-fab-visible", label
-
-def _get_latest_results_path_from_settings():
-    settings_json = read_settings_json()
-    config = settings_json.get("Config", [{}])[0]
-    results_root = config.get("RESULTS_ROOT")
-    latest_results_path = get_latest_results_path(results_root)
-
-    return latest_results_path

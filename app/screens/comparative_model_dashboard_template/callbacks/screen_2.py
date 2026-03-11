@@ -1,35 +1,16 @@
 import os
-import re
 
 from dash import Input, Output, no_update
 
 from app import dash_app
 from ..constants import MODELS
 from ..utils.data_loaders import load_models_from_results
-
-from utils.io.read_settings_json import read_settings_json
-
-
-# ── Resolve Results root ──────────────────────────────────────────────────────
-_settings     = read_settings_json()
-_config       = _settings.get("Config", [{}])[0]
-_RESULTS_ROOT = _config.get("RESULTS_ROOT", "Results")
-_DATE_RE      = re.compile(r"^\d{4}_\d{2}_\d{2}_\d{2}$")
+from utils.data_loaders.read_settings_json import read_settings_json
+from machine_learning.utils.io.load_results_from_folder import SessionStore
 
 
-def _list_session_dirs() -> list[str]:
-    """All dated session folder names under Results/, newest first."""
-    try:
-        return sorted(
-            [d for d in os.listdir(_RESULTS_ROOT) if _DATE_RE.match(d)],
-            reverse=True,
-        )
-    except FileNotFoundError:
-        return []
-
-
-def _session_db_path(folder: str) -> str:
-    return os.path.join(_RESULTS_ROOT, folder, "results.db")
+# ── Session store ─────────────────────────────────────────────────────────────
+_store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
 
 
 # ── Callbacks ─────────────────────────────────────────────────────────────────
@@ -45,7 +26,7 @@ def populate_session_dropdown(_loaded):
     Fills the session dropdown with all dated folders on mount.
     Pre-selects the most recent session so the dashboard is never blank.
     """
-    dirs = _list_session_dirs()
+    dirs = _store.list()
     if not dirs:
         return [], None
     options = [{"label": d, "value": d} for d in dirs]
@@ -66,9 +47,10 @@ def load_selected_session(selected_folder):
     if not selected_folder:
         return no_update
 
-    db_path = _session_db_path(selected_folder)
-    if not os.path.exists(db_path):
-        print(f"[screen2] results.db not found: {db_path}")
+    try:
+        db_path = _store.path(selected_folder)
+    except FileNotFoundError as exc:
+        print(f"[screen2] {exc}")
         return no_update
 
     try:

@@ -7,6 +7,10 @@ import pandas as pd
 from datetime import datetime
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  SERIALIZATION HELPERS  (save-side only)
+# ══════════════════════════════════════════════════════════════════════════════
+
 def _sanitize_for_json(obj):
     """Recursively convert numpy types to native Python types for JSON serialization."""
     if isinstance(obj, dict):
@@ -50,8 +54,8 @@ def _sanitize_column_names(df):
         name = str(col).strip()
         if not name:
             name = f"col_{i}"
-        name = re.sub(r"[^\w]", "_", name)          # replace unsafe chars
-        if name[0].isdigit():                         # identifiers can't start with a digit
+        name = re.sub(r"[^\w]", "_", name)
+        if name[0].isdigit():
             name = f"col_{name}"
         new_cols.append(name)
     df.columns = new_cols
@@ -80,6 +84,10 @@ def _prepare_df_for_sqlite(df):
     return df
 
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  SQLITE WRITER
+# ══════════════════════════════════════════════════════════════════════════════
+
 def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, metadata, run_folder_path):
     """
     Write all artefacts into a single SQLite database file
@@ -95,12 +103,10 @@ def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, m
     db_path = os.path.join(run_folder_path, "results.db")
     con = sqlite3.connect(db_path)
     try:
-        # ── results table ────────────────────────────────────────────────────
         _prepare_df_for_sqlite(model_results_df).to_sql(
             "results", con, if_exists="replace", index=False
         )
 
-        # ── class_mappings table ─────────────────────────────────────────────
         con.execute(
             "CREATE TABLE IF NOT EXISTS class_mappings (id INTEGER PRIMARY KEY, data TEXT)"
         )
@@ -110,7 +116,6 @@ def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, m
             (json.dumps(_sanitize_for_json(class_mappings_dict)),),
         )
 
-        # ── survival_results table ───────────────────────────────────────────
         con.execute(
             "CREATE TABLE IF NOT EXISTS survival_results (id INTEGER PRIMARY KEY, data TEXT)"
         )
@@ -120,7 +125,6 @@ def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, m
             (json.dumps(_sanitize_for_json(survival_results_dict)),),
         )
 
-        # ── metadata table ───────────────────────────────────────────────────
         con.execute(
             "CREATE TABLE IF NOT EXISTS metadata (id INTEGER PRIMARY KEY, data TEXT)"
         )
@@ -137,58 +141,15 @@ def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, m
     return db_path
 
 
-def _load_sqlite(run_folder_path):
-    """
-    Load results, class_mappings, survival_results, and metadata from results.db.
+# ══════════════════════════════════════════════════════════════════════════════
+#  PUBLIC API
+# ══════════════════════════════════════════════════════════════════════════════
 
-    Columns that contain JSON-serialized dicts or lists are automatically
-    deserialized back to native Python objects.
-
-    Returns
-    -------
-    pd.DataFrame, dict, dict, dict
-    """
-    db_path = os.path.join(run_folder_path, "results.db")
-    con = sqlite3.connect(db_path)
-    try:
-        model_results_df = pd.read_sql("SELECT * FROM results", con)
-
-        # Deserialize any JSON-encoded object columns
-        for col in model_results_df.columns:
-            if model_results_df[col].dtype == object:
-                model_results_df[col] = model_results_df[col].apply(_try_json_loads)
-
-        row = con.execute("SELECT data FROM class_mappings WHERE id=1").fetchone()
-        class_mappings = json.loads(row[0]) if row else {}
-
-        # survival_results table may not exist in older databases
-        try:
-            row = con.execute("SELECT data FROM survival_results WHERE id=1").fetchone()
-            survival_results = json.loads(row[0]) if row else {}
-        except sqlite3.OperationalError:
-            survival_results = {}
-
-        row = con.execute("SELECT data FROM metadata WHERE id=1").fetchone()
-        metadata = json.loads(row[0]) if row else {}
-    finally:
-        con.close()
-
-    return model_results_df, class_mappings, survival_results, metadata
-
-
-def _try_json_loads(value):
-    """Attempt to deserialize a JSON string; return the original value on failure."""
-    if not isinstance(value, str):
-        return value
-    try:
-        return json.loads(value)
-    except (json.JSONDecodeError, ValueError):
-        return value
-
-
-def save_training_results(model_results_df, survival_results_dict, class_mappings_dict, base_output_folder,
-                          model_names, start_time, end_time, total_run_time,
-                          format="sqlite"):
+def save_training_results(
+    model_results_df, survival_results_dict, class_mappings_dict,
+    base_output_folder, model_names, start_time, end_time, total_run_time,
+    format="sqlite",
+):
     """
     Save training results, survival results, class mappings, and metadata to
     a dynamically created run folder.
@@ -196,57 +157,28 @@ def save_training_results(model_results_df, survival_results_dict, class_mapping
     Parameters
     ----------
     model_results_df : pd.DataFrame
-        Flat DataFrame where each row is one experiment run. Contains all
-        baseline and enhanced evaluation metrics, curve data, and feature
-        selection info as columns.
+        Flat DataFrame where each row is one experiment run.
     survival_results_dict : dict
-        Dictionary containing survival analysis results, e.g.::
-
-            {
-                "best_c_index": <float>,
-                "best_surv_parameters": <dict>,
-            }
-
+        Survival analysis results (best_c_index, best_surv_parameters, …).
     class_mappings_dict : dict
-        Dictionary mapping original class labels to their encoded
-        integer representations.
+        Original class labels → encoded integer representations.
     base_output_folder : str
         Base path where run folders will be created.
     model_names : list of str
-        List of model names that were trained in this experiment run.
+        Names of models trained in this run.
     start_time : str
-        ISO format timestamp when training started.
+        ISO-format timestamp when training started.
     end_time : str
-        ISO format timestamp when training ended.
+        ISO-format timestamp when training ended.
     total_run_time : str
         Total run time as a formatted string.
     format : {"pickle", "excel", "sqlite"}, default "sqlite"
-        Storage format for the results DataFrame.
-
-        - ``"pickle"`` – saves ``results.pkl``, ``class_mappings.json``,
-          ``survival_results.json``, and ``metadata.json``. Preserves all
-          Python objects exactly. Recommended for further programmatic use.
-        - ``"excel"``  – saves ``results.xlsx``, ``class_mappings.json``,
-          ``survival_results.json``, and ``metadata.json``. Dict/list columns
-          are serialized to JSON strings for compatibility. Recommended for
-          manual inspection or sharing.
-        - ``"sqlite"`` – saves a single ``results.db`` containing four tables:
-          ``results``, ``class_mappings``, ``survival_results``, and
-          ``metadata``. Dict/list columns are JSON-serialized and
-          transparently deserialized on load. Recommended when you want SQL
-          query access or a self-contained, language-agnostic file.
+        Storage format.
 
     Returns
     -------
-    dict
-        Metadata dictionary containing summary information about the experiment.
-    str
-        Path to the run folder created.
-
-    Raises
-    ------
-    ValueError
-        If format is not one of "pickle", "excel", or "sqlite".
+    metadata : dict
+    run_folder_path : str
     """
     if format not in ("pickle", "excel", "sqlite"):
         raise ValueError(f"Invalid format {format!r}. Must be 'pickle', 'excel', or 'sqlite'.")
@@ -263,17 +195,16 @@ def save_training_results(model_results_df, survival_results_dict, class_mapping
             break
         run_index += 1
 
-    # Build metadata first so it can be embedded in the SQLite db too
     metadata = {
-        "timestamp":                datetime.now().isoformat(),
-        "num_models_trained":       len(model_names),
-        "model_names":              model_names,
-        "num_experiments":          len(model_results_df),
-        "results_format":           format,
-        "training_start_time":      start_time,
-        "training_end_time":        end_time,
-        "training_run_time":        total_run_time,
-        "run_folder_path":          run_folder_path,
+        "timestamp":           datetime.now().isoformat(),
+        "num_models_trained":  len(model_names),
+        "model_names":         model_names,
+        "num_experiments":     len(model_results_df),
+        "results_format":      format,
+        "training_start_time": start_time,
+        "training_end_time":   end_time,
+        "training_run_time":   total_run_time,
+        "run_folder_path":     run_folder_path,
     }
 
     if format == "pickle":
@@ -317,74 +248,10 @@ def save_training_results(model_results_df, survival_results_dict, class_mapping
 
     else:  # sqlite
         db_path = _save_sqlite(
-            model_results_df, class_mappings_dict, survival_results_dict, metadata, run_folder_path
+            model_results_df, class_mappings_dict, survival_results_dict,
+            metadata, run_folder_path,
         )
         metadata["results_file_path"] = db_path
 
     print(f"Results saved as {format} to {run_folder_path}")
     return metadata, run_folder_path
-
-
-def load_training_results(run_folder_path):
-    """
-    Load training results, class mappings, survival results, and metadata
-    from a run folder. Automatically detects whether results were saved as
-    pickle, Excel, or SQLite based on the format recorded in metadata.
-
-    Parameters
-    ----------
-    run_folder_path : str
-        Path to the run folder created by save_training_results.
-
-    Returns
-    -------
-    pd.DataFrame
-        Results DataFrame.
-    dict
-        Class mappings dictionary.
-    dict
-        Survival results dictionary (keys: ``best_c_index``,
-        ``best_surv_parameters``). Empty dict for runs saved before this
-        field was introduced.
-    dict
-        Metadata dictionary.
-
-    Notes
-    -----
-    Excel-loaded DataFrames will have dict/list columns stored as JSON strings.
-    Use json.loads() to deserialize individual cells if needed.
-
-    SQLite-loaded DataFrames have JSON columns deserialized automatically.
-    """
-    # SQLite stores metadata inside the db; detect it by file presence
-    db_path = os.path.join(run_folder_path, "results.db")
-    if os.path.exists(db_path) and not os.path.exists(
-        os.path.join(run_folder_path, "metadata.json")
-    ):
-        return _load_sqlite(run_folder_path)
-
-    with open(os.path.join(run_folder_path, "metadata.json"), "r") as f:
-        metadata = json.load(f)
-
-    fmt = metadata.get("results_format", "pickle")
-
-    if fmt == "sqlite":
-        return _load_sqlite(run_folder_path)
-    elif fmt == "excel":
-        model_results_df = pd.read_excel(os.path.join(run_folder_path, "results.xlsx"))
-    else:
-        with open(os.path.join(run_folder_path, "results.pkl"), "rb") as f:
-            model_results_df = pickle.load(f)
-
-    with open(os.path.join(run_folder_path, "class_mappings.json"), "r") as f:
-        class_mappings = json.load(f)
-
-    # survival_results.json may not exist in older run folders
-    survival_results_path = os.path.join(run_folder_path, "survival_results.json")
-    if os.path.exists(survival_results_path):
-        with open(survival_results_path, "r") as f:
-            survival_results = json.load(f)
-    else:
-        survival_results = {}
-
-    return model_results_df, class_mappings, survival_results, metadata
