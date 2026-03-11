@@ -2,7 +2,8 @@
   "Root Folders": [
     {
       "user": "rjbel",
-      "install_folder": "C:/Users/rjbel/Python/Notebooks/Mapua/Thesis"
+      "install_folder": "C:/Users/rjbel/Python/Notebooks/Mapua/Thesis",
+      "databases": "C:/Users/rjbel/OneDrive/Synced/Gain Christian Academy/Databases"
     },
     {
       "user": "julliane",
@@ -11,16 +12,17 @@
   ],
   "Config": [
     {
-      "debug_mode": "False",
-      // Training specific constants
-      "RESULTS_ROOT": "Results"
+      "debug_mode": "False"
     }
   ],
-  "Training": [
-    {
-      "observation_end": "",
-      "target_feature": "dtp_bracket",
-      "test_size": "0.3"
-    }
-  ]
+  "Training": {
+    // Training specific directories
+    "MODEL_PARAMETERS": "machine_learning/parameters.json",
+    "RESULTS_ROOT": "Results",
+    "DEPLOYED_MODELS": "Results/deployed_models",
+
+    "observation_end": "03/10/2026",      // The last available entry date for the research study
+    "target_feature": "dtp_bracket",
+    "test_size": "0.3"
+  }
 }
