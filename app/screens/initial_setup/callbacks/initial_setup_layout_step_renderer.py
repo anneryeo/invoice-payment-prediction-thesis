@@ -47,6 +47,8 @@ def render_step(step):
     elif step == "progress-4":
         return html_step_4
     elif step == "progress-5":
+        import app.screens.initial_setup.callbacks.step_5 as s5
+        s5._finalization_triggered = False  # re-arm for fresh visit
         return html_step_5
 
 
@@ -118,12 +120,5 @@ def go_to_step_4(next_clicks):
 
 
 # --- Step 4 → Step 5 ---
-@dash_app.callback(
-    Output("current_step", "data", allow_duplicate=True),
-    Input("finalize_btn", "n_clicks"),
-    prevent_initial_call=True,
-)
-def go_to_step_5(finalize_clicks):
-    if finalize_clicks:
-        return "progress-5"
-    return no_update
+# This is no longer needed since step_4.py's modal-proceed-btn
+# already implements this

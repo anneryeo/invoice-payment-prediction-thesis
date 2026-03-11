@@ -34,9 +34,9 @@ html_step_4 = build_dashboard_layout(
     Output("modal-baseline-metrics", "children"),
     Output("modal-enhanced-metrics", "children"),
     Output("selected-model-data",    "data"),
-    Input("confirm-model-btn",  "n_clicks"),
-    Input("modal-close-btn",    "n_clicks"),
-    Input("modal-cancel-btn",   "n_clicks"),
+    Input("confirm-model-btn",  "n_clicks"),   # ← must stay, even if unused
+    Input("modal-close-btn",    "n_clicks"),   # ← must stay
+    Input("modal-cancel-btn",   "n_clicks"),   # ← must stay
     State("selected-model-store", "data"),
     prevent_initial_call=True,
 )
@@ -80,8 +80,9 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
     # ── Full snapshot written to persistent store for Step 5 ─────────────────
     snapshot = {
         "key":      model_key,
+        "model":    data["model"],
         "name":     model_name,
-        "strategy": strategy_label,
+        "strategy": data["balance_strategy"],
         "parameters": params,
         "baseline": data["baseline"]["evaluation"]["metrics"],
         "enhanced": data["enhanced"]["evaluation"]["metrics"],
@@ -112,3 +113,7 @@ dash_app.clientside_callback(
     Input("modal-proceed-btn",  "n_clicks"),
     prevent_initial_call=True,
 )
+def go_to_step_4(next_clicks):
+    if next_clicks:
+        return "progress-5"
+    return no_update
