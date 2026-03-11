@@ -1,16 +1,25 @@
 import pandas as pd
 import json
 import os
+import re
 
 class Settings:
     def __init__(self):
         config = self.get_configs()
     
+    def sanitize_json(self, file_path):
+        """Remove // comments from JSON file before parsing."""
+        with open(file_path, 'r') as f:
+            content = f.read()
+        # Remove // comments (everything from // to end of line)
+        content = re.sub(r'//.*', '', content)
+        return json.loads(content)
+
     def get_configs(self):
         settings = {}
         
-        f = open('settings.json')
-        json_f = json.load(f)
+        # Use sanitized loader
+        json_f = self.sanitize_json('settings.json')
         df_json_directory = pd.DataFrame(json_f['Root Folders'])
         df_json_settings = pd.DataFrame(json_f['Config'])
         
@@ -27,12 +36,8 @@ class Settings:
 
     def get_sub_directories(self):
         directory = {}
-
         directory['install_folder'] = self.install_folder
         directory['revenues_folder'] = f"{self.database_folder}/Revenues and Expenses"
         directory['student_file'] = f"{self.database_folder}/Students.xlsx"
         directory['file_location_settings'] = f"{self.database_folder}/settings.xlsx"
-        
-
-        
         return directory
