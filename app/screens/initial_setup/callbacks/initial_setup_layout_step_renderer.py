@@ -5,15 +5,9 @@ from app import dash_app
 
 from app.screens.initial_setup.callbacks.step_1 import html_step_1
 from app.screens.initial_setup.callbacks.step_2 import html_step_2
-from app.screens.initial_setup.callbacks.step_3 import html_step_3, clean_datasets, run_model_training
+from app.screens.initial_setup.callbacks.step_3 import html_step_3, run_training
 from app.screens.initial_setup.callbacks.step_4 import html_step_4
-from app.screens.initial_setup.callbacks.step_5 import html_step_5
-
-from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
-from machine_learning.utils.features.get_slope_time_points import get_slope_timepoints
-from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperparameterTuner
-from machine_learning.utils.training.run_models_parallel import progress_state
-from machine_learning.utils.io.save_results_to_folder import save_training_results
+from app.screens.initial_setup.callbacks.step_5 import html_step_5, run_finalization
 
 
 # ── Persistent root layout ────────────────────────────────────────────────────
@@ -21,13 +15,16 @@ from machine_learning.utils.io.save_results_to_folder import save_training_resul
 # step-content always exist in the DOM regardless of which page is active.
 # Do NOT redeclare these stores in InitialSetupScreen.layout() — they live here.
 initial_setup_layout = html.Div([
-    dcc.Store(id="current_step",     data="progress-1"),  # active step tracker
-    dcc.Store(id="training_status"),                      # ML pipeline status
-    dcc.Store(id="stored_revenue"),                       # uploaded revenue file (base64)
-    dcc.Store(id="stored_enrollees"),                     # uploaded enrollees file (base64)
-    dcc.Store(id="stored_models"),                        # selected model types
-    dcc.Store(id="stored_balancing"),                     # selected balancing strategies
-    html.Div(id="step-content"),                          # step layout rendered here
+    dcc.Store(id="current_step",        data="progress-1"),  # active step tracker
+    dcc.Store(id="training_status"),                         # tracker for the machine learning process
+    dcc.Store(id="stored_revenue"),                          # uploaded revenue file (base64)
+    dcc.Store(id="stored_enrollees"),                        # uploaded enrollees file (base64)
+    dcc.Store(id="stored_models"),                           # selected model types
+    dcc.Store(id="stored_balancing"),                        # selected balancing strategies
+    dcc.Store(id="stored_credit_sales"),                     # cleaned df_credit_sales from step 3
+    dcc.Store(id="selected-model-data"),                     # final selected model for deployment
+    dcc.Store(id="fin-training_status"),                     # tracker for the deployment steps
+    html.Div(id="step-content"),                             # step layout rendered here
 ])
 
 
@@ -95,6 +92,7 @@ def go_to_step_2(upload_clicks):
 
 
 # --- Step 2 → Step 3 (UI advance only, training fires separately) ---
+# The code for the training is found in step_3.py
 @dash_app.callback(
     Output("current_step", "data", allow_duplicate=True),
     Input("model_parameters_confirm_btn", "n_clicks"),
@@ -105,77 +103,6 @@ def go_to_step_3(confirm_clicks, current_step):
     if confirm_clicks and current_step != "progress-3":
         return "progress-3"
     return no_update
-
-
-@dash_app.callback(
-    Output("training_status", "data"),
-    Input("model_parameters_confirm_btn", "n_clicks"),
-    State("stored_revenue", "data"),
-    State("stored_enrollees", "data"),
-    State("stored_models", "data"),
-    State("stored_balancing", "data"),
-    prevent_initial_call=True,
-)
-def run_training(confirm_clicks, revenue_data, enrollees_data, models_data, balancing_data):
-    if not confirm_clicks:
-        return no_update
-
-    progress_state["extraction_done"] = False
-    progress_state["survival_done"]   = False
-    progress_state["training_done"]   = False
-    progress_state["saving_done"]     = False
-    start_time = datetime.now()
-
-    print("Running training...")
-    df_data, df_data_surv = clean_datasets(revenue_data, enrollees_data)
-
-    print("Getting best parameters for the CoxPH Model...")
-    X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
-    T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
-    E      = df_data_surv["censor"]
-
-    tuner = CoxHyperparameterTuner(save_report_path="Results/")
-    tuner.fit(X_surv, T, E)
-    progress_state["survival_done"] = True
-
-    survival_results_dict = {
-        "best_c_index":          tuner.best_c_index_,
-        "best_surv_parameters":  tuner.best_params_,
-    }
-
-    print("Proceeding to model training...")
-
-    class Config:
-        parameters_dir = r"machine_learning\parameters.json"
-        target_feature = "dtp_bracket"
-        test_size      = 0.3
-        time_points    = get_slope_timepoints(T, E, n_points=9)
-
-    args = Config()
-    print(f"Using timepoints: {args.time_points}")
-
-    model_results_df, class_mappings_dict = run_model_training(
-        df_data, df_data_surv, models_data, balancing_data, args, tuner.best_params_
-    )
-    progress_state["training_done"] = True
-
-    end_time            = datetime.now()
-    total_training_time = end_time - start_time
-
-    save_training_results(
-        model_results_df,
-        survival_results_dict,
-        class_mappings_dict,
-        "Results",
-        models_data,
-        start_time.isoformat(),
-        end_time.isoformat(),
-        str(total_training_time),
-        format="sqlite",
-    )
-    progress_state["saving_done"] = True
-
-    return "done"
 
 
 # --- Step 3 → Step 4 ---
