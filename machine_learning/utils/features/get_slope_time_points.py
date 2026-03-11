@@ -28,6 +28,8 @@ def get_slope_timepoints(T, E, n_points=6, min_gap=14):
             break
     
     raw_time_points = sorted(np.round(selected).astype(int).tolist())
-    time_points = [t for t in raw_time_points if t > 0]
+    
+    # Replace 0 with 1 instead of dropping
+    time_points = [t if t != 0 else 1 for t in raw_time_points]
     
     return time_points
