@@ -8,7 +8,7 @@ from ...comparative_model_dashboard_template.constants import MODELS
 from ...comparative_model_dashboard_template.utils.data_loaders import load_models_from_results
 from ...comparative_model_dashboard_template.dashboard_layout import build_dashboard_layout
 
-from utils.io.read_settings_json import read_settings_json
+from utils.data_loaders.read_settings_json import read_settings_json
 
 
 # ── Resolve Results root from settings ───────────────────────────────────────
