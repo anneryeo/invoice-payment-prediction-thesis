@@ -12,8 +12,9 @@
   ],
   "Config": [
     {
-      "debug_mode": "False"
-    }
+      "debug_mode": "True",              // stores/reads cache'd .pkl files
+      "TEMP_CACHE": "temp_cache"         // the folder where the cache's are stored
+    } 
   ],
   "Training": {
     // Training specific directories
