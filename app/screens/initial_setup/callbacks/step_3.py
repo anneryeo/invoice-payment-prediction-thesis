@@ -1,5 +1,7 @@
 import base64
 import io
+import os
+import pickle
 import pandas as pd
 from datetime import datetime
 from time import time
@@ -97,7 +99,6 @@ html_step_3 = html.Div(
                 style={"height": "1.5rem"},
             ),
             html.Div(id="progress-text", className="status-message"),
-            dcc.Interval(id="progress-interval", interval=1000, n_intervals=0),
             html.Button(
                 "Compare Model Results",
                 id="next_btn",
@@ -130,7 +131,8 @@ def clean_datasets(revenues_content, enrollees_content):
                      drop_helper_columns=True,
                      drop_demographic_columns=True,
                      drop_plan_type_columns=False,
-                     drop_missing_dtp=True)
+                     drop_missing_dtp=True,
+                     drop_back_account_transactions=True)
     df_credit_sales = cs.show_data()
 
     progress_state["extraction_done"] = True
@@ -240,17 +242,47 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
     start_time = datetime.now()
 
 
-    print("Running training...")
-    df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
-    stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+    settings   = read_settings_json()
+    debug_mode = settings["Config"][0].get("debug_mode", "False").strip().lower() == "true"
+    temp_cache = settings["Config"][0].get("TEMP_CACHE", "temp_cache")
+    cache_path = os.path.join(temp_cache, "step3_debug_cache.pkl")
 
-    print("Getting best parameters for the CoxPH Model...")
-    survival_results_dict = tune_cox_model(df_data_surv)
+    if debug_mode and os.path.exists(cache_path):
+        print(f"[DEBUG] Loading cached data from {cache_path} ...")
+        with open(cache_path, "rb") as f:
+            cache = pickle.load(f)
+        df_credit_sales       = cache["df_credit_sales"]
+        df_data               = cache["df_data"]
+        df_data_surv          = cache["df_data_surv"]
+        survival_results_dict = cache["survival_results_dict"]
+        stored_credit_sales   = df_credit_sales.to_json(date_format='iso', orient='split')
+        progress_state["extraction_done"] = True
+        progress_state["survival_done"]   = True
+        print("[DEBUG] Cache loaded successfully — skipping extraction and Cox tuning.")
+    else:
+        print("Running training...")
+        df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
+        stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+
+        print("Getting best parameters for the CoxPH Model...")
+        survival_results_dict = tune_cox_model(df_data_surv)
+
+        if debug_mode:
+            os.makedirs(temp_cache, exist_ok=True)
+            print(f"[DEBUG] Saving data to cache at {cache_path} ...")
+            with open(cache_path, "wb") as f:
+                pickle.dump({
+                    "df_credit_sales":       df_credit_sales,
+                    "df_data":               df_data,
+                    "df_data_surv":          df_data_surv,
+                    "survival_results_dict": survival_results_dict,
+                }, f)
+            print("[DEBUG] Cache saved successfully.")
+
     best_surv_params = survival_results_dict['best_surv_parameters']
     best_time_points = survival_results_dict['best_time_points']
 
     print("Proceeding to model training...")
-    settings = read_settings_json()
 
     class Config:
         parameters_dir = settings["Training"]["MODEL_PARAMETERS"]
@@ -291,8 +323,12 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
      Output("sub-step3", "className"),
      Output("sub-step4", "className")],
     Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_sub_steps(n):
+def update_sub_steps(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update
     if progress_state.get("extraction_done"):
         step1_class = "sub-circle complete"
     elif progress_state.get("start_time"):
@@ -332,12 +368,13 @@ def update_sub_steps(n):
      Output("step2-status", "children"),
      Output("step3-status", "children"),
      Output("step4-status", "children")],
-    [Input("progress-interval", "n_intervals"),
-     Input("stored_revenue", "data"),
-     Input("stored_enrollees", "data")],
-    prevent_initial_call=False,
+    Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_step_statuses(n, revenue_data, enrollees_data):
+def update_step_statuses(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update
     # What it will render when the respective step is not in progress or not completed
     step1 = "Extraction of Invoice Details."
     step2 = "Train Survival Analysis Model."
@@ -346,7 +383,7 @@ def update_step_statuses(n, revenue_data, enrollees_data):
 
     try:
         # Step 1
-        if revenue_data and enrollees_data:
+        if progress_state.get("start_time") and not progress_state.get("extraction_done"):
             step1 = "Extracting invoice details..."
         if progress_state.get("extraction_done"):
             step1 = "Invoice details extracted."
@@ -385,8 +422,12 @@ def update_step_statuses(n, revenue_data, enrollees_data):
      Output("progress-text", "children"),
      Output("next_btn", "disabled")],
     Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_progress(n):
+def update_progress(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update, no_update
     completed = int(progress_state.get("completed", 0) or 0)
     total = int(progress_state.get("total", 0) or 0)
     start_time = progress_state.get("start_time")

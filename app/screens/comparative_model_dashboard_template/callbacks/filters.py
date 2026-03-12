@@ -5,10 +5,10 @@ from app.screens.comparative_model_dashboard_template.constants import MODEL_LAB
 
 
 @dash_app.callback(
-    Output("filter-panel", "className"),
+    Output("filter-panel",        "className"),
     Output("filter-panel-toggle", "className"),
-    Input("filter-panel-toggle", "n_clicks"),
-    State("filter-panel", "className"),
+    Input("filter-panel-toggle",  "n_clicks"),
+    State("filter-panel",         "className"),
     prevent_initial_call=True,
 )
 def toggle_filter_panel(n, current_class):
@@ -26,8 +26,10 @@ def toggle_filter_panel(n, current_class):
     prevent_initial_call=True,
 )
 def select_all_none_model(n_all, n_none, id_list):
+    if not id_list:
+        return []
     ctx = callback_context
-    if not ctx.triggered or not id_list:
+    if not ctx.triggered:
         return [no_update] * len(id_list)
     if ctx.triggered[0]["prop_id"].split(".")[0] == "filter-model-all":
         return [[id_obj["key"]] for id_obj in id_list]
@@ -42,8 +44,10 @@ def select_all_none_model(n_all, n_none, id_list):
     prevent_initial_call=True,
 )
 def select_all_none_strategy(n_all, n_none, id_list):
+    if not id_list:
+        return []
     ctx = callback_context
-    if not ctx.triggered or not id_list:
+    if not ctx.triggered:
         return [no_update] * len(id_list)
     if ctx.triggered[0]["prop_id"].split(".")[0] == "filter-strategy-all":
         return [[id_obj["key"]] for id_obj in id_list]
