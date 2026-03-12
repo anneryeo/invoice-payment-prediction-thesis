@@ -12,45 +12,37 @@ from utils.data_loaders.read_settings_json import read_settings_json
 from machine_learning.utils.io.load_results_from_folder import SessionStore
 
 
-# ── Session store ─────────────────────────────────────────────────────────────
 _store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
 
 
-# ── Callbacks ─────────────────────────────────────────────────────────────────
-
 @dash_app.callback(
     Output("step4-data-loaded", "data"),
-    Input("step4-data-loaded", "data"),
-    prevent_initial_call=False,
+    Input("current_step",       "data"),
+    State("step4-data-loaded",  "data"),
+    prevent_initial_call=True,
 )
-def load_step4_data(already_loaded):
-    """
-    Fires once when the dashboard first mounts.
-    Loads the latest results.db automatically — no user action required.
-    Skipped on subsequent triggers because already_loaded is True.
-    """
+def load_step4_data(current_step, already_loaded):
+    if current_step != "progress-4":
+        return no_update
     if already_loaded:
-        return True
-
+        return no_update
     try:
-        db_path = _store.path()   # index 0 — most recent session
+        db_path = _store.path()
         MODELS.update(load_models_from_results(db_path))
         print(f"[screen1] Loaded {len(MODELS)} models from {db_path}")
     except Exception as exc:
         print(f"[screen1] WARNING – could not load results.db: {exc}")
         MODELS.clear()
-
     return True
 
 
 @dash_app.callback(
     Output("selected-model-store", "data", allow_duplicate=True),
-    Input("step4-data-loaded", "data"),
-    State("selected-model-store", "data"),
+    Input("step4-data-loaded",     "data"),
+    State("selected-model-store",  "data"),
     prevent_initial_call=True,
 )
 def initialise_selection(loaded, current_selected):
-    """Auto-select the rank-#1 model once data is loaded."""
     if not loaded or not MODELS:
         return no_update
     if current_selected:
@@ -60,21 +52,17 @@ def initialise_selection(loaded, current_selected):
 
 
 @dash_app.callback(
-    Output("confirm-fab-wrap",  "className"),
-    Output("confirm-fab-label", "children"),
+    Output("confirm-fab-wrap",    "className"),
+    Output("confirm-fab-label",   "children"),
     Input("selected-model-store", "data"),
+    prevent_initial_call=True,
 )
 def toggle_confirm_fab(model_key):
-    """
-    Reveals the floating confirm button once a model is selected,
-    and updates the label to show which model is about to be confirmed.
-    """
     if not model_key or model_key not in MODELS:
-        return "confirm-fab-wrap confirm-fab-hidden", ""
+        return "confirm-bar-wrap confirm-fab-hidden", ""
 
     data     = MODELS[model_key]
     name     = _model_display(data["model"])
     strategy = _strategy_display(data["balance_strategy"])
-    label    = f"{name}  ·  {strategy}"
 
-    return "confirm-fab-wrap confirm-fab-visible", label
+    return "confirm-bar-wrap confirm-fab-visible", f"{name}  ·  {strategy}"
