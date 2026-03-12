@@ -38,6 +38,8 @@ class CreditSales:
         If True, drops plan-type related columns (e.g., Plan A, Plan B, etc.).
     drop_missing_dtp : bool, default=False
         If True, drops plan-type related columns (e.g., dtp_1, dtp_2, dtp_3, dtp_4).
+    drop_back_account_transactions : bool, default=False
+        If True, drops all transactions that are labeled as back_account categories.
 
     Notes
     -----
@@ -69,7 +71,8 @@ class CreditSales:
                  drop_demographic_columns=False,
                  drop_survival_columns=False,
                  drop_plan_type_columns=False,
-                 drop_missing_dtp=False):
+                 drop_missing_dtp=False,
+                 drop_back_account_transactions=False):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
         self.df_enrollees = df_enrollees
         self.args = args
@@ -79,6 +82,7 @@ class CreditSales:
         self.drop_survival_columns = drop_survival_columns
         self.drop_plan_type_columns = drop_plan_type_columns
         self.drop_missing_dtp = drop_missing_dtp
+        self.drop_back_account_transactions = drop_back_account_transactions
         
         self.df_discounts = self._get_discounts(self.df_revenues)
         self.df_adjustments = self._get_adjustments(self.df_revenues)
@@ -748,32 +752,45 @@ class CreditSales:
         return df_cs
     
     def _drop_columns(self, df_cs):
-        helper_columns = ['gross_receivables', 'amount_discounted', 'adjustments',
-            'due_date_prev_1', 'due_date_prev_2', 'date_fully_paid', 'last_payment_date']
-        
-        demographic_columns = ['school_year', 'student_id_pseudonimized', 'category_name']
-        
-        survival_columns = ['censor', 'days_elapsed_until_fully_paid']
+        # Define column groups
+        helper_columns = [
+            'gross_receivables', 'amount_discounted', 'adjustments',
+            'due_date_prev_1', 'due_date_prev_2', 'date_fully_paid', 'last_payment_date'
+        ]
+        demographic_columns = [
+            'school_year', 'student_id_pseudonimized', 'category_name'
+        ]
+        survival_columns = [
+            'censor', 'days_elapsed_until_fully_paid'
+        ]
+        plan_type_columns = [
+            'plan_type_Plan - A', 'plan_type_Plan - B', 'plan_type_Plan - C',
+            'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan'
+        ]
 
-        plan_type_columns = ['plan_type_Plan - A', 'plan_type_Plan - B', 'plan_type_Plan - C',
-                             'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan']
-        
+        # Filter rows safely
+        if self.drop_back_account_transactions:
+            df_cs = df_cs.loc[df_cs['category_name'] != "Back Account"].copy()
+
+        # Collect all columns to drop in one go
+        cols_to_drop = []
         if self.drop_helper_columns:
-            df_cs.drop(columns=helper_columns, inplace=True)
-
+            cols_to_drop.extend(helper_columns)
         if self.drop_demographic_columns:
-            df_cs.drop(columns=demographic_columns, inplace=True)      
-
+            cols_to_drop.extend(demographic_columns)
         if self.drop_survival_columns:
-            df_cs.drop(columns=survival_columns, inplace=True)
-
+            cols_to_drop.extend(survival_columns)
         if self.drop_plan_type_columns:
-            df_cs.drop(columns=plan_type_columns, inplace=True)
-        
+            cols_to_drop.extend(plan_type_columns)
+
+        # Drop columns once
+        if cols_to_drop:
+            df_cs = df_cs.drop(columns=cols_to_drop, errors="ignore")
+
+        # Drop rows with missing critical features
         if self.drop_missing_dtp:
-            # Drop invoices with missing critical features
-            df_cs.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'], inplace=True)
-        
+            df_cs = df_cs.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'])
+
         return df_cs
         
     def show_data(self) -> pd.DataFrame:
