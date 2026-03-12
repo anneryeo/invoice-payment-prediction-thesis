@@ -48,7 +48,7 @@ class DashboardScreen:
                 html.Div([
                     html.H3("Invoices Predicted to be Late"),
                     DataTableComponent("invoice_table", ["Student ID", "Grade Level", "Amount", "Due Date", "Predicted Delay"]),
-                    html.Button("Export CSV", id="export_btn", className="primary-btn"),
+                    html.Button("Export CSV", id="dashboard-export-btn", className="primary-btn"),
                 ], className="section"),
 
                 # Model Insights
