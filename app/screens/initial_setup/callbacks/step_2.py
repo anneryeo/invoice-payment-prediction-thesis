@@ -84,7 +84,8 @@ html_step_2 = (
         Input("model_selection_neighbors", "value"),
         Input("model_selection_nn", "value"),
         Input("balancing_selection", "value"),
-    ]
+    ],
+    prevent_initial_call=True,
 )
 def toggle_confirm_button(trees, prob, neighbors, nn, balancing):
     # Combine all selected models
