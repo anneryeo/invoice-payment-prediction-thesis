@@ -15,6 +15,7 @@ Database/pseudonym_cache.json
 *.pkl
 Results/
 Excel Files/
+temp_cache/
 
 
 
@@ -42,6 +43,9 @@ wheels/
 
 # Scripts to test the app
 *.bat
+
+# App shortcuts
+*.lnk
 
 
 
