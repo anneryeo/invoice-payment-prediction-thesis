@@ -40,6 +40,8 @@ class CreditSales:
         If True, drops plan-type related columns (e.g., dtp_1, dtp_2, dtp_3, dtp_4).
     drop_back_account_transactions : bool, default=False
         If True, drops all transactions that are labeled as back_account categories.
+    drop_fully_paid_invoices : bool, default=False
+        If True, drops invoices that are already fully paid.
 
     Notes
     -----
@@ -72,7 +74,8 @@ class CreditSales:
                  drop_survival_columns=False,
                  drop_plan_type_columns=False,
                  drop_missing_dtp=False,
-                 drop_back_account_transactions=False):
+                 drop_back_account_transactions=False,
+                 drop_fully_paid_invoices=False):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
         self.df_enrollees = df_enrollees
         self.args = args
@@ -83,6 +86,7 @@ class CreditSales:
         self.drop_plan_type_columns = drop_plan_type_columns
         self.drop_missing_dtp = drop_missing_dtp
         self.drop_back_account_transactions = drop_back_account_transactions
+        self.drop_fully_paid_invoices = drop_fully_paid_invoices
         
         self.df_discounts = self._get_discounts(self.df_revenues)
         self.df_adjustments = self._get_adjustments(self.df_revenues)
@@ -768,9 +772,14 @@ class CreditSales:
             'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan'
         ]
 
-        # Filter rows safely
+        # Filter rows before dropping columns.
         if self.drop_back_account_transactions:
             df_cs = df_cs.loc[df_cs['category_name'] != "Back Account"].copy()
+        
+        if self.drop_fully_paid_invoices:
+            before = len(df_cs)
+            df_cs = df_cs.loc[df_cs['date_fully_paid'].isna()].copy()
+            print(f"Dropped {before - len(df_cs)} fully paid invoices. Remaining: {len(df_cs)}")
 
         # Collect all columns to drop in one go
         cols_to_drop = []
