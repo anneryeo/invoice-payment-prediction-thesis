@@ -31,7 +31,6 @@ settings          = SettingsScreen(dash_app)
 # callback targets always exist in the DOM regardless of which page is active.
 # page-content is used ONLY for non-setup screens (analysis, dashboard, etc.).
 # When on /setup the setup layout is already visible; page-content is empty.
-# Setup routes — the setup layout is always in the DOM but hidden on non-setup pages
 _SETUP_ROUTES = ("/", "/setup")
 
 dash_app.layout = html.Div([
@@ -89,4 +88,4 @@ def display_page(pathname, finalization_complete):
 
 
 if __name__ == "__main__":
-    dash_app.run(debug=True)
+    dash_app.run(debug=True, use_reloader=False)
