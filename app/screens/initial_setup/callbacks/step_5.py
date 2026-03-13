@@ -12,7 +12,9 @@ from dash import Input, Output, State, html, dcc, no_update
 from utils.data_loaders.read_settings_json import read_settings_json
 from machine_learning.utils.io.load_results_from_folder import SessionStore
 from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
-from lifelines import CoxPHFitter
+from sksurv.linear_model import CoxnetSurvivalAnalysis
+from sksurv.util import Surv
+from sklearn.preprocessing import StandardScaler
 from machine_learning import (
     AdaBoostPipeline,
     DecisionTreePipeline,
@@ -205,32 +207,38 @@ def _train_survival_model(df_data_surv, results_root: str) -> dict:
     best_params      = survival_results["best_surv_parameters"]
     best_time_points = survival_results["best_time_points"]
 
-    df_fit = df_data_surv.copy()
-    df_fit["days_elapsed_until_fully_paid"] = adjust_payment_period(
-        df_fit["days_elapsed_until_fully_paid"]
+    # Prepare features and structured survival target
+    T = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
+    E = df_data_surv["censor"]
+    X_raw = df_data_surv.drop(
+        columns=["days_elapsed_until_fully_paid", "censor"]
+    ).astype(float)
+
+    # Apply the same standardisation as generate_survival_features._safe_scale
+    scaler  = StandardScaler()
+    X_scaled = scaler.fit_transform(X_raw)
+    import numpy as np
+    X_scaled = np.clip(X_scaled, -10, 10)
+
+    y = Surv.from_arrays(
+        event=E.astype(bool).values,
+        time=T.astype(float).values,
     )
 
-    _INIT_PARAMS = {"penalizer", "l1_ratio", "baseline_estimation_method"}
-    _FIT_PARAMS  = {"robust"}
-    _FIT_OPTIONS = {"step_size"}
-
-    init_kwargs = {k: v for k, v in best_params.items() if k in _INIT_PARAMS}
-    fit_kwargs  = {k: v for k, v in best_params.items() if k in _FIT_PARAMS}
-    fit_options = {k: v for k, v in best_params.items() if k in _FIT_OPTIONS}
-
-    cph = CoxPHFitter(**init_kwargs)
-    cph.fit(
-        df_fit,
-        duration_col="days_elapsed_until_fully_paid",
-        event_col="censor",
-        **fit_kwargs,
-        fit_options=fit_options,
+    cox = CoxnetSurvivalAnalysis(
+        l1_ratio=best_params["l1_ratio"],
+        alphas=[best_params["alpha"]],
+        fit_baseline_model=True,   # required for S(t)/H(t) prediction in step 5
+        max_iter=100_000,
+        tol=1e-7,
     )
+    cox.fit(X_scaled, y)
+    c_index = float(cox.score(X_scaled, y))
 
     fin_progress_state["survival_done"] = True
     return {
-        "cph":                  cph,
-        "best_c_index":         cph.concordance_index_,
+        "cph":                  cox,
+        "best_c_index":         c_index,
         "best_surv_parameters": best_params,
         "best_time_points":     best_time_points,
     }
