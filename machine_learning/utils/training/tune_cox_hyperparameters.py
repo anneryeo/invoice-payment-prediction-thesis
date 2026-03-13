@@ -1,226 +1,142 @@
 import os
-import sys
 import warnings
 import numpy as np
 import pandas as pd
-from contextlib import contextmanager
 from itertools import product
-
-from lifelines import CoxPHFitter
-from joblib import Parallel, delayed
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 from sklearn.model_selection import KFold
-from sksurv.metrics import concordance_index_censored
-from tqdm import tqdm
+from sklearn.preprocessing import StandardScaler
+from sksurv.linear_model import CoxnetSurvivalAnalysis
+from sksurv.util import Surv
 
 from machine_learning.utils.data.clean_survival_inputs import clean_survival_inputs
 
 
-# ── module-level helpers ────────────────────────────────────────────────────
-# These must be module-level (not methods) so joblib can pickle them for
-# parallel workers.
+# ── module-level worker ─────────────────────────────────────────────────────
+# Must be module-level so multiprocessing.Pool can pickle it.
 
-@contextmanager
-def _suppress_fd_stderr():
+def _evaluate_params(args):
     """
-    Redirect OS-level stderr (fd=2) to /dev/null for the duration of the
-    context. Silences Intel MKL/LAPACK messages (e.g. DGELSY) that are
-    written directly to the OS file descriptor and bypass Python's warning
-    and exception systems entirely.
-    """
-    original_fd = sys.stderr.fileno()
-    saved_fd    = os.dup(original_fd)
-    try:
-        devnull_fd = os.open(os.devnull, os.O_WRONLY)
-        os.dup2(devnull_fd, original_fd)
-        os.close(devnull_fd)
-        yield
-    finally:
-        os.dup2(saved_fd, original_fd)
-        os.close(saved_fd)
-
-
-def _evaluate_params(df_fit, pen, l1, method, robust, step, kf_splits, extra_kwargs=None):
-    """
-    Evaluate one hyperparameter combination across all CV folds.
-    Module-level so joblib can pickle it for parallel workers.
+    Evaluate one (alpha, l1_ratio) combination across all CV folds.
 
     Returns
     -------
-    mean_c_index : float or None
-    params : dict or None
-    diag : dict
-        Diagnostic counters for the Excel report.
+    combo : (alpha, l1_ratio)
+        Echoed back so imap_unordered stays self-contained.
+    result : (mean_c_index | None, params_dict | None, diag_dict)
     """
-    extra_kwargs      = extra_kwargs or {}
+    df_fit, alpha, l1_ratio, kf_splits = args
+
+    feature_cols = [c for c in df_fit.columns if c not in ("T", "E")]
+    X_all = df_fit[feature_cols].values.astype(float)
+    y_all = Surv.from_arrays(
+        event=df_fit["E"].astype(bool).values,
+        time=df_fit["T"].astype(float).values,
+    )
+
     c_indices         = []
     n_folds_failed    = 0
-    n_overflow        = 0
-    n_nan_scores      = 0
-    n_inf_scores      = 0
     fit_exception_msg = ""
 
     for train_idx, val_idx in kf_splits:
-        df_train = df_fit.iloc[train_idx]
-        df_val   = df_fit.iloc[val_idx]
+        X_train_raw, X_val_raw = X_all[train_idx], X_all[val_idx]
+        y_train,     y_val     = y_all[train_idx], y_all[val_idx]
+
+        # Scale on train, apply to val — mirrors _safe_scale in generate_survival_features
+        scaler  = StandardScaler()
+        X_train = np.clip(scaler.fit_transform(X_train_raw), -10, 10)
+        X_val   = np.clip(scaler.transform(X_val_raw),       -10, 10)
 
         try:
-            cph = CoxPHFitter(
-                penalizer=pen,
-                l1_ratio=l1,
-                baseline_estimation_method=method,
-                **extra_kwargs
-            )
-
-            with _suppress_fd_stderr(), warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                cph.fit(
-                    df_train,
-                    duration_col="T",
-                    event_col="E",
-                    robust=robust,
-                    fit_options={"step_size": step}
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                cox = CoxnetSurvivalAnalysis(
+                    l1_ratio=l1_ratio,
+                    alphas=[alpha],
+                    fit_baseline_model=False,  # C-index only — baseline not needed here
+                    max_iter=100_000,
+                    tol=1e-7,
                 )
+                cox.fit(X_train, y_train)
 
-            n_overflow += sum(
-                1 for w in caught
-                if issubclass(w.category, RuntimeWarning)
-                and "overflow" in str(w.message).lower()
-            )
-
-            # spline exposes predict_log_partial_hazard, not predict_partial_hazard
-            if method == "spline":
-                log_risk    = cph.predict_log_partial_hazard(df_val)
-                risk_scores = np.exp(log_risk.clip(upper=500))
-            else:
-                risk_scores = cph.predict_partial_hazard(df_val)
-
-            n_nan_scores += int(risk_scores.isna().sum())
-            n_inf_scores += int(np.isinf(risk_scores).sum())
-
-            valid_mask = risk_scores.notna() & np.isfinite(risk_scores)
-            if valid_mask.sum() < 2:
-                n_folds_failed += 1
-                continue
-
-            c_index = concordance_index_censored(
-                df_val.loc[valid_mask.values, "E"].astype(bool),
-                df_val.loc[valid_mask.values, "T"],
-                risk_scores[valid_mask].values
-            )[0]
-            c_indices.append(c_index)
+            c_index = cox.score(X_val, y_val)
+            c_indices.append(float(c_index))
 
         except Exception as exc:
             n_folds_failed += 1
-            msg = str(exc)
-            if "DGELSY" in msg or "Parameter 4" in msg:
-                fit_exception_msg = f"MKL_DGELSY: rank-deficient spline matrix. {msg[:80]}"
-            else:
-                fit_exception_msg = msg[:120]
-            continue
+            fit_exception_msg = str(exc)[:120]
 
     diag = {
-        "n_folds_ok":          len(c_indices),
-        "n_folds_failed":      n_folds_failed,
-        "n_overflow_warnings": n_overflow,
-        "n_nan_risk_scores":   n_nan_scores,
-        "n_inf_risk_scores":   n_inf_scores,
-        "c_index_std":         float(np.std(c_indices)) if len(c_indices) > 1 else np.nan,
-        "fit_exception":       fit_exception_msg,
+        "n_folds_ok":     len(c_indices),
+        "n_folds_failed": n_folds_failed,
+        "c_index_std":    float(np.std(c_indices)) if len(c_indices) > 1 else np.nan,
+        "fit_exception":  fit_exception_msg,
     }
 
     if not c_indices:
-        return None, None, diag
+        return (alpha, l1_ratio), (None, None, diag)
 
-    return float(np.mean(c_indices)), {
-        "penalizer": pen, "l1_ratio": l1,
-        "baseline_estimation_method": method,
-        "robust": robust, "step_size": step,
-        **extra_kwargs,
-    }, diag
+    return (alpha, l1_ratio), (
+        float(np.mean(c_indices)),
+        {"alpha": alpha, "l1_ratio": l1_ratio},
+        diag,
+    )
 
 
 # ── main class ──────────────────────────────────────────────────────────────
 
 class CoxHyperparameterTuner:
     """
-    Tunes CoxPHFitter hyperparameters via parallelized cross-validation with
-    pre-flight data validation, spline dry-run blacklisting, and an optional
-    Excel diagnostics report.
+    Tunes CoxnetSurvivalAnalysis hyperparameters (alpha x l1_ratio) via
+    parallelised cross-validation and produces an optional Excel report.
 
     Usage
     -----
-    tuner = CoxHyperparameterTuner(save_report_path="results/cox_tuning.xlsx")
+    tuner = CoxHyperparameterTuner(save_report_path="results/")
     tuner.fit(X_surv, T, E)
 
-    print(tuner.best_params_)
+    print(tuner.best_params_)     # {"alpha": float, "l1_ratio": float}
     print(tuner.best_c_index_)
     print(tuner.results_df_)
 
     Parameters
     ----------
-    penalizer_grid : list of float
+    alpha_grid : list of float
+        Regularisation strengths. Smaller = less regularisation.
+        Maps to the old "penalizer" parameter.
     l1_ratios : list of float
-    baseline_methods : list of str
-        Any of "breslow", "spline", "efron". "efron" is auto-removed when
-        tied_obs_ratio > efron_obs_threshold. "spline" knots are validated
-        via dry-run before the grid search.
-    robust_options : list of bool
-    step_sizes : list of float
-    n_baseline_knots_grid : list of int
-        Knot counts for spline. Royston et al. recommend 4; range 2–8.
-    spline_min_penalizer : float
-        Spline combos with penalizer below this are skipped (divergence risk).
-    efron_obs_threshold : float
-        Fraction of events involved in ties above which efron is removed.
+        Elastic-net mixing. 0 = pure Ridge, 1 = pure Lasso.
     n_splits : int
+        K-Fold CV splits.
     random_state : int
     n_jobs : int
-        Joblib parallel workers. -1 = all cores.
+        Worker processes. -1 = all cores.
     save_report_path : str or None
-        Path for the Excel report. Accepts directory or full .xlsx path.
+        Path for the Excel diagnostics report.
     """
-
-    # ── constants ────────────────────────────────────────────────────────────
-    _SPLINE_MIN_PENALIZER  = 0.1
-    _EFRON_OBS_THRESHOLD   = 0.03
 
     def __init__(
         self,
-        penalizer_grid         = [0.001, 0.01, 0.1, 1, 10, 100],
-        l1_ratios              = [0, 0.25, 0.5, 0.75, 1],
-        baseline_methods       = ["breslow", "spline"],
-        robust_options         = [True, False],
-        step_sizes             = [0.5, 0.75, 0.95],
-        n_baseline_knots_grid  = [2, 3, 4, 6, 8],
-        spline_min_penalizer   = 0.1,
-        efron_obs_threshold    = 0.03,
-        n_splits               = 5,
-        random_state           = 42,
-        n_jobs                 = -1,
-        save_report_path       = None,
+        alpha_grid       = [0.001, 0.01, 0.1, 1, 10, 100],
+        l1_ratios        = [0, 0.25, 0.5, 0.75, 1],
+        n_splits         = 5,
+        random_state     = 42,
+        n_jobs           = -1,
+        save_report_path = None,
     ):
-        self.penalizer_grid        = penalizer_grid
-        self.l1_ratios             = l1_ratios
-        self.baseline_methods      = baseline_methods
-        self.robust_options        = robust_options
-        self.step_sizes            = step_sizes
-        self.n_baseline_knots_grid = n_baseline_knots_grid
-        self.spline_min_penalizer  = spline_min_penalizer
-        self.efron_obs_threshold   = efron_obs_threshold
-        self.n_splits              = n_splits
-        self.random_state          = random_state
-        self.n_jobs                = n_jobs
-        self.save_report_path      = save_report_path
+        self.alpha_grid       = alpha_grid
+        self.l1_ratios        = l1_ratios
+        self.n_splits         = n_splits
+        self.random_state     = random_state
+        self.n_jobs           = n_jobs
+        self.save_report_path = save_report_path
 
-        # Set after fit()
-        self.best_params_    = None
-        self.best_c_index_   = None
-        self.results_df_     = None
-        self.safe_methods_   = None
-        self.safe_knots_grid_ = None
-        self.tie_ratio_      = None
-        self._df_fit         = None
-        self._kf_splits      = None
+        self.best_params_  = None
+        self.best_c_index_ = None
+        self.results_df_   = None
+        self._df_fit       = None
+        self._kf_splits    = None
 
     # ── public API ───────────────────────────────────────────────────────────
 
@@ -228,26 +144,11 @@ class CoxHyperparameterTuner:
         """
         Run the full tuning pipeline.
 
-        Steps
-        -----
-        1. Clean and validate input data
-        2. Check for tied event times → may remove efron
-        3. Build CV folds
-        4. Dry-run validate spline knot counts → blacklist bad knots
-        5. Build hyperparameter grid
-        6. Parallel CV search
-        7. Collect results and select best params
-        8. Save Excel report (if save_report_path set)
-
-        Returns
-        -------
-        self  (allows chaining: tuner.fit(X, T, E).best_params_)
+        Returns self (allows chaining: tuner.fit(X, T, E).best_params_)
         """
-        self._df_fit = self._clean_data(X_surv, T, E)
-        self.safe_methods_ = self._check_ties()
-        self._kf_splits    = self._build_folds()
-        self.safe_knots_grid_ = self._validate_spline()
-        combos             = self._build_grid()
+        self._df_fit    = self._clean_data(X_surv, T, E)
+        self._kf_splits = self._build_folds()
+        combos          = self._build_grid()
         self._run_search(combos)
 
         if self.save_report_path:
@@ -258,190 +159,52 @@ class CoxHyperparameterTuner:
     # ── pipeline steps ───────────────────────────────────────────────────────
 
     def _clean_data(self, X_surv, T, E) -> pd.DataFrame:
-        """Clean inputs and return a ready-to-fit df_fit."""
         _, _, _, df_fit = clean_survival_inputs(X_surv, T, E)
         return df_fit
 
-    def _check_ties(self) -> list:
-        """
-        Detect tied event times and remove efron if tied_obs_ratio exceeds
-        the threshold. Returns the list of safe baseline methods.
-        """
-        event_times  = self._df_fit.loc[self._df_fit["E"] == 1, "T"]
-        n_events     = len(event_times)
-        time_counts  = event_times.value_counts()
-        n_tied_times = int((time_counts > 1).sum())
-        n_tied_obs   = int(time_counts[time_counts > 1].sum())
-
-        tied_time_ratio  = n_tied_times / max(n_events, 1)
-        self.tie_ratio_  = n_tied_obs   / max(n_events, 1)
-
-        print(
-            f"[CoxHyperparameterTuner] Tie check: {n_events} events | "
-            f"{n_tied_times} tied time points ({tied_time_ratio:.1%}) | "
-            f"{n_tied_obs} observations in ties ({self.tie_ratio_:.1%})."
-        )
-
-        safe_methods = list(self.baseline_methods)
-
-        if n_tied_times > 0 and "efron" in safe_methods:
-            if self.tie_ratio_ > self.efron_obs_threshold:
-                safe_methods = [m for m in safe_methods if m != "efron"]
-                print(
-                    f"[CoxHyperparameterTuner] WARNING: tied obs ratio "
-                    f"{self.tie_ratio_:.1%} > threshold "
-                    f"{self.efron_obs_threshold:.0%} — 'efron' removed."
-                )
-            else:
-                print(
-                    f"[CoxHyperparameterTuner] Tied obs ratio {self.tie_ratio_:.1%} "
-                    f"below threshold — efron kept, watch for fold failures."
-                )
-
-        if not safe_methods:
-            safe_methods = ["breslow"]
-            print("[CoxHyperparameterTuner] Fallback: no valid methods, using breslow.")
-
-        return safe_methods
-
     def _build_folds(self) -> list:
-        """Build and return the CV fold split indices."""
-        kf = KFold(
-            n_splits=self.n_splits,
-            shuffle=True,
-            random_state=self.random_state
-        )
+        kf = KFold(n_splits=self.n_splits, shuffle=True, random_state=self.random_state)
         return list(kf.split(self._df_fit))
 
-    def _validate_spline(self) -> list:
-        """
-        Dry-run each knot count on the hardest CV fold (fewest events).
-        Blacklists any knot count that causes a fit or prediction error,
-        preventing MKL DGELSY errors from ever firing during the grid search.
-        Returns the list of safe knot counts.
-        """
-        if "spline" not in self.safe_methods_:
-            return self.n_baseline_knots_grid
-
-        fold_train_dfs = [self._df_fit.iloc[ti] for ti, _ in self._kf_splits]
-        hardest_fold   = min(fold_train_dfs, key=lambda d: int(d["E"].sum()))
-        n_fold_events  = int(hardest_fold["E"].sum())
-
-        print(
-            f"[CoxHyperparameterTuner] Dry-run validating spline knots "
-            f"{self.n_baseline_knots_grid} on hardest fold ({n_fold_events} events)..."
-        )
-
-        safe_knots   = []
-        failed_knots = []
-
-        for knots in sorted(self.n_baseline_knots_grid):
-            try:
-                with _suppress_fd_stderr(), warnings.catch_warnings(record=True):
-                    warnings.simplefilter("always")
-                    probe = CoxPHFitter(
-                        baseline_estimation_method="spline",
-                        n_baseline_knots=knots,
-                        penalizer=self.spline_min_penalizer,
-                        l1_ratio=0.0,
-                    )
-                    probe.fit(
-                        hardest_fold,
-                        duration_col="T",
-                        event_col="E",
-                        fit_options={"step_size": 0.95}
-                    )
-                    # Also verify prediction — spline uses a different internal
-                    # class that may not expose all prediction methods
-                    probe.predict_log_partial_hazard(
-                        hardest_fold.drop(columns=["T", "E"])
-                    )
-                safe_knots.append(knots)
-            except Exception:
-                failed_knots.append(knots)
-
-        if failed_knots:
-            print(
-                f"[CoxHyperparameterTuner] Dry-run BLACKLISTED knots {failed_knots} "
-                f"— excluded from grid."
-            )
-        if safe_knots:
-            print(
-                f"[CoxHyperparameterTuner] Dry-run PASSED knots: {safe_knots}."
-            )
-        else:
-            print(
-                f"[CoxHyperparameterTuner] WARNING: all spline knots failed — "
-                f"removing spline from search."
-            )
-            self.safe_methods_ = [m for m in self.safe_methods_ if m != "spline"]
-            if not self.safe_methods_:
-                self.safe_methods_ = ["breslow"]
-
-        return safe_knots
-
     def _build_grid(self) -> list:
-        """
-        Build the full list of hyperparameter combos as
-        (pen, l1, method, robust, step, extra_kwargs) tuples.
-
-        Rules applied
-        -------------
-        - spline  : crossed with safe_knots_grid_, skips pen < spline_min_penalizer
-        - breslow : full penalizer_grid, no extra_kwargs
-        - efron   : full penalizer_grid, no extra_kwargs (if still in safe_methods_)
-        """
-        combos    = []
-        base_axes = list(product(
-            self.penalizer_grid, self.l1_ratios,
-            self.robust_options, self.step_sizes
-        ))
-
-        for pen, l1, robust, step in base_axes:
-            for method in self.safe_methods_:
-                if method == "spline":
-                    if pen < self.spline_min_penalizer:
-                        continue
-                    for knots in self.safe_knots_grid_:
-                        combos.append((pen, l1, method, robust, step,
-                                       {"n_baseline_knots": knots}))
-                else:
-                    combos.append((pen, l1, method, robust, step, {}))
-
+        combos = list(product(self.alpha_grid, self.l1_ratios))
         print(
             f"[CoxHyperparameterTuner] Grid: {len(combos)} combinations "
-            f"× {self.n_splits} folds | workers={self.n_jobs}"
+            f"x {self.n_splits} folds | workers={self.n_jobs}",
+            flush=True,
         )
         return combos
 
     def _run_search(self, combos: list) -> None:
-        """
-        Execute the parallel CV search over combos.
-        Populates self.results_df_, self.best_params_, self.best_c_index_.
-        """
-        raw_results = Parallel(n_jobs=self.n_jobs)(
-            delayed(_evaluate_params)(
-                self._df_fit, pen, l1, method, robust, step,
-                self._kf_splits, extra_kwargs
-            )
-            for pen, l1, method, robust, step, extra_kwargs
-            in tqdm(combos, desc="Cox CV tuning", unit="combo")
-        )
+        n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
+        total     = len(combos)
+
+        task_args = [
+            (self._df_fit, alpha, l1_ratio, self._kf_splits)
+            for alpha, l1_ratio in combos
+        ]
+
+        raw_results = []
+        with ThreadPool(processes=cpu_count()) as pool:
+            for i, result in enumerate(
+                pool.imap_unordered(_evaluate_params, task_args), start=1
+            ):
+                raw_results.append(result)
+                if i % 10 == 0 or i == total:
+                    print(
+                        f"[CoxHyperparameterTuner] {i}/{total} combos evaluated...",
+                        flush=True,
+                    )
 
         rows         = []
         best_c_index = -np.inf
         best_params  = None
 
-        for (pen, l1, method, robust, step, extra_kwargs), \
-                (mean_c, params, diag) in zip(combos, raw_results):
+        for (alpha, l1_ratio), (mean_c, params, diag) in raw_results:
             rows.append({
-                "penalizer":        pen,
-                "l1_ratio":         l1,
-                "baseline_method":  method,
-                "robust":           robust,
-                "step_size":        step,
-                "n_baseline_knots": extra_kwargs.get("n_baseline_knots", "N/A"),
-                "c_index_mean":     mean_c if mean_c is not None else np.nan,
+                "alpha":        alpha,
+                "l1_ratio":     l1_ratio,
+                "c_index_mean": mean_c if mean_c is not None else np.nan,
                 **diag,
             })
             if mean_c is not None and mean_c > best_c_index:
@@ -449,27 +212,28 @@ class CoxHyperparameterTuner:
                 best_params  = params
 
         if best_params is None:
-            print("[CoxHyperparameterTuner] No valid params — falling back to defaults.")
-            best_params = {
-                "penalizer": 0.1, "l1_ratio": 0,
-                "baseline_estimation_method": "breslow",
-                "robust": True, "step_size": 0.95,
-            }
+            print(
+                "[CoxHyperparameterTuner] No valid params — falling back to defaults.",
+                flush=True,
+            )
+            best_params  = {"alpha": 0.1, "l1_ratio": 1.0}
             best_c_index = np.nan
 
-        self.results_df_   = pd.DataFrame(rows).sort_values(
-            "c_index_mean", ascending=False
-        ).reset_index(drop=True)
+        self.results_df_   = (
+            pd.DataFrame(rows)
+            .sort_values("c_index_mean", ascending=False)
+            .reset_index(drop=True)
+        )
         self.best_params_  = best_params
         self.best_c_index_ = best_c_index
 
         print(
-            f"[CoxHyperparameterTuner] Best → {self.best_params_} | "
-            f"C-index: {self.best_c_index_:.4f}"
+            f"[CoxHyperparameterTuner] Best -> {self.best_params_} | "
+            f"C-index: {self.best_c_index_:.4f}",
+            flush=True,
         )
 
     def _save_report(self) -> None:
-        """Build and save the 3-sheet Excel diagnostics report."""
         path = self.save_report_path
         if os.path.isdir(path) or path.endswith(("/", "\\")):
             path = os.path.join(path, "cox_tuning_report.xlsx")
@@ -491,18 +255,12 @@ class CoxHyperparameterTuner:
         return self.results_df_.head(10)
 
 
-# ── Excel report (module-level, called by _save_report) ─────────────────────
+# ── Excel report ─────────────────────────────────────────────────────────────
 
 def _health_flag(row) -> str:
     flags = []
-    if row["n_overflow_warnings"] > 0:
-        flags.append(f"overflow×{row['n_overflow_warnings']}")
-    if row["n_nan_risk_scores"]   > 0:
-        flags.append(f"NaN_scores×{row['n_nan_risk_scores']}")
-    if row["n_inf_risk_scores"]   > 0:
-        flags.append(f"inf_scores×{row['n_inf_risk_scores']}")
-    if row["n_folds_failed"]      > 0:
-        flags.append(f"fold_fail×{row['n_folds_failed']}")
+    if row["n_folds_failed"] > 0:
+        flags.append(f"fold_fail x{row['n_folds_failed']}")
     if row.get("fit_exception", ""):
         flags.append("exception")
     return "; ".join(flags) if flags else "OK"
@@ -522,27 +280,23 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
     thin_side   = Side(style="thin", color="CCCCCC")
     thin_border = Border(left=thin_side, right=thin_side,
                          top=thin_side,  bottom=thin_side)
-    center      = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    hdr_fill    = PatternFill("solid", fgColor="1F4E79")
-    hdr_font    = Font(name="Arial", bold=True, color="FFFFFF", size=10)
-    best_fill   = PatternFill("solid", fgColor="BDD7EE")
-    alt_fill    = PatternFill("solid", fgColor="F5F5F5")
-    ok_fill     = PatternFill("solid", fgColor="E2EFDA")
-    warn_fill   = PatternFill("solid", fgColor="FFEB9C")
-    bad_fill    = PatternFill("solid", fgColor="FFC7CE")
-    sec_fill    = PatternFill("solid", fgColor="D6E4F0")
+    center    = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    hdr_fill  = PatternFill("solid", fgColor="1F4E79")
+    hdr_font  = Font(name="Arial", bold=True, color="FFFFFF", size=10)
+    best_fill = PatternFill("solid", fgColor="BDD7EE")
+    alt_fill  = PatternFill("solid", fgColor="F5F5F5")
+    ok_fill   = PatternFill("solid", fgColor="E2EFDA")
+    warn_fill = PatternFill("solid", fgColor="FFEB9C")
+    bad_fill  = PatternFill("solid", fgColor="FFC7CE")
+    sec_fill  = PatternFill("solid", fgColor="D6E4F0")
 
-    # ── Sheet 1: All Results ───────────────────────────────────────────────
+    # ── Sheet 1: All Results ─────────────────────────────────────────────────
     ws = wb.active
     ws.title = "All Results"
 
-    HEADERS = [
-        "Rank", "penalizer", "l1_ratio", "baseline_method", "n_baseline_knots",
-        "robust", "step_size", "c_index_mean", "c_index_std",
-        "folds_ok", "folds_failed", "overflow_warnings",
-        "nan_risk_scores", "inf_risk_scores", "fit_exception", "health_flag",
-    ]
-    COL_WIDTHS = [6, 12, 10, 18, 16, 8, 10, 14, 12, 10, 12, 18, 16, 16, 42, 32]
+    HEADERS    = ["Rank", "alpha", "l1_ratio", "c_index_mean", "c_index_std",
+                  "folds_ok", "folds_failed", "fit_exception", "health_flag"]
+    COL_WIDTHS = [6, 12, 10, 14, 12, 10, 12, 42, 24]
 
     for ci, h in enumerate(HEADERS, 1):
         cell = ws.cell(row=1, column=ci, value=h)
@@ -556,14 +310,12 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
         flag = row["health_flag"]
 
         vals = [
-            rank, row["penalizer"], row["l1_ratio"], row["baseline_method"],
-            row.get("n_baseline_knots", "N/A"),
-            str(row["robust"]), row["step_size"],
+            rank,
+            row["alpha"], row["l1_ratio"],
             round(row["c_index_mean"], 6) if pd.notna(row["c_index_mean"]) else "FAILED",
             round(row["c_index_std"],  6) if pd.notna(row["c_index_std"])  else "",
             row["n_folds_ok"], row["n_folds_failed"],
-            row["n_overflow_warnings"], row["n_nan_risk_scores"],
-            row["n_inf_risk_scores"], row["fit_exception"] or "", flag,
+            row["fit_exception"] or "", flag,
         ]
 
         for ci, val in enumerate(vals, 1):
@@ -584,54 +336,47 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
             fc.fill = warn_fill; fc.font = Font(name="Arial", size=9, color="7D4900")
 
     n_data = len(df) + 1
-    cc = get_column_letter(8)
+    cc = get_column_letter(4)   # c_index_mean column
     ws.conditional_formatting.add(
         f"{cc}2:{cc}{n_data}",
         ColorScaleRule(
             start_type="min",  start_color="FFC7CE",
             mid_type="num",    mid_value=0.6, mid_color="FFEB9C",
             end_type="max",    end_color="C6EFCE",
-        )
+        ),
     )
     for i, w in enumerate(COL_WIDTHS, 1):
         ws.column_dimensions[get_column_letter(i)].width = w
     ws.freeze_panes = "A2"
 
-    # ── Sheet 2: Best Result ───────────────────────────────────────────────
+    # ── Sheet 2: Best Result ─────────────────────────────────────────────────
     ws2  = wb.create_sheet("Best Result")
     best = df.iloc[0]
     ws2.column_dimensions["A"].width = 28
     ws2.column_dimensions["B"].width = 28
 
     ws2.merge_cells("A1:B1")
-    ws2["A1"] = "Cox PH Tuning — Best Result"
+    ws2["A1"] = "CoxNet Tuning — Best Result"
     ws2["A1"].font      = Font(name="Arial", bold=True, size=13, color="1F4E79")
     ws2["A1"].alignment = Alignment(horizontal="center", vertical="center")
     ws2.row_dimensions[1].height = 28
 
     summary = [
-        ("Parameter",          "Value"),
-        ("penalizer",          best["penalizer"]),
-        ("l1_ratio",           best["l1_ratio"]),
-        ("baseline_method",    best["baseline_method"]),
-        ("n_baseline_knots",   best.get("n_baseline_knots", "N/A")),
-        ("robust",             str(best["robust"])),
-        ("step_size",          best["step_size"]),
+        ("Parameter",         "Value"),
+        ("alpha",             best["alpha"]),
+        ("l1_ratio",          best["l1_ratio"]),
         ("", ""),
-        ("Metric",             "Value"),
-        ("C-index (mean CV)",  round(best["c_index_mean"], 6)),
-        ("C-index (std  CV)",  round(best["c_index_std"],  6) if pd.notna(best["c_index_std"]) else "N/A"),
-        ("Folds OK",           best["n_folds_ok"]),
-        ("Folds Failed",       best["n_folds_failed"]),
+        ("Metric",            "Value"),
+        ("C-index (mean CV)", round(best["c_index_mean"], 6)),
+        ("C-index (std  CV)", round(best["c_index_std"],  6) if pd.notna(best["c_index_std"]) else "N/A"),
+        ("Folds OK",          best["n_folds_ok"]),
+        ("Folds Failed",      best["n_folds_failed"]),
         ("", ""),
-        ("Diagnostics",        "Value"),
-        ("Overflow Warnings",  best["n_overflow_warnings"]),
-        ("NaN Risk Scores",    best["n_nan_risk_scores"]),
-        ("Inf Risk Scores",    best["n_inf_risk_scores"]),
-        ("Health Flag",        best["health_flag"]),
-        ("Fit Exception",      best["fit_exception"] or "None"),
+        ("Diagnostics",       "Value"),
+        ("Health Flag",       best["health_flag"]),
+        ("Fit Exception",     best["fit_exception"] or "None"),
     ]
-    section_rows = {2, 10, 16}
+    section_rows = {2, 6, 11}
     for ri, (lbl, val) in enumerate(summary, 2):
         a = ws2.cell(row=ri, column=1, value=lbl)
         b = ws2.cell(row=ri, column=2, value=val)
@@ -646,7 +391,7 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
             c.alignment = Alignment(vertical="center")
             c.border    = thin_border
 
-    # ── Sheet 3: Diagnostics Overview ─────────────────────────────────────
+    # ── Sheet 3: Diagnostics Overview ────────────────────────────────────────
     ws3 = wb.create_sheet("Diagnostics Overview")
     ws3.column_dimensions["A"].width = 36
     ws3.column_dimensions["B"].width = 20
@@ -659,19 +404,16 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
 
     total = len(df)
     diag_summary = [
-        ("Metric",                               "Count"),
-        ("Total combinations evaluated",         total),
-        ("Combinations — no issues (OK)",        (df["health_flag"] == "OK").sum()),
-        ("Combinations — overflow warnings",     (df["n_overflow_warnings"] > 0).sum()),
-        ("Combinations — NaN risk scores",       (df["n_nan_risk_scores"]   > 0).sum()),
-        ("Combinations — Inf risk scores",       (df["n_inf_risk_scores"]   > 0).sum()),
-        ("Combinations — failed folds",          (df["n_folds_failed"]      > 0).sum()),
-        ("Combinations — exceptions",            (df["fit_exception"].astype(str).str.len() > 0).sum()),
+        ("Metric",                           "Count"),
+        ("Total combinations evaluated",     total),
+        ("Combinations — no issues (OK)",    (df["health_flag"] == "OK").sum()),
+        ("Combinations — failed folds",      (df["n_folds_failed"] > 0).sum()),
+        ("Combinations — exceptions",        (df["fit_exception"].astype(str).str.len() > 0).sum()),
         ("", ""),
-        ("Best  C-index (mean CV)",              round(df["c_index_mean"].max(),    6)),
-        ("Worst C-index (mean CV)",              round(df["c_index_mean"].min(),    6)),
-        ("Median C-index (mean CV)",             round(df["c_index_mean"].median(), 6)),
-        ("Mean  C-index std across combos",      round(df["c_index_std"].mean(),    6)),
+        ("Best  C-index (mean CV)",          round(df["c_index_mean"].max(),    6)),
+        ("Worst C-index (mean CV)",          round(df["c_index_mean"].min(),    6)),
+        ("Median C-index (mean CV)",         round(df["c_index_mean"].median(), 6)),
+        ("Mean  C-index std across combos",  round(df["c_index_std"].mean(),    6)),
     ]
     for ri, (lbl, val) in enumerate(diag_summary, 2):
         a = ws3.cell(row=ri, column=1, value=lbl)
@@ -688,4 +430,4 @@ def _build_excel_report(df: pd.DataFrame, save_path: str) -> None:
             c.border    = thin_border
 
     wb.save(save_path)
-    print(f"[CoxHyperparameterTuner] Report saved → {save_path}")
+    print(f"[CoxHyperparameterTuner] Report saved -> {save_path}", flush=True)
