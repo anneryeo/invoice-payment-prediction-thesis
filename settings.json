@@ -22,7 +22,7 @@
     "RESULTS_ROOT": "Results",
     "DEPLOYED_MODELS": "Results/deployed_models",
 
-    "observation_end": "03/10/2026",      // The last available entry date for the research study
+    "observation_end": "2026/03/13",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",
     "test_size": "0.3"
   }
