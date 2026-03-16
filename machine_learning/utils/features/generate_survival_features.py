@@ -107,8 +107,8 @@ def generate_survival_features(
         axis=1
     )
 
-    # ── Step 2: fit the Cox model on the clipped, scaled data ──
-    cph = CoxPHFitter(
+    # ── Step 2: fit the Cox model on the clipped, scaled data ── HIGHLIGHT -ANNE
+    cph = CoxPHFitter( 
         penalizer=best_params["penalizer"],
         l1_ratio=best_params["l1_ratio"],
         baseline_estimation_method=best_params["baseline_estimation_method"]
