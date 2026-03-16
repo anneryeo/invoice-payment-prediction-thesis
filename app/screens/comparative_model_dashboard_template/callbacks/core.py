@@ -38,16 +38,16 @@ def _metric_header(metric, label):
 
 @dash_app.callback(
     Output("result-type-store", "data"),
-    Output("toggle-baseline", "className"),
-    Output("toggle-enhanced", "className"),
-    Input("toggle-baseline", "n_clicks"),
-    Input("toggle-enhanced", "n_clicks"),
-    prevent_initial_call=False,
+    Output("toggle-baseline",   "className"),
+    Output("toggle-enhanced",   "className"),
+    Input("toggle-baseline",    "n_clicks"),
+    Input("toggle-enhanced",    "n_clicks"),
+    prevent_initial_call=True,
 )
 def update_result_type(n_base, n_enh):
     ctx = callback_context
-    if not ctx.triggered or ctx.triggered[0]["prop_id"] == ".":
-        return "enhanced", "toggle-btn", "toggle-btn active-toggle"
+    if not ctx.triggered:
+        return no_update, no_update, no_update
     btn = ctx.triggered[0]["prop_id"].split(".")[0]
     if btn == "toggle-enhanced":
         return "enhanced", "toggle-btn", "toggle-btn active-toggle"
@@ -201,21 +201,29 @@ def update_sort_and_page(sort_btn_clicks, first, prev, nxt, last,
 
 @dash_app.callback(
     Output("leaderboard-table-container", "children"),
-    Output("page-indicator", "children"),
-    Input("sort-metric-store", "data"),
-    Input("sort-dir-store", "data"),
-    Input("sort-result-type-store", "data"),
-    Input("result-type-store", "data"),
-    Input("page-store", "data"),
-    Input("step4-data-loaded", "data"),
-    Input("page-size-store", "data"),
-    Input("selected-model-store", "data"),
-    Input("filter-model-store", "data"),
-    Input("filter-strategy-store", "data"),
+    Output("page-indicator",              "children"),
+    # current_step as Input fires this callback when step 4 becomes active.
+    # Because step4-content is permanently in the DOM, all output nodes always
+    # exist — no unmount crash possible, no guard needed.
+    Input("current_step",            "data"),
+    Input("sort-metric-store",       "data"),
+    Input("sort-dir-store",          "data"),
+    Input("sort-result-type-store",  "data"),
+    Input("result-type-store",       "data"),
+    Input("page-store",              "data"),
+    Input("step4-data-loaded",       "data"),
+    Input("page-size-store",         "data"),
+    Input("selected-model-store",    "data"),
+    Input("filter-model-store",      "data"),
+    Input("filter-strategy-store",   "data"),
+    prevent_initial_call=True,
 )
-def render_leaderboard(sort_metric, sort_dir, sort_result_type, result_type,
+def render_leaderboard(current_step, sort_metric, sort_dir, sort_result_type, result_type,
                        page, _loaded, page_size, selected_key,
                        model_filter, strategy_filter):
+    if not MODELS:
+        return no_update, no_update
+
     page_size        = page_size or 5
     sort_result_type = sort_result_type or "enhanced"
     all_rows = build_leaderboard_rows(
@@ -333,10 +341,10 @@ def select_model(n_clicks_list, id_list, prev_clicks, current_selected):
 
 @dash_app.callback(
     Output("features-positive-store", "data"),
-    Output("features-filter-btn", "children"),
-    Output("features-filter-btn", "className"),
-    Input("features-filter-btn", "n_clicks"),
-    State("features-positive-store", "data"),
+    Output("features-filter-btn",     "children"),
+    Output("features-filter-btn",     "className"),
+    Input("features-filter-btn",      "n_clicks"),
+    State("features-positive-store",  "data"),
     prevent_initial_call=True,
 )
 def toggle_features_filter(n, currently_top15):
@@ -353,12 +361,16 @@ def toggle_features_filter(n, currently_top15):
     Output("chart-features",      "figure"),
     Output("charts-model-label",  "children"),
     Output("features-card-title", "children"),
-    Input("selected-model-store",    "data"),
-    Input("result-type-store",       "data"),
-    Input("step4-data-loaded",       "data"),
-    Input("features-positive-store", "data"),
+    # Same as render_leaderboard — current_step as Input fires on step-4 mount.
+    # step4-content is always in the DOM so all chart nodes always exist.
+    Input("current_step",             "data"),
+    Input("selected-model-store",     "data"),
+    Input("result-type-store",        "data"),
+    Input("step4-data-loaded",        "data"),
+    Input("features-positive-store",  "data"),
+    prevent_initial_call=True,
 )
-def update_charts(model_key, result_type, _loaded, positives_only):
+def update_charts(current_step, model_key, result_type, _loaded, positives_only):
     if not model_key or model_key not in MODELS:
         empty = go.Figure()
         empty.update_layout(**_base_layout(""))
@@ -401,7 +413,7 @@ dash_app.clientside_callback(
     function(tableChildren) {
         const tooltip = document.getElementById('params-tooltip');
         const content = document.getElementById('params-tooltip-content');
-        if (!tooltip || !content) return window.dash_clientside.no_update;
+        if (!tooltip || !tooltip.parentNode || !content) return window.dash_clientside.no_update;
 
         const newTooltip = tooltip.cloneNode(true);
         tooltip.parentNode.replaceChild(newTooltip, tooltip);

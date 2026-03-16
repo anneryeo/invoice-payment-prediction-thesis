@@ -18,7 +18,7 @@ from app.screens.comparative_model_dashboard_template.constants import (
     _model_display, _strategy_display,
 )
 
-# Consumed by the initial_setup_layout_step renderer → render_step()
+# Consumed by initial_setup_layout_step_renderer → placed into step4-content.
 html_step_4 = build_dashboard_layout(
     show_session_selector=False,
     show_confirm_button=True,
@@ -33,24 +33,34 @@ html_step_4 = build_dashboard_layout(
     Output("modal-params-content",   "children"),
     Output("modal-baseline-metrics", "children"),
     Output("modal-enhanced-metrics", "children"),
+    Output("selected-model-data",    "data"),
+    Output("current_step", "data", allow_duplicate=True),
     Input("confirm-model-btn",  "n_clicks"),
     Input("modal-close-btn",    "n_clicks"),
     Input("modal-cancel-btn",   "n_clicks"),
+    Input("modal-proceed-btn",  "n_clicks"),
     State("selected-model-store", "data"),
     prevent_initial_call=True,
 )
-def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
+def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, proceed_clicks, model_key):
     ctx = callback_context
     if not ctx.triggered:
-        return no_update, no_update, no_update, no_update, no_update, no_update
+        return (no_update,) * 8
 
     trigger = ctx.triggered[0]["prop_id"].split(".")[0]
 
     if trigger in ("modal-close-btn", "modal-cancel-btn"):
-        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update
+        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
+    if trigger == "modal-proceed-btn":
+        # Safe to write "modal-overlay modal-hidden" here because model-summary-modal
+        # lives in step4-content which is permanently in the DOM — it is never
+        # unmounted, so this write cannot race with a node deletion.
+        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update, no_update, "progress-5"
+
+    # confirm-model-btn → open modal
     if not model_key or model_key not in MODELS:
-        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update
+        return "modal-overlay modal-hidden", no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     data = MODELS[model_key]
 
@@ -76,6 +86,16 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
             for k in METRICS
         ])
 
+    snapshot = {
+        "key":      model_key,
+        "model":    data["model"],
+        "name":     model_name,
+        "strategy": data["balance_strategy"],
+        "parameters": params,
+        "baseline": data["baseline"]["evaluation"]["metrics"],
+        "enhanced": data["enhanced"]["evaluation"]["metrics"],
+    }
+
     return (
         "modal-overlay modal-visible",
         model_name,
@@ -83,20 +103,6 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, model_key):
         params_content,
         _metric_rows("baseline"),
         _metric_rows("enhanced"),
+        snapshot,
+        no_update,  # current_step unchanged when opening the modal
     )
-
-
-# ── Bridge modal-proceed-btn → current_step ──────────────────────────────────
-# Writes directly to current_step from JS rather than relying on a hidden
-# button click, which does not update Dash's internal n_clicks prop.
-dash_app.clientside_callback(
-    """
-    function(n) {
-        if (!n) return window.dash_clientside.no_update;
-        return 'progress-5';
-    }
-    """,
-    Output("current_step",      "data", allow_duplicate=True),
-    Input("modal-proceed-btn",  "n_clicks"),
-    prevent_initial_call=True,
-)

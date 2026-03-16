@@ -1,6 +1,6 @@
 from dash import html, dcc
 
-from .constants import MODEL_LABELS, STRATEGY_LABELS
+from app.screens.comparative_model_dashboard_template.constants import MODEL_LABELS, STRATEGY_LABELS
 
 
 def build_dashboard_layout(
@@ -19,6 +19,20 @@ def build_dashboard_layout(
     show_confirm_button : bool
         When True, renders a "Confirm Selected Model" button in the header
         and a summary modal (Screen 1 — Initial Setup only).
+
+    NOTE — stores
+    -------------
+    All dcc.Store components live in the persistent root layout in
+    initial_setup_layout_step_renderer.py.  They must live there (never
+    unmounted) because their callbacks fire from other store inputs.
+
+    NOTE — no mount interval needed
+    --------------------------------
+    dashboard-mount-interval is intentionally absent.  In Screen 1 the entire
+    layout returned by build_dashboard_layout() is placed once into the
+    persistent root layout (step4-content) and never unmounted, so there is no
+    mount/unmount lifecycle to manage.  Callbacks in core.py use
+    Input("current_step") directly as their render trigger.
     """
 
     # ── Session selector (Screen 2 only) ─────────────────────────────────────
@@ -38,8 +52,6 @@ def build_dashboard_layout(
     ) if show_session_selector else html.Div(id="session-selector-wrap")
 
     # ── Inline confirm bar (Screen 1 only) ───────────────────────────────────
-    # Sits between the leaderboard and charts. Hidden until a model is selected.
-    # Always rendered so Dash output targets always exist.
     confirm_bar = html.Div(
         id="confirm-fab-wrap",
         className="confirm-bar-wrap confirm-fab-hidden",
@@ -60,15 +72,12 @@ def build_dashboard_layout(
     ) if show_confirm_button else html.Div(id="confirm-fab-wrap")
 
     # ── Model summary modal ───────────────────────────────────────────────────
-    # Always rendered so Dash never complains about missing output targets.
-    # Only shown (via className) when the user clicks Confirm on Screen 1.
     model_summary_modal = html.Div(
         id="model-summary-modal",
         className="modal-overlay modal-hidden",
         children=[
             html.Div(className="modal-box", children=[
 
-                # Header
                 html.Div(className="modal-header", children=[
                     html.H3("Confirm Selected Model", className="modal-title"),
                     html.Button(
@@ -79,7 +88,6 @@ def build_dashboard_layout(
                     ),
                 ]),
 
-                # Body — populated by callback when modal opens
                 html.Div(id="modal-body", className="modal-body", children=[
 
                     html.Div(className="modal-model-identity", children=[
@@ -107,7 +115,6 @@ def build_dashboard_layout(
                     ]),
                 ]),
 
-                # Footer
                 html.Div(className="modal-footer", children=[
                     html.Button(
                         "Cancel",
@@ -115,10 +122,6 @@ def build_dashboard_layout(
                         className="modal-btn modal-btn-cancel",
                         n_clicks=0,
                     ),
-                    # Does NOT have a Dash callback — clicks the persistent
-                    # finalize_btn in initial_setup_layout via clientside JS,
-                    # avoiding the removeChild error caused by Dash unmounting
-                    # step-content at the same time a callback fires on it.
                     html.Button(
                         "Proceed to Step 5",
                         id="modal-proceed-btn",
@@ -217,28 +220,10 @@ def build_dashboard_layout(
                 ]),
             ]),
 
-            # ── Hidden stores ────────────────────────────────────────────────
-            dcc.Store(id="sort-metric-store",       data="f1_macro"),
-            dcc.Store(id="sort-dir-store",          data="desc"),
-            dcc.Store(id="sort-result-type-store",  data="enhanced"),
-            dcc.Store(id="result-type-store",       data="enhanced"),
-            dcc.Store(id="selected-model-store",    data=""),
-            dcc.Store(id="row-clicks-store",        data={}),
-            dcc.Store(id="page-store",              data=0),
-            dcc.Store(id="page-size-store",         data=5),
-            dcc.Store(id="step4-data-loaded",       data=False),
-            dcc.Store(id="features-positive-store", data=True),
-            dcc.Store(id="features-scroll-store",   data={"top": 0, "bar_height": 30}),
-            dcc.Store(id="filter-model-store",      data=list(MODEL_LABELS.keys())),
-            dcc.Store(id="filter-strategy-store",   data=list(STRATEGY_LABELS.keys())),
-
             # ── Parameter tooltip ────────────────────────────────────────────
             html.Div(id="params-tooltip", className="params-tooltip", children=[
                 html.Div(id="params-tooltip-content", className="params-tooltip-content"),
             ]),
-
-            # ── Confirm banner (Screen 1 only, appears when a model is selected) ─
-            confirm_bar,
 
             # ── Leaderboard ──────────────────────────────────────────────────
             html.Div(className="leaderboard-wrap", children=[

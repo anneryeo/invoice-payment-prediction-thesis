@@ -1,16 +1,10 @@
 import pandas as pd
-from joblib import Parallel, delayed
-from joblib.externals.loky import get_reusable_executor
-from tqdm import tqdm
-from contextlib import contextmanager
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 from machine_learning.utils.training.load_parameters import ParameterLoader
 from machine_learning.utils.data.data_preparation import DataPreparer
 from machine_learning.utils.features.generate_survival_features import generate_survival_features
 from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
-
-# Ensures compatibility with Dash by resetting/shutting down the joblib executor
-# so that new parallel tasks can be scheduled without hitting ShutdownExecutorError.
-get_reusable_executor().shutdown(wait=True)
 
 # Used for the progress bar in Dash
 progress_state = {"completed": 0, "total": 0}
@@ -85,75 +79,6 @@ class SurvivalExperimentRunner:
         ).encode_labels().train_test_split()
 
         self.class_mappings = self.preparer.class_mapping
-
-    # -----------------------------
-    # tqdm-joblib integration
-    # -----------------------------
-    @staticmethod
-    @contextmanager
-    def tqdm_joblib(tqdm_object):
-        """
-        Integrates tqdm progress bars with joblib parallel execution.
-
-        Parameters
-        ----------
-        tqdm_object : tqdm
-            A tqdm progress bar instance.
-
-        Yields
-        ------
-        tqdm_object : tqdm
-            The same tqdm object, patched to update with joblib task completion.
-        """
-        from joblib.parallel import BatchCompletionCallBack
-
-        class TqdmBatchCompletionCallback(BatchCompletionCallBack):
-            def __call__(self, *args, **kwargs):
-                tqdm_object.update(n=self.batch_size)
-                return super().__call__(*args, **kwargs)
-
-        old_callback = BatchCompletionCallBack
-        try:
-            import joblib.parallel
-            joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
-            yield tqdm_object
-        finally:
-            joblib.parallel.BatchCompletionCallBack = old_callback
-            tqdm_object.close()
-
-    # -----------------------------
-    # tqdm-joblib integration for Dash
-    # -----------------------------
-    @staticmethod
-    @contextmanager
-    def tqdm_joblib(total):
-        from joblib.parallel import BatchCompletionCallBack
-        import joblib.parallel
-        import threading
-
-        class DashTqdm:
-            def __init__(self, total):
-                self.lock = threading.Lock()
-                progress_state["completed"] = 0
-                progress_state["total"] = total
-
-            def update(self, n=1):
-                with self.lock:
-                    progress_state["completed"] += n
-
-        dash_tqdm = DashTqdm(total)
-
-        class TqdmBatchCompletionCallback(BatchCompletionCallBack):
-            def __call__(self, *args, **kwargs):
-                dash_tqdm.update(self.batch_size)
-                return super().__call__(*args, **kwargs)
-
-        old_callback = BatchCompletionCallBack
-        try:
-            joblib.parallel.BatchCompletionCallBack = TqdmBatchCompletionCallback
-            yield dash_tqdm
-        finally:
-            joblib.parallel.BatchCompletionCallBack = old_callback
 
     # -----------------------------
     # Dataset preparation helper
@@ -326,16 +251,26 @@ class SurvivalExperimentRunner:
                         if model_name in self.do_not_parallel_compute:
                             sequential_tasks.append(task_args)
                         else:
-                            parallel_tasks.append(delayed(self.run_model_experiment)(*task_args))
+                            parallel_tasks.append(task_args)
 
         total = len(parallel_tasks) + len(sequential_tasks)
-        progress_state["total"]    = total
+        progress_state["total"]     = total
         progress_state["completed"] = 0
         all_results = []
 
         if parallel_tasks:
-            with self.tqdm_joblib(len(parallel_tasks)) as pbar:
-                parallel_results = Parallel(n_jobs=self.n_jobs)(parallel_tasks)
+            import threading
+            _lock = threading.Lock()
+
+            def _run_and_track(task_args):
+                result = self.run_model_experiment(*task_args)
+                with _lock:
+                    progress_state["completed"] += 1
+                return result
+
+            n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
+            with ThreadPool(processes=n_workers) as pool:
+                parallel_results = pool.map(_run_and_track, parallel_tasks)
             all_results.extend(parallel_results)
 
         for task_args in sequential_tasks:
