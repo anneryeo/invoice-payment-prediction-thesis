@@ -18,5 +18,5 @@ class InvoiceDrilldownScreen:
                 ],
                 page_size=10
             ),
-            html.Button("Export CSV", id="export_btn")
+            html.Button("Export CSV", id="invoice-export-btn")
         ])

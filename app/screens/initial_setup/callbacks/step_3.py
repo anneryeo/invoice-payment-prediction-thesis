@@ -1,13 +1,17 @@
 import base64
 import io
+import os
+import pickle
 import pandas as pd
 from datetime import datetime
 from time import time
 
-import dash_bootstrap_components as dbc
-from dash import Input, Output, State, html, dcc, no_update
-
 from app import dash_app
+import dash_bootstrap_components as dbc
+from dash import Input, Output, State, html, no_update
+
+from utils.data_loaders.read_settings_json import read_settings_json
+
 from feature_engineering.credit_sales_machine_learning import CreditSales
 from machine_learning import (
     AdaBoostPipeline,
@@ -20,7 +24,12 @@ from machine_learning import (
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
+from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
+from machine_learning.utils.features.get_slope_time_points import get_slope_timepoints
+from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperparameterTuner
+
 from machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
+from machine_learning.utils.io.save_results_to_folder import save_training_results
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -90,7 +99,6 @@ html_step_3 = html.Div(
                 style={"height": "1.5rem"},
             ),
             html.Div(id="progress-text", className="status-message"),
-            dcc.Interval(id="progress-interval", interval=1000, n_intervals=0),
             html.Button(
                 "Compare Model Results",
                 id="next_btn",
@@ -112,18 +120,25 @@ def clean_datasets(revenues_content, enrollees_content):
     revenue_bytes = base64.b64decode(revenues_content.split(",")[1])
     enrollees_bytes = base64.b64decode(enrollees_content.split(",")[1])
 
-    df_revenues = pd.read_excel(io.BytesIO(revenue_bytes))
-    df_enrollees = pd.read_excel(io.BytesIO(enrollees_bytes))
+    df_revenues  = pd.read_excel(io.BytesIO(revenue_bytes),  engine="calamine")
+    df_enrollees = pd.read_excel(io.BytesIO(enrollees_bytes), engine="calamine")
+
+    # Load observation_end from settings
+    settings = read_settings_json()
+    observation_end = settings["Training"]["observation_end"]
+    # Convert string date to datetime
+    parsed_date = datetime.strptime(observation_end, "%Y/%m/%d")
 
     class Config:
-        observation_end = datetime(2026, 3, 5, 23, 59, 59)
+        observation_end = parsed_date
     args = Config()
 
     cs = CreditSales(df_revenues, df_enrollees, args,
-                     drop_helper_columns=True,
-                     drop_demographic_columns=True,
-                     drop_plan_type_columns=False,
-                     drop_missing_dtp=True)
+                    drop_helper_columns=True,
+                    drop_demographic_columns=True,
+                    drop_plan_type_columns=False,
+                    drop_missing_dtp=True,
+                    drop_back_account_transactions=True)
     df_credit_sales = cs.show_data()
 
     progress_state["extraction_done"] = True
@@ -135,7 +150,33 @@ def clean_datasets(revenues_content, enrollees_content):
     df_data.drop(columns=survival_columns, inplace=True)
     df_data_surv = df_credit_sales.drop(columns=non_survival_columns)
 
-    return df_data, df_data_surv
+    return df_data, df_data_surv, df_credit_sales
+
+
+def tune_cox_model(df_data_surv):
+    X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+    T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
+    E      = df_data_surv["censor"]
+
+    # Focused grid based on empirical results — high l1_ratio wins consistently
+    tuner = CoxHyperparameterTuner(
+        alpha_grid       = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0],
+        l1_ratios        = [0.5, 0.75, 1.0],
+        save_report_path = "Results/",
+    )
+    tuner.fit(X_surv, T, E)
+    progress_state["survival_done"] = True
+
+    best_time_points = get_slope_timepoints(T, E, n_points=9)
+
+    # best_params_ now contains {"alpha": float, "l1_ratio": float}
+    survival_results_dict = {
+        "best_c_index":         tuner.best_c_index_,
+        "best_surv_parameters": tuner.best_params_,
+        "best_time_points":     best_time_points,
+    }
+
+    return survival_results_dict
 
 
 def run_model_training(df_data, df_data_surv, models_data, balancing_data, args, best_parameters):
@@ -151,7 +192,6 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         "nn_transformer": TransformerPipeline,
     }
 
-    # Build selected pipelines and track missing ones
     selected_pipelines = {}
     missing_models = []
 
@@ -161,7 +201,6 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         else:
             missing_models.append(m)
 
-    # Print missing models if any
     if missing_models:
         print("Models not found:", ", ".join(missing_models))
 
@@ -185,11 +224,121 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
 
     return json_results
 
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  CALLBACKS — STEP 3
 # ══════════════════════════════════════════════════════════════════════════════
 
 progress_state["start_time"] = time()
+
+
+@dash_app.callback(
+    Output("training_status", "data"),
+    Output("stored_credit_sales", "data"),
+    Input("current_step", "data"),
+    State("stored_revenue", "data"),
+    State("stored_enrollees", "data"),
+    State("stored_models", "data"),
+    State("stored_balancing", "data"),
+    prevent_initial_call=True,
+)
+def run_training(current_step, revenue_data, enrollees_data, models_data, balancing_data):
+    if current_step != "progress-3":
+        return no_update, no_update
+
+    progress_state["extraction_done"] = False
+    progress_state["survival_done"]   = False
+    progress_state["training_done"]   = False
+    progress_state["saving_done"]     = False
+    start_time = datetime.now()
+
+    settings   = read_settings_json()
+    debug_mode = settings["Config"][0].get("debug_mode", "False").strip().lower() == "true"
+    temp_cache = settings["Config"][0].get("TEMP_CACHE", "temp_cache")
+    cache_path = os.path.join(temp_cache, "step3_debug_cache.pkl")
+
+    # ── PROFILER ─────────────────────────────────────────────────────────────
+    _t_total = time()
+
+    if debug_mode and os.path.exists(cache_path):
+        print(f"[DEBUG] Loading cached data from {cache_path} ...")
+        with open(cache_path, "rb") as f:
+            cache = pickle.load(f)
+        df_credit_sales       = cache["df_credit_sales"]
+        df_data               = cache["df_data"]
+        df_data_surv          = cache["df_data_surv"]
+        survival_results_dict = cache["survival_results_dict"]
+        stored_credit_sales   = df_credit_sales.to_json(date_format='iso', orient='split')
+        progress_state["extraction_done"] = True
+        progress_state["survival_done"]   = True
+        print("[DEBUG] Cache loaded successfully — skipping extraction and Cox tuning.")
+        print(f"[TIMING] cache_load: {time() - _t_total:.1f}s")
+    else:
+        print("Running training...")
+
+        _t = time()
+        df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
+        stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+        print(f"[TIMING] clean_datasets: {time() - _t:.1f}s")
+
+        _t = time()
+        survival_results_dict = tune_cox_model(df_data_surv)
+        print(f"[TIMING] tune_cox_model: {time() - _t:.1f}s")
+
+        if debug_mode:
+            os.makedirs(temp_cache, exist_ok=True)
+            print(f"[DEBUG] Saving data to cache at {cache_path} ...")
+            with open(cache_path, "wb") as f:
+                pickle.dump({
+                    "df_credit_sales":       df_credit_sales,
+                    "df_data":               df_data,
+                    "df_data_surv":          df_data_surv,
+                    "survival_results_dict": survival_results_dict,
+                }, f)
+            print("[DEBUG] Cache saved successfully.")
+
+    best_surv_params = survival_results_dict['best_surv_parameters']
+    best_time_points = survival_results_dict['best_time_points']
+
+    print("Proceeding to model training...")
+
+    class Config:
+        parameters_dir = settings["Training"]["MODEL_PARAMETERS"]
+        target_feature = settings["Training"]["target_feature"]
+        test_size      = float(settings["Training"]["test_size"])
+        time_points    = best_time_points
+    args = Config()
+    print(f"Using timepoints: {best_time_points}")
+
+    _t = time()
+    model_results_df, class_mappings_dict = run_model_training(
+        df_data, df_data_surv, models_data, balancing_data, args, best_surv_params
+    )
+    print(f"[TIMING] run_model_training: {time() - _t:.1f}s")
+    progress_state["training_done"] = True
+
+    end_time            = datetime.now()
+    total_training_time = end_time - start_time
+
+    _t = time()
+    save_training_results(
+        model_results_df,
+        survival_results_dict,
+        class_mappings_dict,
+        settings['Training']['RESULTS_ROOT'],
+        models_data,
+        start_time.isoformat(),
+        end_time.isoformat(),
+        str(total_training_time),
+        format="sqlite",
+    )
+    print(f"[TIMING] save_training_results: {time() - _t:.1f}s")
+    progress_state["saving_done"] = True
+
+    print(f"[TIMING] total run_training: {time() - _t_total:.1f}s")
+    # ── END PROFILER ──────────────────────────────────────────────────────────
+
+    return "done", stored_credit_sales
 
 
 # ── Circle colors ─────────────────────────────────────────────────────────────
@@ -199,8 +348,12 @@ progress_state["start_time"] = time()
      Output("sub-step3", "className"),
      Output("sub-step4", "className")],
     Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_sub_steps(n):
+def update_sub_steps(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update
     if progress_state.get("extraction_done"):
         step1_class = "sub-circle complete"
     elif progress_state.get("start_time"):
@@ -240,12 +393,13 @@ def update_sub_steps(n):
      Output("step2-status", "children"),
      Output("step3-status", "children"),
      Output("step4-status", "children")],
-    [Input("progress-interval", "n_intervals"),
-     Input("stored_revenue", "data"),
-     Input("stored_enrollees", "data")],
-    prevent_initial_call=False,
+    Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_step_statuses(n, revenue_data, enrollees_data):
+def update_step_statuses(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update
     # What it will render when the respective step is not in progress or not completed
     step1 = "Extraction of Invoice Details."
     step2 = "Train Survival Analysis Model."
@@ -254,7 +408,7 @@ def update_step_statuses(n, revenue_data, enrollees_data):
 
     try:
         # Step 1
-        if revenue_data and enrollees_data:
+        if progress_state.get("start_time") and not progress_state.get("extraction_done"):
             step1 = "Extracting invoice details..."
         if progress_state.get("extraction_done"):
             step1 = "Invoice details extracted."
@@ -285,6 +439,7 @@ def update_step_statuses(n, revenue_data, enrollees_data):
 
     return step1, step2, step3, step4
 
+
 # ── Progress bar + text + button enable ───────────────────────────────────────
 @dash_app.callback(
     [Output("training-progress", "value"),
@@ -293,8 +448,12 @@ def update_step_statuses(n, revenue_data, enrollees_data):
      Output("progress-text", "children"),
      Output("next_btn", "disabled")],
     Input("progress-interval", "n_intervals"),
+    State("current_step",      "data"),
+    prevent_initial_call=True,
 )
-def update_progress(n):
+def update_progress(n, step):
+    if step != "progress-3":
+        return no_update, no_update, no_update, no_update, no_update
     completed = int(progress_state.get("completed", 0) or 0)
     total = int(progress_state.get("total", 0) or 0)
     start_time = progress_state.get("start_time")

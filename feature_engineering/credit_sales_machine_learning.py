@@ -1,7 +1,8 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from multiprocessing import Pool, cpu_count
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 from sklearn.preprocessing import OneHotEncoder
 
 
@@ -38,6 +39,20 @@ class CreditSales:
         If True, drops plan-type related columns (e.g., Plan A, Plan B, etc.).
     drop_missing_dtp : bool, default=False
         If True, drops plan-type related columns (e.g., dtp_1, dtp_2, dtp_3, dtp_4).
+    drop_back_account_transactions : bool, default=False
+        If True, drops all transactions that are labeled as back_account categories.
+    drop_fully_paid_invoices : bool, default=False
+        If True, drops invoices that are already fully paid.
+    calculate_payment_amounts : bool, default=False
+        If True, calculates the total payment amount received per invoice (for both
+        single and multiple due date types). Adds a 'total_payments' column,
+        'prepayments', 'adjusted_credit_amount' (credit_sale_amount minus prepayments,
+        where prepayments are payments received on or before the due date), and
+        'net_receivables' (credit_sale_amount minus total_payments). No buckets are
+        produced — only the aggregate payment amount per receivable is calculated.
+    add_description : bool, default=False
+        If True, adds a human-readable 'description' column derived from
+        'category_name', using the same mapping logic as the EDA class.
 
     Notes
     -----
@@ -69,7 +84,11 @@ class CreditSales:
                  drop_demographic_columns=False,
                  drop_survival_columns=False,
                  drop_plan_type_columns=False,
-                 drop_missing_dtp=False):
+                 drop_missing_dtp=False,
+                 drop_back_account_transactions=False,
+                 drop_fully_paid_invoices=False,
+                 calculate_payment_amounts=False,
+                 add_description=False):
         self.df_revenues = df_revenues.drop(columns=['entry_number'])
         self.df_enrollees = df_enrollees
         self.args = args
@@ -79,6 +98,10 @@ class CreditSales:
         self.drop_survival_columns = drop_survival_columns
         self.drop_plan_type_columns = drop_plan_type_columns
         self.drop_missing_dtp = drop_missing_dtp
+        self.drop_back_account_transactions = drop_back_account_transactions
+        self.drop_fully_paid_invoices = drop_fully_paid_invoices
+        self.calculate_payment_amounts = calculate_payment_amounts
+        self.add_description = add_description
         
         self.df_discounts = self._get_discounts(self.df_revenues)
         self.df_adjustments = self._get_adjustments(self.df_revenues)
@@ -94,8 +117,16 @@ class CreditSales:
         print(f"Single due date records: {len(df_credit_sales_single)}")
         print(f"Multiple due date records: {len(df_credit_sales_multiple)}")
 
+        if self.calculate_payment_amounts:
+            df_cs[['prepayments', 'total_payments']] = df_cs[['prepayments', 'total_payments']].fillna(0)
+            df_cs['adjusted_credit_amount'] = df_cs['credit_sale_amount'] - df_cs['prepayments']
+            df_cs['net_receivables'] = df_cs['credit_sale_amount'] - df_cs['total_payments']
+
         df_cs = self._merge_machine_learning_features(df_cs)
         df_cs = self._drop_columns(df_cs)
+
+        if self.add_description:
+            df_cs = self._apply_description_function(df_cs)
 
         self.df_cs = df_cs
     
@@ -234,7 +265,11 @@ class CreditSales:
         # Merge due dates and payment dates
         df_cs = pd.merge(df_cs, df_dd, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
         df_cs = pd.merge(df_cs, df_pd, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
-        
+
+        if self.calculate_payment_amounts:
+            df_pa = self._calculate_payment_amounts_single(df_revenues_single, df_dd)
+            df_cs = pd.merge(df_cs, df_pa, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
+
         return df_cs
 
     def _get_credit_sales_multiple(self, df_revenues_multiple) -> pd.DataFrame:
@@ -244,6 +279,9 @@ class CreditSales:
         df_ad = self._get_amount_due(df_revenues_multiple)
         df_cs = self._get_credit_sale_transactions_multiple(df_ad, self.df_discounts, self.df_adjustments)
         df_cs = self._merge_latest_payment_dates_multiple(df_revenues_multiple, df_cs)
+
+        if self.calculate_payment_amounts:
+            df_cs = self._merge_payment_amounts_multiple(df_revenues_multiple, df_cs)
 
         return df_cs
     
@@ -337,6 +375,107 @@ class CreditSales:
 
         return df_p
 
+    def _calculate_payment_amounts_single(self, df_revenues, df_dd) -> pd.DataFrame:
+        """
+        Calculate total payment amounts for single due date invoices without bucketing.
+
+        For each invoice, sums all payments received and splits them into:
+        - prepayments : payments received on or before the due date
+        - total_payments : all payments received regardless of timing
+
+        Parameters
+        ----------
+        df_revenues : pd.DataFrame
+            Revenue records for single due date students.
+        df_dd : pd.DataFrame
+            Due dates per student/category (from _calculate_due_dates_single).
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: school_year, student_id_pseudonimized, category_name,
+                     prepayments, total_payments
+        """
+        df_p = df_revenues[['school_year', 'student_id_pseudonimized', 'entry_date',
+                            'category_name', 'amount_paid', 'receivables']]
+        df_p = df_p[df_p['receivables'] < 0]
+        df_p = pd.merge(df_dd, df_p,
+                        on=['school_year', 'student_id_pseudonimized', 'category_name'],
+                        how='left')
+        df_p = df_p.drop(columns=['receivables'])
+        df_p.rename(columns={'entry_date': 'payment_date'}, inplace=True)
+        df_p = df_p.dropna(subset=['amount_paid'])
+        df_p = df_p[df_p['amount_paid'] != 0]
+
+        df_p['days_elapsed'] = (df_p['payment_date'] - df_p['due_date']).dt.days
+        df_p['prepayments'] = df_p.apply(
+            lambda r: r['amount_paid'] if r['days_elapsed'] <= 0 else 0, axis=1
+        )
+
+        df_p = df_p.groupby(['school_year', 'student_id_pseudonimized', 'category_name']).agg(
+            prepayments=('prepayments', 'sum'),
+            total_payments=('amount_paid', 'sum')
+        ).reset_index()
+
+        return df_p
+
+    def _merge_payment_amounts_multiple(self, df_revenues_multiple: pd.DataFrame, df_cs: pd.DataFrame) -> pd.DataFrame:
+        """
+        Calculate total payment amounts for multiple due date invoices without bucketing.
+
+        Payments are allocated sequentially across due dates (earliest first).
+        For each receivable, records:
+        - prepayments : portion of payments received on or before its due date
+        - total_payments : total payments applied to this receivable
+
+        Parameters
+        ----------
+        df_revenues_multiple : pd.DataFrame
+            Revenue records for multiple due date students.
+        df_cs : pd.DataFrame
+            Credit sales DataFrame with credit_sale_amount and due_date per row.
+
+        Returns
+        -------
+        pd.DataFrame
+            df_cs with added 'prepayments' and 'total_payments' columns.
+        """
+        df_p = (
+            df_revenues_multiple[['school_year', 'student_id_pseudonimized', 'entry_date',
+                                  'category_name', 'amount_paid', 'receivables']]
+            .query("receivables < 0 and amount_paid.notnull() and amount_paid != 0")
+            .rename(columns={'entry_date': 'payment_date'})
+            .assign(amount_paid=lambda d: d['amount_paid'].fillna(0))
+        )
+
+        df_p.set_index(['school_year', 'student_id_pseudonimized', 'category_name'], inplace=True)
+
+        tasks = []
+        for keys, payments in df_p.groupby(level=[0, 1, 2]):
+            receivables = df_cs[
+                (df_cs['school_year'] == keys[0]) &
+                (df_cs['student_id_pseudonimized'] == keys[1]) &
+                (df_cs['category_name'] == keys[2])
+            ].sort_values(by='due_date').copy()
+            receivables['cs_index'] = receivables.index
+            tasks.append((receivables, payments))
+
+        with ThreadPool(processes=cpu_count()) as pool:
+            results = pool.map(_allocate_payment_amounts_sequential, tasks)
+
+        df_payment_amounts = pd.concat(results, ignore_index=True)
+
+        df_cs = df_cs.merge(
+            df_payment_amounts[['cs_index', 'prepayments', 'total_payments']],
+            left_index=True,
+            right_on='cs_index',
+            how='left'
+        ).drop(columns=['cs_index'])
+
+        # Fill unmatched (no payments received) with 0
+        df_cs[['prepayments', 'total_payments']] = df_cs[['prepayments', 'total_payments']].fillna(0)
+
+        return df_cs
 
     #################################################################
     # Helper Functions to Calculate Credit Sales - Multiple Due Dates
@@ -377,7 +516,7 @@ class CreditSales:
         grouped = df_cs.groupby(['school_year','student_id_pseudonimized','category_name'])
         args = ((g, disc_groups, adj_dict, disc_amount_idx) for _, g in grouped)
 
-        with Pool(processes=cpu_count()) as pool:
+        with ThreadPool(processes=cpu_count()) as pool:
             results = pool.map(_allocate_discount_and_adjustments, args)
 
         if results:
@@ -414,7 +553,7 @@ class CreditSales:
             tasks.append((receivables, payments))
 
         # --- Run in parallel ---
-        with Pool(processes=cpu_count()) as pool:
+        with ThreadPool(processes=cpu_count()) as pool:
             results = pool.map(_allocate_date_fully_paid_sequential, tasks)
 
         # Concatenate results and merge back
@@ -748,34 +887,147 @@ class CreditSales:
         return df_cs
     
     def _drop_columns(self, df_cs):
-        helper_columns = ['gross_receivables', 'amount_discounted', 'adjustments',
-            'due_date_prev_1', 'due_date_prev_2', 'date_fully_paid', 'last_payment_date']
-        
-        demographic_columns = ['school_year', 'student_id_pseudonimized', 'category_name']
-        
-        survival_columns = ['censor', 'days_elapsed_until_fully_paid']
+        # Define column groups
+        helper_columns = [
+            'gross_receivables', 'amount_discounted', 'adjustments',
+            'due_date_prev_1', 'due_date_prev_2', 'date_fully_paid', 'last_payment_date'
+        ]
+        demographic_columns = [
+            'school_year', 'student_id_pseudonimized', 'category_name'
+        ]
+        survival_columns = [
+            'censor', 'days_elapsed_until_fully_paid'
+        ]
+        plan_type_columns = [
+            'plan_type_Plan - A', 'plan_type_Plan - B', 'plan_type_Plan - C',
+            'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan'
+        ]
 
-        plan_type_columns = ['plan_type_Plan - A', 'plan_type_Plan - B', 'plan_type_Plan - C',
-                             'plan_type_Plan - D', 'plan_type_Plan - E', 'plan_type_nan']
+        # Filter rows before dropping columns.
+        if self.drop_back_account_transactions:
+            df_cs = df_cs.loc[df_cs['category_name'] != "Back Account"].copy()
         
+        if self.drop_fully_paid_invoices:
+            before = len(df_cs)
+            df_cs = df_cs.loc[df_cs['date_fully_paid'].isna()].copy()
+            print(f"Dropped {before - len(df_cs)} fully paid invoices. Remaining: {len(df_cs)}")
+
+        # Collect all columns to drop in one go
+        cols_to_drop = []
         if self.drop_helper_columns:
-            df_cs.drop(columns=helper_columns, inplace=True)
-
+            cols_to_drop.extend(helper_columns)
         if self.drop_demographic_columns:
-            df_cs.drop(columns=demographic_columns, inplace=True)      
-
+            cols_to_drop.extend(demographic_columns)
         if self.drop_survival_columns:
-            df_cs.drop(columns=survival_columns, inplace=True)
-
+            cols_to_drop.extend(survival_columns)
         if self.drop_plan_type_columns:
-            df_cs.drop(columns=plan_type_columns, inplace=True)
-        
+            cols_to_drop.extend(plan_type_columns)
+
+        # Drop columns once
+        if cols_to_drop:
+            df_cs = df_cs.drop(columns=cols_to_drop, errors="ignore")
+
+        # Drop rows with missing critical features
         if self.drop_missing_dtp:
-            # Drop invoices with missing critical features
-            df_cs.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'], inplace=True)
-        
+            df_cs = df_cs.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'])
+
         return df_cs
-        
+
+    def _get_description(self, row) -> str:
+        category = row['category_name']
+        if '-UE' in category:
+            return "Tuition fee (" + category[:3] + ") - Upon enrollment"
+        elif 'B-1st' in category:
+            return "Tuition fee (" + category[:3] + ") - 1 of 2 payments"
+        elif 'B-2nd' in category:
+            return "Tuition fee (" + category[:3] + ") - 2 of 2 payments"
+        elif 'C-1st' in category:
+            return "Tuition fee (" + category[:3] + ") - 1 of 4 payments"
+        elif 'C-2nd' in category:
+            return "Tuition fee (" + category[:3] + ") - 2 of 4 payments"
+        elif 'C-3rd' in category:
+            return "Tuition fee (" + category[:3] + ") - 3 of 4 payments"
+        elif 'C-4th' in category:
+            return "Tuition fee (" + category[:3] + ") - 4 of 4 payments"
+        elif 'D-1st' in category:
+            return "Tuition fee (" + category[:3] + ") - 1 of 10 payments"
+        elif 'D-2nd' in category:
+            return "Tuition fee (" + category[:3] + ") - 2 of 10 payments"
+        elif 'D-3rd' in category:
+            return "Tuition fee (" + category[:3] + ") - 3 of 10 payments"
+        elif 'D-4th' in category:
+            return "Tuition fee (" + category[:3] + ") - 4 of 10 payments"
+        elif 'D-5th' in category:
+            return "Tuition fee (" + category[:3] + ") - 5 of 10 payments"
+        elif 'D-6th' in category:
+            return "Tuition fee (" + category[:3] + ") - 6 of 10 payments"
+        elif 'D-7th' in category:
+            return "Tuition fee (" + category[:3] + ") - 7 of 10 payments"
+        elif 'D-8th' in category:
+            return "Tuition fee (" + category[:3] + ") - 8 of 10 payments"
+        elif 'D-9th' in category:
+            return "Tuition fee (" + category[:3] + ") - 9 of 10 payments"
+        elif 'D-10th' in category:
+            return "Tuition fee (" + category[:3] + ") - 9 of 10 payments"
+        elif 'E-1st' in category:
+            return "Tuition fee (" + category[:3] + ") - 1 of 9 payments"
+        elif 'E-2nd' in category:
+            return "Tuition fee (" + category[:3] + ") - 2 of 9 payments"
+        elif 'E-3rd' in category:
+            return "Tuition fee (" + category[:3] + ") - 3 of 9 payments"
+        elif 'E-4th' in category:
+            return "Tuition fee (" + category[:3] + ") - 4 of 9 payments"
+        elif 'E-5th' in category:
+            return "Tuition fee (" + category[:3] + ") - 5 of 9 payments"
+        elif 'E-6th' in category:
+            return "Tuition fee (" + category[:3] + ") - 6 of 9 payments"
+        elif 'E-7th' in category:
+            return "Tuition fee (" + category[:3] + ") - 7 of 9 payments"
+        elif 'E-8th' in category:
+            return "Tuition fee (" + category[:3] + ") - 8 of 9 payments"
+        elif 'E-9th' in category:
+            return "Tuition fee (" + category[:3] + ") - 9 of 9 payments"
+        elif 'E-Learning' in category:
+            return "E-learning platform (" + category[:3] + ")"
+        elif '-OF-1st' in category:
+            return "Miscellaneous fees - 1 of 3 payments"
+        elif '-OF-2nd' in category:
+            return "Miscellaneous fees - 2 of 3 payments"
+        elif '-OF-3rd' in category:
+            return "Miscellaneous fees - 3 of 3 payments"
+        elif '-OF' in category:
+            return "Miscellaneous fees"
+        elif 'Books' in category:
+            return "Books (" + category[:3] + ")"
+        elif 'Events' in category:
+            return category.replace('Events - ', '')
+        elif category == 'Disturbance Charges':
+            return 'Penalties for late enrollee'
+        elif category == 'Locker - Small':
+            return 'Locker rental (small)'
+        elif category == 'Locker - Big':
+            return 'Locker rental (big)'
+        elif 'Tutorial' in category:
+            return 'Tutoring services'
+        elif category == 'Uniform - Students - Daily':
+            return 'Daily Uniform'
+        elif category == 'Uniform - Students - P.E.':
+            return 'P.E. Uniform'
+        elif category == 'Uniform - Students - Scouting':
+            return 'Scouting Uniform'
+        elif 'Moving Up' in category:
+            return 'Moving up fee'
+        elif category == 'Graduation - Fee':
+            return 'Graduation fee'
+        elif category == 'Graduation - Others':
+            return 'Graduation fee (Miscellaneous)'
+        else:
+            return category
+
+    def _apply_description_function(self, df_cs) -> pd.DataFrame:
+        df_cs['description'] = df_cs.apply(self._get_description, axis=1)
+        return df_cs
+
     def show_data(self) -> pd.DataFrame:
         return self.df_cs
 
@@ -862,3 +1114,48 @@ def _allocate_date_fully_paid_sequential(args) -> pd.DataFrame:
     result = receivables[['cs_index', 'date_fully_paid']].copy()
 
     return result
+
+def _allocate_payment_amounts_sequential(args) -> pd.DataFrame:
+    """
+    Sequentially allocate payments across receivables (earliest due date first)
+    and record the total payment amount applied to each receivable, along with
+    any portion received on or before the due date (prepayments).
+
+    No time-based buckets are produced — only aggregate amounts per receivable.
+    """
+    receivables, payments = args
+
+    # Ensure datetime types
+    payments['payment_date'] = pd.to_datetime(payments['payment_date'], errors='coerce')
+    receivables['due_date'] = pd.to_datetime(receivables['due_date'], errors='coerce')
+
+    # Sort both
+    payments = payments.sort_values('payment_date').copy()
+    receivables = receivables.sort_values('due_date').copy()
+
+    # Initialise tracking columns
+    receivables['remaining'] = receivables['credit_sale_amount']
+    receivables['prepayments'] = 0.0
+    receivables['total_payments'] = 0.0
+
+    # Iterate payments sequentially, allocating to the earliest unsettled receivable
+    for _, pay in payments.iterrows():
+        amt = pay['amount_paid']
+        pay_date = pay['payment_date']
+
+        for i in receivables.index:
+            if amt <= 0:
+                break
+
+            if receivables.at[i, 'remaining'] > 0:
+                apply_amt = min(amt, receivables.at[i, 'remaining'])
+                receivables.at[i, 'remaining'] -= apply_amt
+                receivables.at[i, 'total_payments'] += apply_amt
+                amt -= apply_amt
+
+                # Count as prepayment if payment arrived on or before the due date
+                if pd.notnull(pay_date) and pd.notnull(receivables.at[i, 'due_date']):
+                    if pay_date <= receivables.at[i, 'due_date']:
+                        receivables.at[i, 'prepayments'] += apply_amt
+
+    return receivables[['cs_index', 'prepayments', 'total_payments']].copy()
