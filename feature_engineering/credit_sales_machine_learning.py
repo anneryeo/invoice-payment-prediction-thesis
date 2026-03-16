@@ -481,7 +481,7 @@ class CreditSales:
         df_cs = self._merge_due_date_prev(df_cs, 2)
 
         # Time-normalized trends
-        df_cs['dtp_2_trend'] = self._calculate_dtp_trend(df_cs, lag=1)
+        df_cs['dtp_2_trend'] = self._calculate_dtp_trend(df_cs, lag=1) #HIGHLIGHT -ANNE
         df_cs['dtp_3_trend'] = self._calculate_dtp_trend(df_cs, lag=2)
 
         # Days since last payment
