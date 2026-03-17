@@ -110,19 +110,59 @@ class MultiLayerPerceptronPipeline(BasePipeline):
         return self
 
     def _run_training_loop(self, epochs, batch_size, lr):
-        """Run the standard Adam + CrossEntropy training loop."""
+        """
+        Train the model for a fixed number of epochs using Adam and cross-entropy loss.
+
+        Constructs a DataLoader from the current ``self.X_train`` and ``self.y_train``
+        tensors, then runs a standard mini-batch gradient descent loop. The model is
+        set to training mode (enabling dropout) before the loop begins.
+
+        Called twice when ``use_feature_selection=True`` in :meth:`fit`: once on the
+        full feature set to derive SHAP importances, and again on the reduced feature
+        set after ``self.X_train`` and ``self.X_test`` have been sliced to the selected
+        columns.
+
+        Parameters
+        ----------
+        epochs : int
+            Number of complete passes over the training data.
+        batch_size : int
+            Number of samples per mini-batch fed to the optimizer.
+        lr : float
+            Learning rate passed to ``torch.optim.Adam``.
+
+        Notes
+        -----
+        - L2 regularization (``alpha``) is not currently applied. To activate it,
+        pass ``weight_decay=self.parameters.get("alpha", 0.0)`` to the Adam
+        constructor.
+        - No learning rate scheduling is performed. For deeper architectures
+        (2+ hidden layers), consider adding a ``ReduceLROnPlateau`` scheduler
+        to avoid stagnation on flat loss surfaces.
+        - Training loss is not logged or returned. Add a loss-tracking list if
+        convergence monitoring or early stopping is needed.
+        """
+        dataset   = TensorDataset
         dataset   = TensorDataset(self.X_train, self.y_train)
         loader    = DataLoader(dataset, batch_size=batch_size, shuffle=True)
         criterion = nn.CrossEntropyLoss()
-        optimizer = optim.Adam(self.model.parameters(), lr=lr)
+        optimizer = optim.Adam(self.model.parameters(), lr=lr, weight_decay=self.parameters.get("alpha", 0.0001))
+
+        # Decay LR by 0.5 if no improvement for 20 epochs — critical for deep nets
+        scheduler = optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, mode="min", factor=0.5, patience=20, min_lr=1e-6
+        )
 
         self.model.train()
         for _ in range(epochs):
+            epoch_loss = 0.0
             for xb, yb in loader:
                 optimizer.zero_grad()
                 loss = criterion(self.model(xb), yb)
                 loss.backward()
                 optimizer.step()
+                epoch_loss += loss.item()
+            scheduler.step(epoch_loss / len(loader))
 
     def _compute_shap_importance(self, top_k=10):
         """
