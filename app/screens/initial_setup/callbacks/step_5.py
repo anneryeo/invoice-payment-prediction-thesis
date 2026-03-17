@@ -7,7 +7,7 @@ from time import time
 
 from app import dash_app
 import dash_bootstrap_components as dbc
-from dash import Input, Output, State, html, dcc, no_update
+from dash import Input, Output, State, html, no_update
 
 from utils.data_loaders.read_settings_json import read_settings_json
 from machine_learning.utils.io.load_results_from_folder import SessionStore
@@ -25,6 +25,8 @@ from machine_learning import (
     StackedEnsemblePipeline,
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
+    OrdinalPipeline,
+    TwoStagePipeline,
 )
 
 
@@ -147,59 +149,36 @@ PIPELINE_MAP = {
 #  HELPER FUNCTIONS
 # ══════════════════════════════════════════════════════════════════════════════
 
+
 def _train_selected_model(
     df_data, df_data_surv,
     model_key, balance_strategy,
     args, best_surv_params,
     fitted_cph=None,
 ):
-    from machine_learning.utils.features.generate_survival_features import generate_survival_features
-    from machine_learning.utils.data.data_preparation import DataPreparer
+    """
+    Train the selected model on the full dataset for deployment.
 
-    pipeline_cls = PIPELINE_MAP.get(model_key)
-    if pipeline_cls is None:
-        raise ValueError(f"Unknown model key: {model_key!r}")
+    Delegates entirely to FinalizationRunner so that the pipeline-
+    construction logic (estimator maps, two-stage/ordinal branching,
+    full-data preparation) lives in one place: run_models_parallel.py.
+    """
+    from machine_learning.utils.training.run_models_parallel import FinalizationRunner
 
-    preparer = DataPreparer(
+    runner = FinalizationRunner(
         df_data=df_data,
-        target_feature=args.target_feature,
-        verbose=True,
-    )
-    preparer.prep_full_data(balance_strategy=balance_strategy)
-
-    X_bal = preparer.X_train
-    y_bal = preparer.y_train
-
-    X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
-    T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
-    E      = df_data_surv["censor"]
-
-    X_enhanced = generate_survival_features(
-        X_surv=X_surv,
-        T=T,
-        E=E,
-        X_train=X_bal,
-        X_test=None,
-        best_params=best_surv_params,
-        time_points=args.time_points,
+        df_data_surv=df_data_surv,
+        model_key=model_key,
+        balance_strategy=balance_strategy,
+        args=args,
+        best_surv_params=best_surv_params,
         fitted_cph=fitted_cph,
     )
-
-    pipeline = pipeline_cls(
-        X_train=X_enhanced,
-        X_test=X_enhanced,
-        y_train=y_bal,
-        y_test=y_bal,
-        args=args,
-        parameters=getattr(args, "parameters", {}),
-    )
-
-    pipeline.initialize_model()
-    pipeline.fit(use_feature_selection=True)
+    pipeline, label_encoder = runner.train()
 
     fin_progress_state["selected_done"] = True
-    return pipeline, preparer.label_encoder
-
+    return pipeline, label_encoder
+ 
 
 def _train_survival_model(df_data_surv, results_root: str) -> dict:
     session          = SessionStore(results_root).load()
@@ -261,32 +240,135 @@ class _FinalizationConfig:
 #  CALLBACKS — STEP 5
 # ══════════════════════════════════════════════════════════════════════════════
 
-_finalization_triggered = False
-
-
 @dash_app.callback(
     Output("fin-training_status", "data"),
-    # current_step as Input fires when step 5 becomes active.
-    # fin-progress-interval is enabled by render_step in the same server
-    # response that mounts html_step_5 — no separate enable write needed here.
     Input("current_step",        "data"),
     State("selected-model-data", "data"),
     State("stored_credit_sales", "data"),
+    State("stored_revenue",      "data"),
+    State("stored_enrollees",    "data"),
     prevent_initial_call=True,
 )
-def run_finalization(current_step, selected_model_data, credit_sales_json):
+def run_finalization(current_step, selected_model_data, credit_sales_json,
+                     stored_revenue, stored_enrollees):
+    global _finalization_triggered
+
     if current_step != "progress-5":
+        _finalization_triggered = False          # reset on navigation away
         return no_update
 
-    global _finalization_triggered
     if _finalization_triggered:
         return no_update
 
     if not selected_model_data:
         return "error"
 
-    if not credit_sales_json:
-        return "error"
+    # validator that catches None, '', ' ', 'null', and malformed JSON.
+    def _is_valid_dataframe_json(s) -> bool:
+        if not s or not isinstance(s, str) or not s.strip():
+            return False
+        try:
+            import json as _json
+            obj = _json.loads(s)
+            return isinstance(obj, dict)
+        except Exception:
+            return False
+
+    # three-tier fallback when stored_credit_sales is missing/stale:
+    # Tier 1 — in-memory store (normal path, always tried first via guard above)
+    # Tier 2 — credit_sales_cache.pkl written to RESULTS_ROOT by step_3
+    # Tier 3 — regenerate df_credit_sales from the raw uploaded file stores
+    #          using the identical CreditSalesProcessor logic as step_3
+    if not _is_valid_dataframe_json(credit_sales_json):
+        print(
+            f"[finalization] stored_credit_sales missing/unparseable "
+            f"(type={type(credit_sales_json).__name__}, "
+            f"preview={str(credit_sales_json)[:80] if credit_sales_json else 'None'}). "
+            f"Trying disk fallback (tier 2)..."
+        )
+        _recovered = False
+
+        # ── Tier 2: pkl written by step_3 ────────────────────────────────────
+        try:
+            import pickle as _pkl
+            import os as _os
+            _settings = read_settings_json()
+            _cs_path  = _os.path.join(
+                _settings["Training"]["RESULTS_ROOT"], "credit_sales_cache.pkl"
+            )
+            with open(_cs_path, "rb") as _fh:
+                _df_cs = _pkl.load(_fh)
+            credit_sales_json = _df_cs.to_json(date_format="iso", orient="split")
+            print(f"[finalization] Tier-2 OK — {len(_df_cs)} rows from {_cs_path}")
+            _recovered = True
+        except Exception as _e2:
+            print(f"[finalization] Tier-2 failed: {_e2}. Trying regeneration (tier 3)...")
+
+        # ── Tier 3: regenerate from raw uploaded file stores ─────────────────
+        if not _recovered:
+            try:
+                import base64 as _b64
+                import io as _io
+                from datetime import datetime as _dt
+                import pandas as _pd2
+                from feature_engineering.credit_sales_machine_learning import (
+                    CreditSalesProcessor as _CSP,
+                )
+
+                if not stored_revenue or not stored_enrollees:
+                    print("[finalization] Tier-3 failed: stored_revenue or "
+                          "stored_enrollees is missing — cannot regenerate.")
+                    return "error"
+
+                _settings = read_settings_json()
+                _obs_end  = _dt.strptime(
+                    _settings["Training"]["observation_end"], "%Y/%m/%d"
+                )
+
+                class _Cfg:
+                    observation_end = _obs_end
+
+                _rev_bytes  = _b64.b64decode(stored_revenue.split(",")[1])
+                _enr_bytes  = _b64.b64decode(stored_enrollees.split(",")[1])
+                _df_rev     = _pd2.read_excel(_io.BytesIO(_rev_bytes),  engine="calamine")
+                _df_enr     = _pd2.read_excel(_io.BytesIO(_enr_bytes),  engine="calamine")
+
+                _cs = _CSP(
+                    _df_rev, _df_enr, _Cfg(),
+                    drop_helper_columns=True,
+                    drop_demographic_columns=True,
+                    drop_plan_type_columns=False,
+                    drop_missing_dtp=True,
+                    drop_back_account_transactions=True,
+                    exclude_school_years=[2016, 2017, 2018],
+                    winsorise_dtp=True,
+                )
+                _df_cs = _cs.show_data()
+                credit_sales_json = _df_cs.to_json(date_format="iso", orient="split")
+                print(f"[finalization] Tier-3 OK — regenerated {len(_df_cs)} rows "
+                      "from stored_revenue / stored_enrollees.")
+
+                # Also cache to disk so tier 2 works on the next run
+                try:
+                    import os as _os2, pickle as _pkl2
+                    _cache = _os2.join(
+                        _settings["Training"]["RESULTS_ROOT"], "credit_sales_cache.pkl"
+                    )
+                    _os2.makedirs(
+                        _os2.dirname(_cache) if _os2.dirname(_cache) else ".", exist_ok=True
+                    )
+                    with open(_cache, "wb") as _fh2:
+                        _pkl2.dump(_df_cs, _fh2)
+                    print(f"[finalization] Cached regenerated data to {_cache}")
+                except Exception as _ec:
+                    print(f"[finalization] Could not cache to disk: {_ec} (non-fatal)")
+
+                _recovered = True
+            except Exception as _e3:
+                print(f"[finalization] Tier-3 failed: {_e3}")
+
+        if not _recovered:
+            return "error"
 
     _finalization_triggered = True
     for key in ("selected_done", "survival_done", "selected_saved", "survival_saved"):
@@ -307,6 +389,8 @@ def run_finalization(current_step, selected_model_data, credit_sales_json):
             deployed_models = settings["Training"]["DEPLOYED_MODELS"]
             os.makedirs(deployed_models, exist_ok=True)
 
+            # credit_sales_json is now guaranteed to be a valid split-orient
+            # JSON string (either from the store or loaded from disk above).
             df_credit_sales      = pd.read_json(io.StringIO(credit_sales_json), orient='split')
             survival_columns     = ['days_elapsed_until_fully_paid', 'censor']
             non_survival_columns = ['due_date', 'dtp_bracket']
@@ -314,6 +398,7 @@ def run_finalization(current_step, selected_model_data, credit_sales_json):
             df_data.drop(columns=survival_columns, inplace=True)
             df_data_surv = df_credit_sales.drop(columns=non_survival_columns)
 
+            # ── everything below is UNCHANGED from your original step_5.py ──
             survival_info    = _train_survival_model(df_data_surv, results_root)
             fitted_cph       = survival_info["cph"]
             best_surv_params = survival_info["best_surv_parameters"]
@@ -333,7 +418,6 @@ def run_finalization(current_step, selected_model_data, credit_sales_json):
                 fitted_cph=fitted_cph,
             )
 
-            # ── Delete existing deployed models matching the naming patterns ──────
             import glob
             _patterns = [
                 os.path.join(deployed_models, "finalized_*.pkl"),
