@@ -3,7 +3,7 @@ import os
 from dash import Input, Output, no_update
 
 from app import dash_app
-from ..constants import MODELS
+from ..constants import MODELS, set_class_labels
 from ..utils.data_loaders import load_models_from_results
 from utils.data_loaders.read_settings_json import read_settings_json
 from machine_learning.utils.io.load_results_from_folder import SessionStore
@@ -54,8 +54,10 @@ def load_selected_session(selected_folder):
         return no_update
 
     try:
+        session = _store.load(selected_folder)
         MODELS.clear()
         MODELS.update(load_models_from_results(db_path))
+        set_class_labels(session["class_mappings"])
         print(f"[screen2] Loaded {len(MODELS)} models from {db_path}")
     except Exception as exc:
         print(f"[screen2] WARNING – could not load {db_path}: {exc}")
