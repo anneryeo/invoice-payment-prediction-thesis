@@ -6,6 +6,8 @@ __all__ = [
     "RandomForestPipeline",
     "XGBoostPipeline",
     "StackedEnsemblePipeline",
+    "OrdinalPipeline",
+    "TwoStagePipeline",
     "MultiLayerPerceptronPipeline",
     "TransformerPipeline",
 ]
@@ -25,6 +27,8 @@ def __getattr__(name: str):
         "RandomForestPipeline": "machine_learning.models.random_forest",
         "XGBoostPipeline": "machine_learning.models.xg_boost",
         "StackedEnsemblePipeline": "machine_learning.models.stacked_ensemble",
+        "OrdinalPipeline": "machine_learning.models.ordinal_classifier",
+        "TwoStagePipeline": "machine_learning.models.two_stage_classifier",
         "MultiLayerPerceptronPipeline": "machine_learning.models.multi_layer_perceptron",
         "TransformerPipeline": "machine_learning.models.transformer",
     }
