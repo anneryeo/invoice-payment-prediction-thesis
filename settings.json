@@ -12,7 +12,7 @@
   ],
   "Config": [
     {
-      "debug_mode": "True",              // stores/reads cache'd .pkl files
+      "debug_mode": "False",              // stores/reads cache'd .pkl files
       "TEMP_CACHE": "temp_cache"         // the folder where the cache's are stored
     } 
   ],
@@ -22,7 +22,7 @@
     "RESULTS_ROOT": "Results",
     "DEPLOYED_MODELS": "Results/deployed_models",
 
-    "observation_end": "2026/03/13",      // The last available entry date for the research study (YYYY/MM/DD)
+    "observation_end": "2026/03/14",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",
     "test_size": "0.3"
   }
