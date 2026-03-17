@@ -1,7 +1,22 @@
 from dash import Input, Output, State, no_update, callback_context, ALL
 
 from app import dash_app
-from app.screens.comparative_model_dashboard_template.constants import MODEL_LABELS, STRATEGY_LABELS
+from app.screens.comparative_model_dashboard_template.constants import (
+    MODEL_LABELS, STRATEGY_LABELS, MODELS,
+)
+
+
+def _live_model_keys() -> list:
+    """Return model keys that actually exist in the loaded MODELS data.
+
+    Falls back to all MODEL_LABELS keys when MODELS has not been populated
+    yet (before step4-data-loaded fires), so the filter panel renders
+    correctly on first mount.
+    """
+    if not MODELS:
+        return list(MODEL_LABELS.keys())
+    live = {m_data["model"] for m_data in MODELS.values()}
+    return [k for k in MODEL_LABELS if k in live]
 
 
 @dash_app.callback(
@@ -64,7 +79,9 @@ def update_model_filter(values, id_list):
     if not id_list:
         return no_update
     selected = [id_obj["key"] for id_obj, val in zip(id_list, values) if val]
-    return selected if selected else list(MODEL_LABELS.keys())
+    # Fall back to all live keys so phantom MODEL_LABELS entries
+    # (models with no data rows) never enter the filter store.
+    return selected if selected else _live_model_keys()
 
 
 @dash_app.callback(
