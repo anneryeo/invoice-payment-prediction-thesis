@@ -68,13 +68,38 @@ def toggle_modal(confirm_clicks, close_clicks, cancel_clicks, proceed_clicks, mo
     strategy_label = _strategy_display(data["balance_strategy"])
 
     params = data.get("parameters", {})
-    params_content = html.Div([
-        html.Div(className="modal-param-row", children=[
-            html.Span(k.replace("_", " ").title(), className="modal-param-key"),
-            html.Span(str(v),                      className="modal-param-val"),
-        ])
-        for k, v in sorted(params.items())
-    ]) if params else html.Span("Default parameters", className="modal-param-empty")
+
+    def _is_two_stage(p: dict) -> bool:
+        """True when every value is itself a dict — i.e. stage1/stage2 structure."""
+        return bool(p) and all(isinstance(v, dict) for v in p.values())
+
+    def _flat_param_rows(p: dict) -> list:
+        return [
+            html.Div(className="modal-param-row", children=[
+                html.Span(k.replace("_", " ").title(), className="modal-param-key"),
+                html.Span(str(v),                      className="modal-param-val"),
+            ])
+            for k, v in sorted(p.items())
+        ]
+
+    if not params:
+        params_content = html.Span("Default parameters", className="modal-param-empty")
+    elif _is_two_stage(params):
+        # Two Stage: render each stage as a labelled section
+        sections = []
+        stage_keys = sorted(params.keys())
+        for i, stage_name in enumerate(stage_keys):
+            label = stage_name.replace("_", " ").title()  # e.g. "Stage1" → "Stage 1"
+            # Insert a divider between stages (not before the first)
+            if i > 0:
+                sections.append(html.Hr(className="modal-stage-divider"))
+            sections.append(
+                html.P(label, className="modal-stage-label")
+            )
+            sections.extend(_flat_param_rows(params[stage_name]))
+        params_content = html.Div(sections)
+    else:
+        params_content = html.Div(_flat_param_rows(params))
 
     def _metric_rows(result_type: str):
         m = data[result_type]["evaluation"]["metrics"]

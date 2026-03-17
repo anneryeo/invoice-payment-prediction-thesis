@@ -22,9 +22,9 @@ def build_dashboard_layout(
 
     NOTE — stores
     -------------
-    All dcc.Store components live in the persistent root layout in
-    initial_setup_layout_step_renderer.py.  They must live there (never
-    unmounted) because their callbacks fire from other store inputs.
+    Most dcc.Store components live in the persistent root layout in
+    initial_setup_layout_step_renderer.py.  The exception is
+    ``comp-mode-store``, which is local to this dashboard and defined below.
 
     NOTE — no mount interval needed
     --------------------------------
@@ -137,6 +137,9 @@ def build_dashboard_layout(
         className="dashboard-root",
         children=[
 
+            # ── Comparison-mode store (local to this dashboard) ───────────────
+            dcc.Store(id="comp-mode-store", data="base_vs_enh"),
+
             session_selector,
             model_summary_modal,
 
@@ -151,6 +154,7 @@ def build_dashboard_layout(
                     ),
                 ]),
                 html.Div(className="dash-header-right", children=[
+                    # ── Baseline / Enhanced toggle ────────────────────────────
                     html.Div(className="result-toggle-wrap", children=[
                         html.Span("View:", className="toggle-label"),
                         html.Div(className="result-toggle", children=[
@@ -158,67 +162,102 @@ def build_dashboard_layout(
                             html.Button("Enhanced", id="toggle-enhanced", className="toggle-btn active-toggle"),
                         ]),
                     ]),
+                    # ── Comparison mode toggle ────────────────────────────────
+                    html.Div(className="comp-mode-bar", children=[
+                        html.Span("Compare:", className="comp-mode-label"),
+                        html.Div(className="comp-mode-toggle-group", children=[
+                            html.Button(
+                                "Base vs Enhanced",
+                                id="comp-mode-base-vs-enh",
+                                className="comp-mode-btn comp-mode-btn-active",
+                                n_clicks=0,
+                            ),
+                            html.Button(
+                                "Regular vs Ordinal",
+                                id="comp-mode-regular-vs-ordinal",
+                                className="comp-mode-btn",
+                                n_clicks=0,
+                            ),
+                            html.Button(
+                                "Regular vs Two-Stage",
+                                id="comp-mode-regular-vs-twostage",
+                                className="comp-mode-btn",
+                                n_clicks=0,
+                            ),
+                            html.Button(
+                                "No SMOTE vs Best SMOTE",
+                                id="comp-mode-nosmote-vs-smote",
+                                className="comp-mode-btn",
+                                n_clicks=0,
+                            ),
+                        ]),
+                    ]),
                 ]),
             ]),
 
-            # ── Global controls ──────────────────────────────────────────────
-            html.Div(className="global-controls", children=[
-                html.Button("⊞ Filter", id="filter-panel-toggle", className="filter-toggle-btn"),
-                html.Div(className="controls-right", children=[
-                    html.Button("↓ Export CSV", id="export-csv-btn", className="export-btn"),
-                    dcc.Download(id="download-csv"),
-                ]),
-            ]),
+            # ── Filter controls wrap (positions the floating filter panel) ────
+            html.Div(className="filter-controls-wrap", children=[
 
-            # ── Filter panel (collapsible) ────────────────────────────────────
-            html.Div(id="filter-panel", className="filter-panel filter-panel-hidden", children=[
-                html.Div(className="filter-group", children=[
-                    html.Div(className="filter-group-header", children=[
-                        html.Span("Model Type", className="filter-group-title"),
-                        html.Button("All",  id="filter-model-all",  className="filter-select-btn"),
-                        html.Button("None", id="filter-model-none", className="filter-select-btn"),
+                # ── Global controls ──────────────────────────────────────────
+                html.Div(className="global-controls", children=[
+                    html.Button("⊞ Filter", id="filter-panel-toggle", className="filter-toggle-btn"),
+                    html.Div(className="controls-right", children=[
+                        html.Button("↓ Export CSV", id="export-csv-btn", className="export-btn"),
+                        dcc.Download(id="download-csv"),
                     ]),
-                    html.Div(
-                        id="filter-model-checks",
-                        className="filter-checks",
-                        children=[
-                            html.Label(className="filter-check-item", children=[
-                                dcc.Checklist(
-                                    id={"type": "model-filter", "key": k},
-                                    options=[{"label": "", "value": k}],
-                                    value=[k],
-                                    className="filter-checklist",
-                                ),
-                                html.Span(v, className="filter-check-label"),
-                            ])
-                            for k, v in MODEL_LABELS.items()
-                        ],
-                    ),
                 ]),
-                html.Div(className="filter-group", children=[
-                    html.Div(className="filter-group-header", children=[
-                        html.Span("SMOTE Variant", className="filter-group-title"),
-                        html.Button("All",  id="filter-strategy-all",  className="filter-select-btn"),
-                        html.Button("None", id="filter-strategy-none", className="filter-select-btn"),
+
+                # ── Filter panel (floats below the controls bar) ──────────────
+                html.Div(id="filter-panel", className="filter-panel filter-panel-hidden", children=[
+                    html.Div(className="filter-group", children=[
+                        html.Div(className="filter-group-header", children=[
+                            html.Span("Model Type", className="filter-group-title"),
+                            html.Button("All",  id="filter-model-all",  className="filter-select-btn"),
+                            html.Button("None", id="filter-model-none", className="filter-select-btn"),
+                        ]),
+                        html.Div(
+                            id="filter-model-checks",
+                            className="filter-checks",
+                            children=[
+                                html.Label(className="filter-check-item", children=[
+                                    dcc.Checklist(
+                                        id={"type": "model-filter", "key": k},
+                                        options=[{"label": "", "value": k}],
+                                        value=[k],
+                                        className="filter-checklist",
+                                    ),
+                                    html.Span(v, className="filter-check-label"),
+                                ])
+                                for k, v in MODEL_LABELS.items()
+                            ],
+                        ),
                     ]),
-                    html.Div(
-                        id="filter-strategy-checks",
-                        className="filter-checks",
-                        children=[
-                            html.Label(className="filter-check-item", children=[
-                                dcc.Checklist(
-                                    id={"type": "strategy-filter", "key": k},
-                                    options=[{"label": "", "value": k}],
-                                    value=[k],
-                                    className="filter-checklist",
-                                ),
-                                html.Span(v, className="filter-check-label"),
-                            ])
-                            for k, v in STRATEGY_LABELS.items()
-                        ],
-                    ),
+                    html.Div(className="filter-group", children=[
+                        html.Div(className="filter-group-header", children=[
+                            html.Span("SMOTE Variant", className="filter-group-title"),
+                            html.Button("All",  id="filter-strategy-all",  className="filter-select-btn"),
+                            html.Button("None", id="filter-strategy-none", className="filter-select-btn"),
+                        ]),
+                        html.Div(
+                            id="filter-strategy-checks",
+                            className="filter-checks",
+                            children=[
+                                html.Label(className="filter-check-item", children=[
+                                    dcc.Checklist(
+                                        id={"type": "strategy-filter", "key": k},
+                                        options=[{"label": "", "value": k}],
+                                        value=[k],
+                                        className="filter-checklist",
+                                    ),
+                                    html.Span(v, className="filter-check-label"),
+                                ])
+                                for k, v in STRATEGY_LABELS.items()
+                            ],
+                        ),
+                    ]),
                 ]),
-            ]),
+
+            ]),  # end filter-controls-wrap
 
             # ── Parameter tooltip ────────────────────────────────────────────
             html.Div(id="params-tooltip", className="params-tooltip", children=[
