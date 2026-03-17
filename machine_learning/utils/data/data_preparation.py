@@ -47,7 +47,13 @@ class DataPreparer:
 
     def encode_labels(self):
         """
-        Encode the target feature column using LabelEncoder.
+        Encode the target feature column using a fixed ordinal ordering.
+
+        Labels are assigned integers in ascending severity order:
+        on_time=0, 30_days=1, 60_days=2, 90_days=3. This ordering is
+        required by OrdinalClassifier, which trains binary classifiers
+        on thresholds P(y > k) — incorrect ordering would invert the
+        ordinal structure and produce meaningless cumulative probabilities.
 
         Populates self.label_encoder and self.class_mapping.
 
@@ -55,16 +61,18 @@ class DataPreparer:
         -------
         self
         """
+        ORDINAL_ORDER = ["on_time", "30_days", "60_days", "90_days"]
+
+        self.df_data[self.target_feature] = pd.Categorical(
+            self.df_data[self.target_feature],
+            categories=ORDINAL_ORDER,
+            ordered=True,
+        ).codes  # assigns 0, 1, 2, 3 in defined order
+
         self.label_encoder = LabelEncoder()
-        self.df_data[self.target_feature] = self.label_encoder.fit_transform(
-            self.df_data[self.target_feature]
-        )
-        self.class_mapping = dict(
-            zip(
-                self.label_encoder.classes_,
-                self.label_encoder.transform(self.label_encoder.classes_)
-            )
-        )
+        self.label_encoder.fit(ORDINAL_ORDER)  # keeps decode_labels() functional
+
+        self.class_mapping = {cat: i for i, cat in enumerate(ORDINAL_ORDER)}
         return self
 
     def train_test_split(self):
