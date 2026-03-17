@@ -12,7 +12,7 @@ from dash import Input, Output, State, html, no_update
 
 from utils.data_loaders.read_settings_json import read_settings_json
 
-from feature_engineering.credit_sales_machine_learning import CreditSales
+from feature_engineering.credit_sales_machine_learning import CreditSalesProcessor
 from machine_learning import (
     AdaBoostPipeline,
     DecisionTreePipeline,
@@ -21,6 +21,8 @@ from machine_learning import (
     RandomForestPipeline,
     XGBoostPipeline,
     StackedEnsemblePipeline,
+    OrdinalPipeline,
+    TwoStagePipeline,
     MultiLayerPerceptronPipeline,
     TransformerPipeline,
 )
@@ -30,6 +32,13 @@ from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperpar
 
 from machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
 from machine_learning.utils.io.save_results_to_folder import save_training_results
+
+
+import os
+# Prevent loky (joblib's process backend) from spawning a wmic/powershell
+# subprocess to count physical cores, which fails under Dash's restricted
+# stdout environment. Must be set before any sklearn/sksurv/joblib import.
+os.environ["LOKY_MAX_CPU_COUNT"] = str(os.cpu_count())
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -133,12 +142,14 @@ def clean_datasets(revenues_content, enrollees_content):
         observation_end = parsed_date
     args = Config()
 
-    cs = CreditSales(df_revenues, df_enrollees, args,
+    cs = CreditSalesProcessor(df_revenues, df_enrollees, args,
                     drop_helper_columns=True,
                     drop_demographic_columns=True,
                     drop_plan_type_columns=False,
                     drop_missing_dtp=True,
-                    drop_back_account_transactions=True)
+                    drop_back_account_transactions=True,
+                    exclude_school_years=[2016, 2017, 2018],
+                    winsorise_dtp=True)
     df_credit_sales = cs.show_data()
 
     progress_state["extraction_done"] = True
@@ -190,6 +201,8 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         "stacked_ensemble": StackedEnsemblePipeline,
         "nn_mlp": MultiLayerPerceptronPipeline,
         "nn_transformer": TransformerPipeline,
+        "ordinal": OrdinalPipeline,
+        "two_stage": TwoStagePipeline
     }
 
     selected_pipelines = {}
@@ -204,7 +217,7 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
     if missing_models:
         print("Models not found:", ", ".join(missing_models))
 
-    do_not_parallel_compute = ['xg_boost', 'nn_transformer']
+    do_not_parallel_compute = ['nn_transformer']
 
     runner = SurvivalExperimentRunner(
         df_data=df_data,
@@ -269,6 +282,11 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
         df_data_surv          = cache["df_data_surv"]
         survival_results_dict = cache["survival_results_dict"]
         stored_credit_sales   = df_credit_sales.to_json(date_format='iso', orient='split')
+        _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
+        import pickle as _pkl
+        with open(_cs_path, 'wb') as _fh:
+            _pkl.dump(df_credit_sales, _fh)
+        print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
         progress_state["extraction_done"] = True
         progress_state["survival_done"]   = True
         print("[DEBUG] Cache loaded successfully — skipping extraction and Cox tuning.")
@@ -279,6 +297,11 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
         _t = time()
         df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
         stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+        _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
+        import pickle as _pkl
+        with open(_cs_path, 'wb') as _fh:
+            _pkl.dump(df_credit_sales, _fh)
+        print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
         print(f"[TIMING] clean_datasets: {time() - _t:.1f}s")
 
         _t = time()
