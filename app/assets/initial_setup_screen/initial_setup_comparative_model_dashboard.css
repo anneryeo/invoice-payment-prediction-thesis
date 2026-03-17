@@ -57,7 +57,7 @@
     font-family: var(--text-sans);
     min-width: 0;
     box-sizing: border-box;
-    overflow-x: auto;   /* horizontal scroll for narrow screens, far enough up to not trap sticky */
+    overflow-x: auto;
 }
 
 /* ── Page header ────────────────────────────────────────────── */
@@ -102,6 +102,19 @@
     color: var(--text-secondary);
     margin: 0.2rem 0 0;
     line-height: 1.4;
+}
+
+/* ── Header right column ────────────────────────────────────── */
+/* Stacks the View toggle (top) and Compare bar (below) as a
+   right-aligned column inside the page header.                  */
+.dash-header-right {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 1.25rem;
+    flex-shrink: 0;
+    flex-wrap: wrap;
+    justify-content: flex-end;
 }
 
 /* ── Result type toggle ─────────────────────────────────────── */
@@ -152,6 +165,77 @@
     font-weight: 600;
 }
 
+/* Thin separator between View and Compare rows when they share one line */
+.result-toggle-wrap::after {
+    content: '';
+    display: block;
+    width: 1px;
+    height: 20px;
+    background: var(--border-strong);
+    margin-left: 0.5rem;
+}
+
+/* ── Comparison mode bar ────────────────────────────────────── */
+/* Lives inside .dash-header-right, below the View toggle.
+   Same segmented-control pattern as the Baseline/Enhanced toggle. */
+.comp-mode-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: nowrap;
+    flex-shrink: 0;
+}
+
+.comp-mode-label {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.comp-mode-toggle-group {
+    display: flex;
+    background: var(--bg-root);
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    overflow: hidden;
+}
+
+.comp-mode-btn {
+    font-family: var(--text-mono);
+    font-size: 0.65rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 0.3rem 0.7rem;
+    background: transparent;
+    border: none;
+    border-right: 1px solid var(--border-strong);
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+    white-space: nowrap;
+    line-height: 1.4;
+}
+
+.comp-mode-btn:last-child {
+    border-right: none;
+}
+
+.comp-mode-btn:hover:not(.comp-mode-btn-active) {
+    background: var(--bg-card-hover);
+    color: var(--text-primary);
+}
+
+.comp-mode-btn-active {
+    background: var(--accent-blue) !important;
+    color: #ffffff !important;
+    font-weight: 600;
+}
+
 /* ── Global controls ────────────────────────────────────────── */
 .global-controls {
     display: flex;
@@ -190,19 +274,30 @@
 }
 
 /* ── Filter panel ───────────────────────────────────────────── */
+.filter-controls-wrap {
+    position: relative;   /* anchor for the absolute filter panel */
+    margin-bottom: 1rem;
+    /* No z-index here — let .dashboard-root's isolation contain the stack */
+}
+
 .filter-panel {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    right: 0;
     background: var(--bg-card);
-    border: 1px solid var(--border);
+    border: 1px solid var(--border-strong);
     border-radius: var(--radius-lg);
     padding: 1rem 1.25rem;
-    margin-bottom: 1rem;
     display: flex;
     gap: 2rem;
     flex-wrap: wrap;
-    box-shadow: var(--shadow-sm);
+    box-shadow: var(--shadow-md);
+    z-index: 500;
     overflow: hidden;
+    overflow-y: auto;
+    max-height: 700px;
     transition: max-height 0.25s ease, opacity 0.2s ease, padding 0.2s ease;
-    max-height: 500px;
     opacity: 1;
 }
 
@@ -212,7 +307,6 @@
     padding-top: 0 !important;
     padding-bottom: 0 !important;
     border-color: transparent !important;
-    margin-bottom: 0 !important;
     pointer-events: none;
 }
 
@@ -330,9 +424,9 @@
 }
 
 /* ── Leaderboard wrapper ────────────────────────────────────── */
-/* NO overflow set here at all — any overflow (even overflow-x:auto)
-   can create a scroll context in some browsers that traps sticky.
-   Horizontal scroll for narrow viewports is handled at the body level. */
+/* NO overflow set here — overflow-x:auto on dashboard-root handles horizontal scroll
+   without trapping position:sticky on the thead. */
+
 .leaderboard-wrap {
     background: var(--bg-card);
     border: 1px solid var(--border);
@@ -343,6 +437,7 @@
     width: 100%;
     box-sizing: border-box;
 }
+
 
 /* ── Table ──────────────────────────────────────────────────── */
 .leaderboard-table {
@@ -415,8 +510,8 @@
     text-align: center;
     padding: 0.18rem 0.2rem;
     text-transform: uppercase;
-    width: 62px;
-    min-width: 54px;
+    width: 56px;
+    min-width: 50px;
 }
 
 .th-sub-active {
@@ -435,7 +530,7 @@
 }
 
 .th-rank     { width: 44px;  }
-.th-model    { width: 140px; }
+.th-model    { width: 200px; }
 .th-strategy { width: 90px;  min-width: 90px; }
 
 /* Body rows */
@@ -491,6 +586,7 @@
     overflow: hidden;
     text-overflow: ellipsis;
     font-family: var(--text-sans);
+    max-width: 200px;
 }
 
 .td-strategy {
@@ -503,8 +599,8 @@
     text-align: center;
     font-size: 0.74rem;
     border-left: 1px solid #f1f5f9;
-    width: 62px;
-    min-width: 54px;
+    width: 56px;
+    min-width: 50px;
     overflow: hidden;
 }
 
@@ -946,6 +1042,29 @@
     border-bottom: none;
 }
 
+/* Stage section headers for Two-Stage models (Stage 1 / Stage 2).
+   #93c5fd on #1e293b background = 6.5:1 contrast — passes WCAG AA. */
+.ptt-stage-header {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: #93c5fd;
+    padding: 0.35rem 0 0.18rem;
+    line-height: 1;
+}
+
+.ptt-stage-header:first-child {
+    padding-top: 0;
+}
+
+.ptt-stage-divider {
+    border: none;
+    border-top: 1px solid #334155;
+    margin: 0.28rem 0 0.1rem;
+}
+
 .ptt-key {
     font-family: var(--text-mono);
     font-size: 0.62rem;
@@ -961,6 +1080,29 @@
     color: #f1f5f9;
     text-align: right;
     white-space: nowrap;
+}
+
+/* ── Comparison-mode cell helpers ──────────────────────────────── */
+.metric-na {
+    font-family: var(--text-mono);
+    font-size: 0.68rem;
+    color: var(--text-muted);
+    font-style: italic;
+    letter-spacing: 0.04em;
+}
+
+.right-name-hint {
+    font-family: var(--text-sans);
+    font-size: 0.58rem;
+    color: var(--text-muted);
+    font-style: italic;
+    line-height: 1;
+    display: block;
+    margin-top: 0.05rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 80px;
 }
 
 /* ============================================================
@@ -1170,6 +1312,23 @@
     font-size: 0.68rem;
     color: var(--text-muted);
     font-style: italic;
+}
+
+/* Two-Stage model: stage section headers inside the modal params block */
+.modal-stage-label {
+    font-family: var(--text-mono);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--accent-blue);
+    margin: 0.5rem 0 0.3rem;
+}
+
+.modal-stage-divider {
+    border: none;
+    border-top: 1px solid var(--border);
+    margin: 0.5rem 0 0.2rem;
 }
 
 /* ── Metrics block ───────────────────────────────────────── */
