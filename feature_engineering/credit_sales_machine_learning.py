@@ -677,9 +677,11 @@ class FeatureEngineer:
         df['dtp_avg'] = df[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mean(axis=1)
         df['dtp_wavg'] = df[['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4']].mul([0.4, 0.3, 0.2, 0.1]).sum(axis=1)
 
-        df = self._merge_due_date_prev(df, n=2)
-        df['dtp_2_trend'] = self._calculate_dtp_trend(df, lag=1)
-        df['dtp_3_trend'] = self._calculate_dtp_trend(df, lag=2)
+        df_cs = self._merge_due_date_prev(df_cs, 2)
+
+        # Time-normalized trends
+        df_cs['dtp_2_trend'] = self._calculate_dtp_trend(df_cs, lag=1) #HIGHLIGHT -ANNE
+        df_cs['dtp_3_trend'] = self._calculate_dtp_trend(df_cs, lag=2)
 
         df = self._merge_last_payment_date(df, self.df_payments_to_all)
         df['days_since_last_payment'] = (
