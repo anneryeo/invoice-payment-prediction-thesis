@@ -33,8 +33,47 @@ def json_deserialize(value):
         return value
 
 
+def _parse_two_stage_params(raw: str) -> dict | None:
+    """
+    Parse Two Stage classifier param strings of the form:
+        stage1={'key': val, ...}, stage2={'key': val, ...}
+
+    This format is NOT a valid Python dict or JSON object, so the standard
+    parsers in ``_normalise_params`` silently return ``{}`` for every Two Stage
+    row — causing all variants to share the same ``"default"`` hash and
+    overwrite each other in the MODELS dict.
+
+    Returns a nested ``{'stage1': {...}, 'stage2': {...}}`` dict when the
+    pattern is detected, or ``None`` to let the caller fall through to its
+    regular parsing logic.
+    """
+    import re as _re
+    # Match stageN={...} — the inner dict must be a flat single-level dict
+    # (no nested braces), which covers the XGBoost / RF / LR hyperparameter
+    # grids used by the Two Stage classifier.
+    pattern = _re.compile(r'(stage\w+)\s*=\s*(\{[^{}]*\})')
+    matches = pattern.findall(raw)
+    if not matches:
+        return None
+    result: dict = {}
+    for stage_name, dict_str in matches:
+        try:
+            stage_dict = ast.literal_eval(dict_str)
+            if isinstance(stage_dict, dict):
+                result[stage_name] = stage_dict
+        except Exception:
+            pass
+    return result if result else None
+
+
 def _normalise_params(raw) -> dict:
-    """Convert any params representation to a plain {str: scalar} dict."""
+    """Convert any params representation to a plain {str: scalar} dict.
+
+    For Two Stage classifiers the raw string has the special form
+    ``stage1={...}, stage2={...}`` which is handled before the generic
+    paths so that each unique (stage1, stage2) combination produces a
+    distinct hash and is stored as a separate entry in MODELS.
+    """
     if isinstance(raw, dict):
         return raw
     if isinstance(raw, (list, tuple)):
@@ -49,7 +88,11 @@ def _normalise_params(raw) -> dict:
         except Exception:
             pass
     if isinstance(raw, str) and raw.strip():
-        # Try single-quoted dict → JSON
+        # ── Two Stage: "stage1={...}, stage2={...}" ──────────────────────────
+        two_stage = _parse_two_stage_params(raw.strip())
+        if two_stage is not None:
+            return two_stage
+        # ── Standard single-quoted dict → JSON ───────────────────────────────
         try:
             cleaned = (raw.strip()
                        .replace("'", '"')
@@ -61,7 +104,7 @@ def _normalise_params(raw) -> dict:
                 return parsed
         except Exception:
             pass
-        # Try Python literal_eval for list-of-tuples repr
+        # ── Python literal_eval for list-of-tuples repr ───────────────────────
         try:
             evaled = ast.literal_eval(raw.strip())
             return _normalise_params(evaled)
