@@ -5,6 +5,7 @@ from app.screens.comparative_model_dashboard_template.constants import (
     MODELS,
     _model_display,
     _strategy_display,
+    set_class_labels,
 )
 from app.screens.comparative_model_dashboard_template.utils.chart_builders import build_leaderboard_rows
 from app.screens.comparative_model_dashboard_template.utils.data_loaders import load_models_from_results
@@ -28,7 +29,9 @@ def load_step4_data(current_step, already_loaded):
         return no_update
     try:
         db_path = _store.path()
+        session = _store.load()
         MODELS.update(load_models_from_results(db_path))
+        set_class_labels(session["class_mappings"])
         print(f"[screen1] Loaded {len(MODELS)} models from {db_path}")
     except Exception as exc:
         print(f"[screen1] WARNING – could not load results.db: {exc}")
