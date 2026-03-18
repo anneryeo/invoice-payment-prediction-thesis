@@ -91,6 +91,8 @@ class SurvivalExperimentRunner:
         do_not_parallel_compute=None,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
+        use_lda: bool = False,
+        lda_mode: str = "append",
     ):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
@@ -103,6 +105,8 @@ class SurvivalExperimentRunner:
         self.do_not_parallel_compute = do_not_parallel_compute or []
         self.feature_selection_baseline = feature_selection_baseline
         self.feature_selection_enhanced = feature_selection_enhanced
+        self.use_lda  = use_lda
+        self.lda_mode = lda_mode
 
         # Initialize parameter loader
         self.loader = ParameterLoader(args.parameters_dir)
@@ -143,16 +147,38 @@ class SurvivalExperimentRunner:
         """
         self.preparer.resample(balance_strategy=balance_strategy, undersample_threshold=threshold)
 
-        X_train, X_test = self.preparer.X_train.copy(), self.preparer.X_test.copy()
+        # Snapshot BEFORE LDA — Cox scaler was fitted on original features
+        # and will raise if it sees LD1/LD2/LD3 columns.
+        X_train_raw = self.preparer.X_train.copy()
+        X_test_raw  = self.preparer.X_test.copy()
         y_train, y_test = self.preparer.y_train.copy(), self.preparer.y_test.copy()
 
         X_surv = self.df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
         T = adjust_payment_period(self.df_data_surv["days_elapsed_until_fully_paid"])
         E = self.df_data_surv["censor"]
 
+        # Pass original features to Cox — survival features generated first
         X_surv_train, X_surv_test = generate_survival_features(
-            X_surv, T, E, X_train, X_test, best_params=self.best_parameters, time_points=self.args.time_points
+            X_surv, T, E, X_train_raw, X_test_raw,
+            best_params=self.best_parameters, time_points=self.args.time_points
         )
+
+        # Apply LDA AFTER survival feature generation.
+        # Two separate transformers: one for the enhanced (survival) set,
+        # one for the baseline set — each fitted only on its own X_train.
+        if self.use_lda:
+            from machine_learning.utils.features.lda_transformer import LDATransformer
+
+            lda_enhanced = LDATransformer(mode=self.lda_mode)
+            X_surv_train = lda_enhanced.fit_transform(X_surv_train, y_train)
+            X_surv_test  = lda_enhanced.transform(X_surv_test)
+
+            lda_baseline = LDATransformer(mode=self.lda_mode)
+            X_train = lda_baseline.fit_transform(X_train_raw, y_train)
+            X_test  = lda_baseline.transform(X_test_raw)
+        else:
+            X_train = X_train_raw
+            X_test  = X_test_raw
 
         return X_train, X_test, y_train, y_test, X_surv_train, X_surv_test
 
@@ -461,6 +487,8 @@ class FinalizationRunner:
         args,
         best_surv_params: dict,
         fitted_cph=None,
+        use_lda: bool = False,
+        lda_mode: str = "append",
     ):
         self.df_data          = df_data
         self.df_data_surv     = df_data_surv
@@ -469,6 +497,8 @@ class FinalizationRunner:
         self.args             = args
         self.best_surv_params = best_surv_params
         self.fitted_cph       = fitted_cph
+        self.use_lda          = use_lda
+        self.lda_mode         = lda_mode
 
         # Validate model_key early so the caller gets a clear error before
         # any expensive data preparation runs.
@@ -537,7 +567,15 @@ class FinalizationRunner:
             target_feature=self.args.target_feature,
             verbose=True,
         )
-        preparer.prep_full_data(balance_strategy=self.balance_strategy)
+
+        if self.use_lda:
+            preparer.prep_full_data_with_lda(
+                balance_strategy=self.balance_strategy,
+                lda_mode=self.lda_mode,
+                lda_verbose=True,
+            )
+        else:
+            preparer.prep_full_data(balance_strategy=self.balance_strategy)
 
         X_full = preparer.X_train
         y_full = preparer.y_train

@@ -173,6 +173,7 @@ def _train_selected_model(
         args=args,
         best_surv_params=best_surv_params,
         fitted_cph=fitted_cph,
+        use_lda=True,
     )
     pipeline, label_encoder = runner.train()
 

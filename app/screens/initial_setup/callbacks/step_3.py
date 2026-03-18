@@ -231,6 +231,7 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         do_not_parallel_compute=do_not_parallel_compute,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
+        use_lda=True,
     )
 
     json_results = runner.run()
