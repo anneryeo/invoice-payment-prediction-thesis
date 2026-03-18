@@ -7,6 +7,7 @@ from imblearn.combine import SMOTEENN, SMOTETomek
 from .data_partitioning import data_partitioning_by_due_date
 from machine_learning.utils.balancing.hybrid_balance import HybridBalance
 from machine_learning.utils.data.normalize_data import normalize
+from machine_learning.utils.features.lda_transformer import LDATransformer
 
 
 class DataPreparer:
@@ -34,6 +35,7 @@ class DataPreparer:
         self.label_encoder = None
         self.class_mapping = None
         self.cut_off_date  = None
+        self.lda_transformer = None   # populated by apply_lda()
 
         # Outputs
         self.X_train = None
@@ -202,6 +204,71 @@ class DataPreparer:
 
         return self
 
+    def apply_lda(self, mode: str = "append", n_components: int | None = None,
+                  verbose: bool = False):
+        """
+        Fit an LDATransformer on the training set and project both train
+        and test sets into LDA space.
+
+        Must be called AFTER encode_labels() and train_test_split() (or
+        use_full_dataset()), because LDA is a supervised transform that
+        requires labelled training data.
+
+        Call order in a typical pipeline::
+
+            preparer.encode_labels()
+                     .train_test_split()
+                     .resample(...)
+                     .apply_lda(mode="append")   # ← before normalize()
+                     .normalize()
+
+        Parameters
+        ----------
+        mode : {"append", "replace"}
+            "append"  → keep all original features and add LD1 … LDk columns.
+                        Best for tree-based models (XGBoost, RF) that can
+                        exploit both raw and compressed signals.
+            "replace" → return only the LD columns.
+                        Best for linear or distance-based models (KNN, LR)
+                        that benefit from a compact, decorrelated input.
+        n_components : int or None
+            Number of discriminant components.  None uses the maximum
+            possible (n_classes - 1 = 3 for your 4-bracket target).
+        verbose : bool
+            If True, prints the explained separation variance per component.
+
+        Returns
+        -------
+        self
+        """
+        if self.X_train is None or self.y_train is None:
+            raise RuntimeError(
+                "apply_lda() requires X_train and y_train to be set. "
+                "Call train_test_split() or use_full_dataset() first."
+            )
+
+        self._log(f"Applying LDA (mode='{mode}')...")
+
+        self.lda_transformer = LDATransformer(
+            n_components=n_components,
+            mode=mode,
+            verbose=verbose,
+        )
+
+        # Fit on training data only — never on test data
+        self.X_train = self.lda_transformer.fit_transform(self.X_train, self.y_train)
+
+        # Transform test set if it exists (eval runs); None for full-dataset runs
+        if self.X_test is not None:
+            self.X_test = self.lda_transformer.transform(self.X_test)
+
+        self._log(
+            f"  LDA done — X_train shape: {self.X_train.shape}, "
+            f"LD columns: {self.lda_transformer.ld_columns_}"
+        )
+
+        return self
+
     def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
         """
         Run the full preparation pipeline:
@@ -233,6 +300,80 @@ class DataPreparer:
             .encode_labels()
             .use_full_dataset()
             .resample(balance_strategy=balance_strategy, undersample_threshold=undersample_threshold)
+            .normalize()
+        )
+
+    def prep_data_with_lda(
+        self,
+        balance_strategy: str = "smote",
+        undersample_threshold: float = 0.5,
+        lda_mode: str = "append",
+        lda_n_components: int | None = None,
+        lda_verbose: bool = False,
+    ):
+        """
+        Full preparation pipeline with LDA:
+        encode → split → resample → LDA → normalize.
+
+        LDA is applied after resampling so that synthetic SMOTE samples
+        are included in the LDA fit, and before normalization so that
+        StandardScaler inside LDATransformer and the outer normalize()
+        do not double-scale.
+
+        Parameters
+        ----------
+        balance_strategy : str
+            Resampling strategy passed to resample().
+        undersample_threshold : float
+            Threshold for hybrid undersampling.
+        lda_mode : {"append", "replace"}
+            Passed to apply_lda().
+        lda_n_components : int or None
+            Number of LDA components.  None → max possible (3).
+        lda_verbose : bool
+            Print LDA variance summary if True.
+
+        Returns
+        -------
+        self
+        """
+        return (
+            self
+            .encode_labels()
+            .train_test_split()
+            .resample(balance_strategy=balance_strategy,
+                      undersample_threshold=undersample_threshold)
+            .apply_lda(mode=lda_mode, n_components=lda_n_components,
+                       verbose=lda_verbose)
+            .normalize()
+        )
+
+    def prep_full_data_with_lda(
+        self,
+        balance_strategy: str = "smote",
+        undersample_threshold: float = 0.5,
+        lda_mode: str = "append",
+        lda_n_components: int | None = None,
+        lda_verbose: bool = False,
+    ):
+        """
+        Full pipeline without train/test split, with LDA:
+        encode → full dataset → resample → LDA → normalize.
+
+        Used by FinalizationRunner for deployment-ready models.
+
+        Returns
+        -------
+        self
+        """
+        return (
+            self
+            .encode_labels()
+            .use_full_dataset()
+            .resample(balance_strategy=balance_strategy,
+                      undersample_threshold=undersample_threshold)
+            .apply_lda(mode=lda_mode, n_components=lda_n_components,
+                       verbose=lda_verbose)
             .normalize()
         )
 
