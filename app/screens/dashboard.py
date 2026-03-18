@@ -63,6 +63,8 @@ class DashboardScreen:
                 html.Div([
                     html.Button("Refresh Invoices", id="refresh_btn", className="primary-btn"),
                     html.Button("Retrain Model", id="retrain_btn", className="secondary-btn"),
+                    # Navigates to Screen 2 — Model Analysis
+                    # Wired in app/callbacks/dashboard_callbacks.py
                     html.Button("View Saved Models", id="view_models_btn", className="secondary-btn"),
                 ], className="button-group"),
 

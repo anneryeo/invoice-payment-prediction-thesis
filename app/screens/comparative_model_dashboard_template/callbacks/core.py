@@ -652,7 +652,7 @@ def render_leaderboard(current_step, sort_metric, sort_dir, sort_result_type, re
 
 
 @dash_app.callback(
-    Output("selected-model-store", "data"),
+    Output("selected-model-store", "data", allow_duplicate=True),
     Output("row-clicks-store", "data"),
     Input({"type": "model-row", "key": ALL}, "n_clicks"),
     State({"type": "model-row", "key": ALL}, "id"),
@@ -670,6 +670,41 @@ def select_model(n_clicks_list, id_list, prev_clicks, current_selected):
     if clicked_key is None:
         return no_update, current_clicks
     return clicked_key, current_clicks
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  INITIALISE SELECTION
+#  Combined callback covering Step 4 (screen_1) and /analysis (screen_2).
+#  Replaces the separate initialise_selection callbacks in screen_1.py and
+#  screen_2.py — those files should no longer define this callback.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@dash_app.callback(
+    Output("selected-model-store", "data", allow_duplicate=True),
+    Input("step4-data-loaded",     "data"),
+    State("selected-model-store",  "data"),
+    State("url",                   "pathname"),
+    prevent_initial_call=True,
+)
+def initialise_selection(loaded, current_selected, pathname):
+    """
+    Auto-selects the top-ranked model whenever step4-data-loaded fires.
+
+    Step 4 (setup flow)  — guards with `if current_selected` so a manual
+                           selection is not overwritten on re-entry.
+    /analysis (Screen 2) — skips the guard so switching sessions always
+                           resets to the new top model.
+    """
+    if not loaded or not MODELS:
+        return no_update
+    if pathname != "/analysis" and current_selected:
+        return no_update
+    rows = build_leaderboard_rows(
+        sort_metric="f1_macro",
+        result_type="enhanced",
+        sort_result_type="enhanced",
+    )
+    return rows[0]["key"] if rows else no_update
 
 
 # ══════════════════════════════════════════════════════════════════════════════

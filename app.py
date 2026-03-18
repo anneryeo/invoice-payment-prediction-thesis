@@ -7,7 +7,8 @@ from app import dash_app, server
 
 # ── Callback registration (imports are side-effectful — order matters) ────────
 import app.screens.initial_setup.intial_setup_layout                                         # registers step 1-5 + step-advancement callbacks
-import app.screens.initial_setup.callbacks.step_4                                            # registers all dashboard callbacks
+import app.screens.initial_setup.callbacks.step_4                                            # registers all dashboard callbacks (core, filters, screen_1)
+import app.screens.model_analysis.callbacks.model_analysis_callbacks                         # registers screen_2 + navigation — must follow step_4
 from app.screens.initial_setup.callbacks.initial_setup_layout_step_renderer import initial_setup_layout
 
 # ── Screen classes ────────────────────────────────────────────────────────────
