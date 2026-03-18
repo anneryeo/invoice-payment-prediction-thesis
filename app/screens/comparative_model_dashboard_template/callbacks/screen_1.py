@@ -39,19 +39,7 @@ def load_step4_data(current_step, already_loaded):
     return True
 
 
-@dash_app.callback(
-    Output("selected-model-store", "data", allow_duplicate=True),
-    Input("step4-data-loaded",     "data"),
-    State("selected-model-store",  "data"),
-    prevent_initial_call=True,
-)
-def initialise_selection(loaded, current_selected):
-    if not loaded or not MODELS:
-        return no_update
-    if current_selected:
-        return no_update
-    rows = build_leaderboard_rows("f1_macro", "enhanced", sort_result_type="enhanced")
-    return rows[0]["key"] if rows else no_update
+# initialise_selection moved to core.py
 
 
 @dash_app.callback(

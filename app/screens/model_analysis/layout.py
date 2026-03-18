@@ -19,6 +19,18 @@ class ModelAnalysisScreen:
         return html.Div(
             className="analysis-container",
             children=[
+                # Scoped stylesheet for this screen
+                html.Link(rel="stylesheet", href="/assets/analysis.css"),
+
+                # One-shot interval — fires once on mount, triggers
+                # populate_session_dropdown in screen_2.py, then disables itself.
+                dcc.Interval(
+                    id="analysis-mount-interval",
+                    interval=100,
+                    n_intervals=0,
+                    max_intervals=1,
+                ),
+
                 html.Div(
                     className="analysis-header",
                     children=[

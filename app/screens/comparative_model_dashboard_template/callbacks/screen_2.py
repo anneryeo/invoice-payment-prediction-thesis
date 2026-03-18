@@ -1,6 +1,4 @@
-import os
-
-from dash import Input, Output, no_update
+from dash import Input, Output, State, no_update
 
 from app import dash_app
 from ..constants import MODELS, set_class_labels
@@ -18,13 +16,14 @@ _store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
 @dash_app.callback(
     Output("session-selector-dropdown", "options"),
     Output("session-selector-dropdown", "value"),
-    Input("step4-data-loaded", "data"),
+    Input("analysis-mount-interval",    "n_intervals"),
     prevent_initial_call=True,
 )
-def populate_session_dropdown(_loaded):
+def populate_session_dropdown(n_intervals):
     """
-    Fills the session dropdown with all dated folders on mount.
-    Pre-selects the most recent session so the dashboard is never blank.
+    Fires once when the analysis screen mounts (via one-shot interval).
+    Fills the session dropdown and pre-selects the most recent session
+    so the dashboard is never blank on arrival.
     """
     dirs = _store.list()
     if not dirs:
