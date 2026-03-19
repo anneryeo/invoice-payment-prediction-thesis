@@ -36,6 +36,7 @@ class DataPreparer:
         self.class_mapping = None
         self.cut_off_date  = None
         self.lda_transformer = None   # populated by apply_lda()
+        self.scaler_         = None   # populated by normalize(); persisted in InferencePipeline
 
         # Outputs
         self.X_train = None
@@ -192,15 +193,29 @@ class DataPreparer:
         Fit StandardScaler on training data and transform both train and test
         sets.
 
+        The fitted scaler is stored as ``self.scaler_`` so that
+        ``FinalizationRunner`` can pass it to ``InferencePipeline``.  At
+        inference time the same scaler is applied to raw input features
+        before survival feature generation and LDA projection.
+
         X_test is optional — when None (e.g. full-dataset finalization in
         Step 5), only X_train is normalized and X_test is left as None.
         """
+        from sklearn.preprocessing import StandardScaler
+
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
 
-        self.X_train[numeric_cols] = normalize(self.X_train[numeric_cols])
+        # Fit and store the scaler so FinalizationRunner can retrieve it
+        # for inclusion in the InferencePipeline bundle.
+        self.scaler_ = StandardScaler()
+        self.X_train[numeric_cols] = self.scaler_.fit_transform(
+            self.X_train[numeric_cols]
+        )
 
         if self.X_test is not None:
-            self.X_test[numeric_cols] = normalize(self.X_test[numeric_cols])
+            self.X_test[numeric_cols] = self.scaler_.transform(
+                self.X_test[numeric_cols]
+            )
 
         return self
 
