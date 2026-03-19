@@ -1,8 +1,10 @@
 import numpy as np
+import pandas as pd
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.feature_selection import SelectFromModel
 
 from .base_pipeline import BasePipeline
+from machine_learning.utils.features.lda_transformer import LDATransformer
 
 
 class TwoStageClassifier(BaseEstimator, ClassifierMixin):
@@ -54,29 +56,96 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
     feature_importances_ : np.ndarray of shape (n_features,)
         Average of Stage 1 and Stage 2 feature importances. Only available
         when both base estimators expose ``feature_importances_``.
+    stage2_lda_ : LDATransformer or None
+        Fitted delinquent-only LDA transformer applied to Stage 2's training
+        and inference data.  ``None`` when ``use_lda=False``.  Fitted on the
+        late-invoice rows only (y > 0) so its components are optimised for
+        separating 30/60/90-day classes without on_time noise.  Uses
+        ``mode="append"`` by default so Stage 2 retains all original features
+        alongside the compressed LD1/LD2 signal.
 
     Notes
     -----
     Stage 2 requires at least one sample from each late class in the training
     set. If a class is absent (e.g. no 60_days invoices after filtering),
     Stage 2 will raise a ``ValueError`` from the underlying estimator.
+
+    When ``use_lda=True``, Stage 2 receives a dedicated ``LDATransformer``
+    fitted *only* on the delinquent population.  This is distinct from any
+    LDA applied upstream in ``run_models_parallel.py``, which is a 4-class
+    transformer fitted on the full dataset for Stage 1's benefit.  The two
+    transformers are independent and produce different discriminant axes:
+
+    - **Full-dataset LDA** (upstream, 4 classes) → LD1 mainly captures
+      on_time vs everyone else (≈97% of separation variance).
+    - **Delinquent-only LDA** (here, 3 classes) → LD1/LD2 are fully
+      dedicated to separating 30 / 60 / 90 days from each other.
     """
 
-    def __init__(self, stage1_estimator, stage2_estimator):
+    @staticmethod
+    def _to_named_df(X, reference_names=None):
+        """
+        Convert X to a DataFrame with all-string column names.
+
+        When X arrives as a numpy array (e.g. after np.asarray() or boolean
+        masking), column indices are integers.  LDATransformer appends string
+        columns (LD1, LD2 …) which produces a mixed int/str column set that
+        sklearn estimators reject with a TypeError.
+
+        This helper guarantees all column names are strings before the data
+        enters LDATransformer, and is the single point where that conversion
+        is enforced for both fit() and fit_with_masks().
+
+        Parameters
+        ----------
+        X : array-like or pd.DataFrame
+        reference_names : list of str or None
+            If provided, use these as column names (e.g. from a previously
+            fitted LDATransformer.feature_names_in_).  Otherwise names are
+            generated as "f0", "f1", … from the column count.
+
+        Returns
+        -------
+        pd.DataFrame with dtype float64 and all-string column names.
+        """
+        if isinstance(X, pd.DataFrame):
+            X = X.copy()
+            X.columns = X.columns.astype(str)
+            return X.astype(float)
+
+        # numpy array — build column names
+        n_cols = X.shape[1]
+        if reference_names is not None and len(reference_names) == n_cols:
+            cols = [str(c) for c in reference_names]
+        else:
+            cols = [f"f{i}" for i in range(n_cols)]
+        return pd.DataFrame(X, columns=cols, dtype=float)
+
+    def __init__(self, stage1_estimator, stage2_estimator, use_lda: bool = False,
+                 lda_mode: str = "append"):
         self.stage1_estimator = stage1_estimator
         self.stage2_estimator = stage2_estimator
+        self.use_lda          = use_lda
+        self.lda_mode         = lda_mode
 
     def fit(self, X, y):
         """
         Fit both stages on their respective training populations.
 
         Stage 1 is trained on the full (X, y) with y binarised to
-        on_time=0 vs late=1. Stage 2 is trained only on the rows where
+        on_time=0 vs late=1.  Stage 2 is trained only on the rows where
         y > 0, preserving the original late-class labels (1, 2, 3).
 
-        Both stages receive the full feature matrix. To train each stage
-        on its own selected feature subset, call ``fit_with_masks`` instead,
-        which is invoked automatically by ``TwoStagePipeline`` when
+        When ``use_lda=True``, a dedicated ``LDATransformer`` is fitted on the
+        delinquent subset *before* Stage 2's estimator sees the data.  This
+        transformer (``stage2_lda_``) is stored and applied automatically at
+        inference time in ``predict_proba``.  It is independent of any upstream
+        LDA applied to the full dataset — its components are optimised solely
+        for separating 30/60/90-day classes without on_time noise.
+
+        Both stages receive the full feature matrix by default.  To train each
+        stage on its own selected feature subset, call ``fit_with_masks``
+        instead, which is invoked automatically by ``TwoStagePipeline`` when
         ``use_feature_selection=True``.
 
         Parameters
@@ -92,19 +161,38 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         """
         y = np.asarray(y)
 
-        # Stage 1 — full dataset, binary target
+        # ── Stage 1 — full dataset, binary target ─────────────────────────────
+        # y is binarised: on_time=0, any late class=1.
         y_binary = (y > 0).astype(int)
         self.stage1_estimator_ = clone(self.stage1_estimator)
         self.stage1_estimator_.fit(X, y_binary)
 
-        # Stage 2 — late invoices only.
-        # Labels are remapped {1,2,3} -> {0,1,2} because XGBoost and sklearn
-        # require contiguous zero-based class indices.  We record the offset (1)
-        # in self.stage2_offset_ so that predict_proba can add it back when
-        # indexing into the 4-class output array.
+        # ── Stage 2 — late invoices only ──────────────────────────────────────
+        # Only rows where y > 0 (30/60/90-day) are used.  Labels are remapped
+        # {1,2,3} → {0,1,2} because XGBoost and sklearn require contiguous
+        # zero-based class indices.  stage2_offset_=1 is stored so that
+        # predict_proba can add it back when writing into the 4-class output.
         late_mask = y > 0
         X_late    = X[late_mask]
-        y_late    = y[late_mask] - 1  # remap {1,2,3} -> {0,1,2}
+        y_late    = y[late_mask] - 1  # remap {1,2,3} → {0,1,2}
+
+        # Optional delinquent-only LDA.
+        # Fitted here on (X_late, y_late) so it sees the same population that
+        # Stage 2's estimator trains on.  n_classes_ is inferred as 3 from
+        # y_late, giving 2 discriminant components (LD1/LD2) that are fully
+        # dedicated to the 30 vs 60 vs 90-day boundary.
+        if self.use_lda:
+            # Ensure all column names are strings before LDA appends LD1/LD2.
+            # np.asarray() earlier strips column names, leaving integer indices
+            # that mix with the new string LD columns and cause a TypeError in
+            # sklearn estimators.
+            X_late_df = self._to_named_df(X_late)
+            self.stage2_lda_ = LDATransformer(mode=self.lda_mode, verbose=False)
+            # fit_transform returns a DataFrame; convert to numpy so the
+            # downstream estimator receives a consistent array type.
+            X_late = self.stage2_lda_.fit_transform(X_late_df, y_late).to_numpy()
+        else:
+            self.stage2_lda_ = None
 
         self.stage2_estimator_ = clone(self.stage2_estimator)
         self.stage2_estimator_.fit(X_late, y_late)
@@ -120,9 +208,9 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         Fit both stages using their own independent feature subsets.
 
         Called by ``TwoStagePipeline`` when ``use_feature_selection=True``
-        after the initial full fit has been used to derive per-stage
-        importance masks. Each stage is refitted on only the features that
-        are informative for its specific decision boundary:
+        after the initial full fit has been used to derive per-stage importance
+        masks.  Each stage is refitted on only the features that are informative
+        for its specific decision boundary:
 
         - Stage 1 uses ``mask1``, derived from Stage 1's own
           ``feature_importances_`` on the binary on_time vs late problem.
@@ -132,8 +220,15 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
           ``feature_importances_`` on the late-only multiclass problem.
           DTP history features (dtp_avg, dtp_1) dominate.
 
-        ``predict_proba`` automatically applies the stored masks at inference
-        time so the correct feature columns are passed to each stage.
+        When ``use_lda=True``, the delinquent-only LDA is re-fitted on the
+        masked feature subset ``X[late_mask][:, mask2]`` — not on the full
+        feature matrix — so the discriminant axes reflect the same reduced
+        feature space that Stage 2's estimator trains on.  ``stage2_lda_`` is
+        updated in-place and ``predict_proba`` applies the new transformer
+        automatically.
+
+        ``predict_proba`` automatically applies the stored masks (and the LDA
+        transformer when present) at inference time.
 
         Parameters
         ----------
@@ -145,7 +240,7 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         mask1 : np.ndarray of bool, shape (n_features,)
             Boolean mask selecting features for Stage 1.
         mask2 : np.ndarray of bool, shape (n_features,)
-            Boolean mask selecting features for Stage 2.
+            Boolean mask selecting features for Stage 2 (applied before LDA).
 
         Returns
         -------
@@ -157,14 +252,32 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         y_binary  = (y > 0).astype(int)
         late_mask = y > 0
 
+        # ── Stage 1 — masked feature subset, binary target ────────────────────
         self.stage1_estimator_ = clone(self.stage1_estimator)
         self.stage1_estimator_.fit(X[:, mask1], y_binary)
 
+        # ── Stage 2 — masked late-invoice subset ──────────────────────────────
+        # Apply mask2 first to get the feature-selected late subset, then
+        # optionally project through the delinquent-only LDA before fitting.
+        # Remap {1,2,3} → {0,1,2} to satisfy zero-based class index requirement.
+        X_late_masked = X[late_mask][:, mask2]
+        y_late        = y[late_mask] - 1  # remap {1,2,3} → {0,1,2}
+
+        if self.use_lda:
+            # Re-fit LDA on the masked subset so its axes reflect the reduced
+            # feature space.  Convert to a named DataFrame first (same reason
+            # as in fit() — boolean masking of a numpy array leaves integer
+            # column indices that conflict with the string LD columns).
+            X_late_masked_df = self._to_named_df(X_late_masked)
+            self.stage2_lda_ = LDATransformer(mode=self.lda_mode, verbose=False)
+            X_late_masked = self.stage2_lda_.fit_transform(
+                X_late_masked_df, y_late
+            ).to_numpy()
+        else:
+            self.stage2_lda_ = None
+
         self.stage2_estimator_ = clone(self.stage2_estimator)
-        # Remap {1,2,3} -> {0,1,2} to satisfy XGBoost/sklearn zero-based requirement.
-        # stage2_offset_ is stored so predict_proba can add it back when writing
-        # into the correct columns of the 4-class output array.
-        self.stage2_estimator_.fit(X[late_mask][:, mask2], y[late_mask] - 1)
+        self.stage2_estimator_.fit(X_late_masked, y_late)
 
         self.classes_       = np.array([0, 1, 2, 3])
         self.stage2_offset_ = 1
@@ -189,11 +302,17 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         ``stage2_estimator_.classes_`` so that column order is robust to
         how the estimator internally sorts its class labels.
 
+        When ``use_lda=True``, the stored ``stage2_lda_`` transformer is applied
+        to X2 (after masking) before Stage 2's estimator produces probabilities.
+        The transformer was fitted on the same feature-selected delinquent
+        population at training time, so inference exactly mirrors training.
+
         Parameters
         ----------
         X : array-like of shape (n_samples, n_features)
-            Full feature matrix. Internal masking is applied automatically
-            when per-stage masks were set during ``fit_with_masks``.
+            Full feature matrix.  Internal masking is applied automatically
+            when per-stage masks were set during ``fit_with_masks``, and the
+            delinquent-only LDA is applied when ``use_lda=True``.
 
         Returns
         -------
@@ -203,9 +322,23 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         X = np.asarray(X)
         n = X.shape[0]
 
-        # Apply per-stage feature masks when set; fall back to full X otherwise
+        # ── Feature masking ───────────────────────────────────────────────────
+        # Apply per-stage feature masks when set by fit_with_masks;
+        # fall back to the full feature matrix when fit() was used without masks.
         X1 = X[:, self.mask1_] if self.mask1_ is not None else X
         X2 = X[:, self.mask2_] if self.mask2_ is not None else X
+
+        # ── Delinquent-only LDA (Stage 2 only) ───────────────────────────────
+        # If the classifier was trained with use_lda=True, project X2 through
+        # the stored delinquent-only transformer before Stage 2 scores it.
+        # This mirrors the transform applied to X_late during fit/fit_with_masks.
+        if self.stage2_lda_ is not None:
+            # Reconstruct a properly-named DataFrame using the column names
+            # recorded at fit time, then project through the stored LDA and
+            # convert back to numpy for the downstream estimator.
+            X2 = self.stage2_lda_.transform(
+                self._to_named_df(X2, self.stage2_lda_.feature_names_in_)
+            ).to_numpy()
 
         p_late           = self.stage1_estimator_.predict_proba(X1)[:, 1]
         p_given_late_raw = self.stage2_estimator_.predict_proba(X2)
@@ -285,6 +418,7 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         return (fi1 + fi2) / 2.0
 
 
+
 class TwoStagePipeline(BasePipeline):
     """
     Pipeline wrapper for two-stage payment delay classification.
@@ -323,6 +457,16 @@ class TwoStagePipeline(BasePipeline):
     stage2_estimator : sklearn-compatible classifier
         Unfitted estimator for Stage 2 (30_days / 60_days / 90_days,
         trained on late invoices only). Must expose ``predict_proba``.
+    use_lda : bool, default False
+        When True, a dedicated ``LDATransformer`` is fitted on the late-invoice
+        training rows (y > 0) and applied to Stage 2's input at both training
+        and inference time.  The transformer is independent of any upstream LDA
+        applied to the full dataset — its 2 discriminant components (LD1/LD2)
+        are optimised specifically for separating 30 / 60 / 90-day classes.
+    lda_mode : {"append", "replace"}, default "append"
+        Passed to the internal ``LDATransformer``.  "append" keeps all original
+        Stage 2 features and adds LD1/LD2; "replace" uses only LD1/LD2.
+        "append" is recommended for tree-based Stage 2 estimators.
 
     Examples
     --------
@@ -361,6 +505,8 @@ class TwoStagePipeline(BasePipeline):
         feature_names=None,
         stage1_estimator=None,
         stage2_estimator=None,
+        use_lda: bool = False,
+        lda_mode: str = "append",
     ):
         super().__init__(X_train, X_test, y_train, y_test, args, parameters, feature_names)
 
@@ -372,10 +518,20 @@ class TwoStagePipeline(BasePipeline):
 
         self._stage1_estimator = stage1_estimator
         self._stage2_estimator = stage2_estimator
+        # use_lda / lda_mode are forwarded to TwoStageClassifier.initialize_model()
+        # so the delinquent-only LDA is wired into Stage 2 before any fitting occurs.
+        self._use_lda  = use_lda
+        self._lda_mode = lda_mode
 
     def initialize_model(self):
         """
         Construct the ``TwoStageClassifier`` and assign it to ``self.model``.
+
+        Forwards ``use_lda`` and ``lda_mode`` to ``TwoStageClassifier`` so that
+        the delinquent-only LDA is configured before any fitting occurs.  When
+        ``use_lda=True``, ``TwoStageClassifier.fit()`` will fit a dedicated
+        ``LDATransformer`` on the late-invoice training rows and store it as
+        ``stage2_lda_`` for use at inference time in ``predict_proba``.
 
         Returns
         -------
@@ -384,6 +540,8 @@ class TwoStagePipeline(BasePipeline):
         self.model = TwoStageClassifier(
             stage1_estimator=self._stage1_estimator,
             stage2_estimator=self._stage2_estimator,
+            use_lda=self._use_lda,
+            lda_mode=self._lda_mode,
         )
         return self
 
@@ -441,32 +599,48 @@ class TwoStagePipeline(BasePipeline):
         self.model.fit(self.X_train, self.y_train)
 
         if use_feature_selection:
-            # Stage 1 selector — built from the binary on_time vs late importances.
-            # Financial-state features (opening_balance, payment_ratio) dominate.
+            n_original = self.X_train.shape[1]
+
+            # ── Stage 1 mask ──────────────────────────────────────────────────
+            # Stage 1 always trains on the original feature space, so its
+            # importance vector is always shape (n_original,).
             sel1  = SelectFromModel(
                 self.model.stage1_estimator_, threshold=threshold, prefit=True
             )
-            mask1 = sel1.get_support()
+            mask1 = sel1.get_support()   # shape: (n_original,)
 
-            # Stage 2 selector — built from the late-only multiclass importances.
-            # DTP history features (dtp_avg, dtp_1) dominate.
-            sel2  = SelectFromModel(
-                self.model.stage2_estimator_, threshold=threshold, prefit=True
-            )
-            mask2 = sel2.get_support()
+            # ── Stage 2 mask ──────────────────────────────────────────────────
+            # When use_lda=True, Stage 2's estimator trained on X_late after
+            # LDATransformer appended LD columns (mode="append").  Its
+            # feature_importances_ therefore has shape (n_original + n_ld,),
+            # which would make mask1 | mask2 fail with a shape mismatch.
+            #
+            # We do NOT use SelectFromModel here to avoid that dependency.
+            # Instead we replicate its threshold logic directly on the sliced
+            # importance array — this is exactly what SelectFromModel does
+            # internally for threshold="median" or a float value.
+            #
+            # The LD columns are excluded from selection because they are
+            # derived features: fit_with_masks re-derives them from the
+            # selected original columns via its own LDATransformer call.
+            fi2 = self.model.stage2_estimator_.feature_importances_[:n_original]
 
-            # Log the union mask — every feature used by either stage is recorded.
-            # This keeps _set_features consistent with BasePipeline expectations
-            # (one mask over the original feature space) while preserving the
-            # full picture of what each stage selected.
+            if threshold == "median":
+                thresh_val = np.median(fi2)
+            elif threshold == "mean":
+                thresh_val = np.mean(fi2)
+            else:
+                # Numeric threshold passed directly
+                thresh_val = float(threshold)
+
+            mask2 = fi2 >= thresh_val    # shape: (n_original,) — aligned with mask1
+
+            # ── Union & logging ───────────────────────────────────────────────
             union_mask = mask1 | mask2
 
-            # Capture importances against the union mask before refit.
-            # Use Stage 1 importances for logging since Stage 1 fires on every
-            # prediction; Stage 2 importances are available via
-            # self.model.stage2_estimator_.feature_importances_ if needed.
+            lda_suffix = " + Stage-2 delinquent LDA" if self._use_lda else ""
             self._set_features(
-                method_text       = "Two-stage independent feature selection",
+                method_text       = "Two-stage independent feature selection" + lda_suffix,
                 method_parameters = f"threshold={threshold!r}, "
                                     f"stage1_features={int(mask1.sum())}, "
                                     f"stage2_features={int(mask2.sum())}",
@@ -474,8 +648,9 @@ class TwoStagePipeline(BasePipeline):
                 importances       = self.model.stage1_estimator_.feature_importances_,
             )
 
-            # Retrain each stage on its own selected feature subset.
-            # predict_proba applies mask1_ / mask2_ automatically at inference.
+            # Retrain each stage on its own selected original-feature subset.
+            # fit_with_masks re-derives LD columns from the masked subset
+            # internally when use_lda=True — they are never part of the masks.
             self.model.fit_with_masks(self.X_train, self.y_train, mask1, mask2)
         else:
             self._set_features(method_text="none")

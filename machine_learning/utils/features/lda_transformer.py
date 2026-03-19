@@ -41,6 +41,16 @@ Inside DataPreparer (added as apply_lda())::
     preparer.apply_lda(mode="append")
     # preparer.X_train and preparer.X_test now have LD1/LD2/LD3 columns
 
+Inside TwoStageClassifier (automatic — no caller config needed)::
+
+    # Stage 1: fitted on all 4 classes → produces LD1/LD2/LD3 (3 components)
+    # Stage 2: fitted on delinquent rows only (y > 0, remapped to 0/1/2)
+    #          → produces LD1/LD2 (2 components), optimised for 30/60/90-day
+    #          separation without on_time noise
+    #
+    # The same LDATransformer class handles both because n_classes_ is inferred
+    # from y at fit() time rather than being hardcoded.
+
 Inside an sklearn Pipeline::
 
     from sklearn.pipeline import Pipeline
@@ -73,8 +83,10 @@ _LOG1P_FEATURES = [
     "amount_paid_cumsum",
 ]
 
-# Number of LDA classes in your target (determines max components = n_classes - 1)
-_N_CLASSES = 4   # on_time, 30_days, 60_days, 90_days
+# n_classes is intentionally NOT hardcoded here.  It is inferred from the
+# unique values of y inside fit() so that LDATransformer works correctly
+# for both the full 4-class problem AND the delinquent-only 3-class problem
+# used by TwoStageClassifier Stage 2, without any caller-side configuration.
 
 
 class LDATransformer(BaseEstimator, TransformerMixin):
@@ -110,6 +122,22 @@ class LDATransformer(BaseEstimator, TransformerMixin):
         Column names seen during fit (used to align transform input).
     log1p_cols_ : list of str
         Subset of log1p_cols that were actually present during fit.
+    n_classes_ : int
+        Number of unique class labels seen during fit.  Automatically inferred
+        from ``y`` so the transformer works for both the full 4-class problem
+        and the delinquent-only 3-class problem in ``TwoStageClassifier``.
+
+    Notes
+    -----
+    Because ``n_classes_`` is inferred at fit time, the same ``LDATransformer``
+    class is used for both stages of ``TwoStageClassifier`` without any
+    configuration change:
+
+    - **Stage 1 / full dataset** — ``y`` contains {0,1,2,3} → n_classes_=4,
+      max components=3, producing LD1/LD2/LD3.
+    - **Stage 2 / delinquent only** — ``y`` contains {0,1,2} (remapped) →
+      n_classes_=3, max components=2, producing LD1/LD2 that are optimised
+      *specifically* for separating 30/60/90-day classes without on_time noise.
     """
 
     def __init__(
@@ -162,6 +190,13 @@ class LDATransformer(BaseEstimator, TransformerMixin):
         Returns
         -------
         self
+
+        Notes
+        -----
+        ``n_classes_`` is set here by inspecting ``np.unique(y)``.  This means
+        the same class can be used for Stage 1 (4 classes → 3 components) and
+        Stage 2 of ``TwoStageClassifier`` (3 delinquent classes → 2 components)
+        without any configuration change from the caller.
         """
         X = self._to_float_df(X) if isinstance(X, pd.DataFrame) else pd.DataFrame(X)
         self.feature_names_in_ = list(X.columns)
@@ -169,7 +204,11 @@ class LDATransformer(BaseEstimator, TransformerMixin):
 
         X_proc = self._apply_log1p(X)
 
-        n_components = self.n_components or min(_N_CLASSES - 1, X_proc.shape[1])
+        # Infer n_classes from y so this transformer works for both the
+        # 4-class full-dataset problem and the 3-class delinquent-only
+        # problem used by TwoStageClassifier Stage 2.
+        self.n_classes_ = len(np.unique(y))
+        n_components    = self.n_components or min(self.n_classes_ - 1, X_proc.shape[1])
         self.ld_columns_ = [f"LD{i+1}" for i in range(n_components)]
 
         self.scaler_ = StandardScaler()
@@ -183,6 +222,9 @@ class LDATransformer(BaseEstimator, TransformerMixin):
         if self.verbose:
             evr = self.lda_.explained_variance_ratio_
             print("\n── LDATransformer fitted ──────────────────────────")
+            print(f"  n_classes : {self.n_classes_}  "
+                  f"({'4-class full' if self.n_classes_ == 4 else f'{self.n_classes_}-class delinquent'})")
+            print(f"  components: {n_components}")
             for i, v in enumerate(evr, 1):
                 bar = "█" * int(v * 35)
                 print(f"  LD{i}: {bar:<35}  {v*100:.1f}% sep. variance")
