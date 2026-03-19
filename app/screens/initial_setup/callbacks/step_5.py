@@ -155,6 +155,8 @@ def _train_selected_model(
     model_key, balance_strategy,
     args, best_surv_params,
     fitted_cph=None,
+    use_lda: bool = False,
+    lda_mode: str = "append",
 ):
     """
     Train the selected model on the full dataset for deployment.
@@ -162,6 +164,31 @@ def _train_selected_model(
     Delegates entirely to FinalizationRunner so that the pipeline-
     construction logic (estimator maps, two-stage/ordinal branching,
     full-data preparation) lives in one place: run_models_parallel.py.
+
+    Parameters
+    ----------
+    df_data : pd.DataFrame
+        Credit-sales dataset with survival columns dropped.
+    df_data_surv : pd.DataFrame
+        Full credit-sales dataset with survival columns present.
+    model_key : str
+        Model identifier, e.g. ``"two_stage_xgb_ada"``.
+    balance_strategy : str
+        Resampling strategy, e.g. ``"smote"``.
+    args : _FinalizationConfig
+        Configuration object with parameters_dir, target_feature, etc.
+    best_surv_params : dict
+        Best Cox hyperparameters from step 3.
+    fitted_cph : sksurv estimator or None
+        Pre-fitted Cox model.  Skips Cox refit when supplied.
+    use_lda : bool, default False
+        Whether to apply the 4-class LDA projection after survival feature
+        generation.  LDA is applied AFTER Cox so the Cox scaler never sees
+        the LD columns.  Stage-2 delinquent LDA (when model_key is a
+        two-stage variant) is handled inside TwoStageClassifier itself.
+    lda_mode : {"append", "replace"}, default "append"
+        Passed to LDATransformer.  "append" keeps original features and
+        adds LD1/LD2/LD3; "replace" uses only the LD columns.
     """
     from machine_learning.utils.training.run_models_parallel import FinalizationRunner
 
@@ -173,12 +200,16 @@ def _train_selected_model(
         args=args,
         best_surv_params=best_surv_params,
         fitted_cph=fitted_cph,
-        use_lda=True,
+        use_lda=use_lda,
+        lda_mode=lda_mode,
     )
-    pipeline, label_encoder = runner.train()
+    # runner.train() now returns (InferencePipeline, label_encoder).
+    # The InferencePipeline is the fully self-contained bundle that
+    # is pickled directly as the deployment artifact.
+    inference_bundle, label_encoder = runner.train()
 
     fin_progress_state["selected_done"] = True
-    return pipeline, label_encoder
+    return inference_bundle, label_encoder
  
 
 def _train_survival_model(df_data_surv, results_root: str) -> dict:
@@ -412,11 +443,18 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                 parameters=model_parameters,
             )
 
+            # use_lda is read from settings if present; defaults to False
+            # so existing deployments without the setting are unaffected.
+            use_lda  = settings.get("Training", {}).get("use_lda", False)
+            lda_mode = settings.get("Training", {}).get("lda_mode", "append")
+
             pipeline, label_encoder = _train_selected_model(
                 df_data, df_data_surv,
                 model_key, balance_strategy,
                 args, best_surv_params,
                 fitted_cph=fitted_cph,
+                use_lda=use_lda,
+                lda_mode=lda_mode,
             )
 
             import glob
@@ -432,18 +470,20 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                     except OSError as _e:
                         print(f"[finalization] Could not remove {_old_file}: {_e}")
 
+            # ── Save selected model ───────────────────────────────────────────
+            # pipeline is now an InferencePipeline — a single self-contained
+            # bundle that includes the StandardScaler, Cox model, LDA
+            # transformer (optional), the fitted classifier, and label encoder.
+            # The inference endpoint loads this one file and calls
+            # inf.predict(X_raw) with no caller-side preprocessing required.
             selected_model_path = os.path.join(deployed_models, f"finalized_{model_key}.pkl")
-            _save_pickle(
-                {
-                    "pipeline":      pipeline,
-                    "parameters":    model_parameters,
-                    "features":      pipeline.features,
-                    "label_encoder": label_encoder,
-                },
-                selected_model_path,
-            )
+            _save_pickle(pipeline, selected_model_path)
             fin_progress_state["selected_saved"] = True
 
+            # ── Save survival model separately ────────────────────────────────
+            # The Cox model is also embedded inside the InferencePipeline, but
+            # we keep a separate survival pickle for step_4 result inspection
+            # and for any tooling that reads survival results independently.
             survival_model_path = os.path.join(deployed_models, "finalized_survival_model.pkl")
             _save_pickle(
                 {

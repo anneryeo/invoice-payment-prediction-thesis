@@ -197,6 +197,21 @@ class SurvivalExperimentRunner:
     ):
         """
         Construct baseline and enhanced pipeline instances for a single experiment.
+
+        When ``self.use_lda=True`` and the model is a ``TwoStagePipeline``,
+        ``use_lda`` and ``lda_mode`` are forwarded so ``TwoStageClassifier``
+        fits a dedicated delinquent-only LDA inside Stage 2.  This is separate
+        from the upstream 4-class LDA applied in ``prepare_dataset``:
+
+        - **Upstream LDA** (``prepare_dataset``) — fitted on the full 4-class
+          training population.  Both baseline and enhanced X arrays already
+          contain the LD1/LD2/LD3 columns when they reach this method.
+        - **Stage 2 LDA** (inside ``TwoStageClassifier``) — fitted only on the
+          late-invoice rows (y > 0), producing 2 components (LD1/LD2) optimised
+          for separating 30 / 60 / 90-day classes without on_time noise.
+
+        For non-two-stage models the ``use_lda`` flag has no effect here because
+        the upstream LDA in ``prepare_dataset`` already handled projection.
         """
 
         if model_name in _ORDINAL_ESTIMATOR_MAP:
@@ -224,16 +239,24 @@ class SurvivalExperimentRunner:
             stage1_params = param["stage1"]
             stage2_params = param["stage2"]
 
+            # use_lda / lda_mode are forwarded so TwoStageClassifier can fit
+            # a dedicated delinquent-only LDA for Stage 2 when enabled.
+            # The upstream 4-class LDA (applied in prepare_dataset) is separate
+            # and independent — it operates on Stage 1's full-population input.
             pipeline_baseline = TwoStagePipeline(
                 X_train, X_test, y_train, y_test, self.args,
                 stage1_estimator=s1_cls(**stage1_params),
                 stage2_estimator=s2_cls(**stage2_params),
+                use_lda=self.use_lda,
+                lda_mode=self.lda_mode,
             )
 
             pipeline_enhanced = TwoStagePipeline(
                 X_surv_train, X_surv_test, y_train, y_test, self.args,
                 stage1_estimator=s1_cls(**stage1_params),
                 stage2_estimator=s2_cls(**stage2_params),
+                use_lda=self.use_lda,
+                lda_mode=self.lda_mode,
             )
 
         else:
@@ -559,28 +582,23 @@ class FinalizationRunner:
         }
 
         # ── 1. Full-dataset data preparation ─────────────────────────────────
-        # prep_full_data applies resampling to the entire dataset with no
-        # train/test split.  This maximises the training signal for the
-        # deployed model.
+        # Always use prep_full_data (no LDA) here so that X_full contains
+        # only the original feature columns.  LDA is applied in step 3,
+        # AFTER survival features are generated, for the same reason as in
+        # prepare_dataset(): the Cox scaler was fitted on the original columns
+        # and raises ValueError if it encounters LD1/LD2/LD3.
         preparer = DataPreparer(
             df_data=self.df_data,
             target_feature=self.args.target_feature,
             verbose=True,
         )
-
-        if self.use_lda:
-            preparer.prep_full_data_with_lda(
-                balance_strategy=self.balance_strategy,
-                lda_mode=self.lda_mode,
-                lda_verbose=True,
-            )
-        else:
-            preparer.prep_full_data(balance_strategy=self.balance_strategy)
+        preparer.prep_full_data(balance_strategy=self.balance_strategy)
 
         X_full = preparer.X_train
         y_full = preparer.y_train
 
         # ── 2. Survival feature generation ───────────────────────────────────
+        # Cox receives original-only features — no LD columns present yet.
         X_surv = self.df_data_surv.drop(
             columns=["days_elapsed_until_fully_paid", "censor"]
         )
@@ -600,6 +618,14 @@ class FinalizationRunner:
             fitted_cph=self.fitted_cph,   # reuse pre-fitted Cox when available
         )
 
+        # ── 2b. LDA projection (after survival features) ─────────────────────
+        # Applied here — not in step 1 — so Cox never sees LD columns.
+        # Mirrors the ordering in SurvivalExperimentRunner.prepare_dataset().
+        if self.use_lda:
+            from machine_learning.utils.features.lda_transformer import LDATransformer
+            lda = LDATransformer(mode=self.lda_mode, verbose=True)
+            X_enhanced = lda.fit_transform(X_enhanced, y_full)
+
         # ── 3. Pipeline construction ─────────────────────────────────────────
         # Mirrors SurvivalExperimentRunner._build_pipelines exactly,
         # adapted for the single-pipeline / full-dataset context.
@@ -612,12 +638,16 @@ class FinalizationRunner:
                     f"and 'stage2' dicts. Got keys: {list(model_params)}"
                 )
             s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[self.model_key]
+            # use_lda / lda_mode forwarded so the deployed model's Stage 2
+            # uses the same delinquent-only LDA as during experimentation.
             pipeline = TwoStagePipeline(
                 X_enhanced, X_enhanced,
                 y_full, y_full,
                 self.args,
                 stage1_estimator=s1_cls(**model_params["stage1"]),
                 stage2_estimator=s2_cls(**model_params["stage2"]),
+                use_lda=self.use_lda,
+                lda_mode=self.lda_mode,
             )
 
         elif self.model_key in _ORDINAL_ESTIMATOR_MAP:
@@ -647,4 +677,23 @@ class FinalizationRunner:
         pipeline.initialize_model()
         pipeline.fit(use_feature_selection=True)
 
-        return pipeline, preparer.label_encoder
+        # ── 5. Bundle into InferencePipeline ─────────────────────────────────
+        # Wrap the fitted classifier together with every preprocessing
+        # artifact so that the deployed pickle is fully self-contained.
+        # The inference endpoint loads one file and calls inf.predict(X_raw)
+        # with no caller-side preprocessing required.
+        from machine_learning.utils.inference.inference_pipeline import InferencePipeline
+
+        inference_bundle = InferencePipeline(
+            scaler              = preparer.scaler_,
+            cox_model           = self.fitted_cph,
+            time_points         = self.args.time_points,
+            classifier_pipeline = pipeline,
+            label_encoder       = preparer.label_encoder,
+            lda_transformer     = lda if self.use_lda else None,
+            model_key           = self.model_key,
+            features            = pipeline.features,
+            parameters          = getattr(self.args, "parameters", {}),
+        )
+
+        return inference_bundle, preparer.label_encoder
