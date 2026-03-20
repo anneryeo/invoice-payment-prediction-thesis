@@ -6,6 +6,34 @@
 # via the "step4-data-loaded" store callback — not at import time.
 MODELS: dict = {}
 
+# Active ResultsRepository for the currently loaded session.
+# Set alongside MODELS so that chart callbacks can hydrate on demand.
+# Typed as Any to avoid a hard import of ResultsRepository at module level.
+_ACTIVE_REPO = None
+
+
+def set_active_repo(repo) -> None:
+    """
+    Store the ResultsRepository for the current session so that
+    update_charts can call repo.hydrate_model_charts() on demand.
+
+    Call this once, right after MODELS is populated with the same db_path
+    that was passed to load_models_from_results().
+    """
+    global _ACTIVE_REPO
+    _ACTIVE_REPO = repo
+
+
+def get_active_repo():
+    """
+    Return the active ResultsRepository, or None when not yet set.
+
+    Always call this function rather than importing _ACTIVE_REPO directly.
+    A direct ``from constants import _ACTIVE_REPO`` binds to None at import
+    time and never reflects the later set_active_repo() assignment.
+    """
+    return _ACTIVE_REPO
+
 # Maps string class index → human-readable label.
 # e.g. {"0": "30 Days", "1": "60 Days", "2": "90 Days", "3": "On Time"}
 # Populated at runtime from session["class_mappings"] via set_class_labels().

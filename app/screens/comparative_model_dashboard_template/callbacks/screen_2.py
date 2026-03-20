@@ -1,17 +1,12 @@
 from dash import Input, Output, State, no_update
 
 from app import dash_app
-from ..constants import MODELS, set_class_labels
-from ..utils.data_loaders import load_models_from_results
-from utils.data_loaders.read_settings_json import read_settings_json
-from machine_learning.utils.io.load_results_from_folder import SessionStore
+from app.screens.comparative_model_dashboard_template.constants import MODELS
+from app.screens.comparative_model_dashboard_template.utils.session_loader import (
+    activate_session,
+    get_store,
+)
 
-
-# ── Session store ─────────────────────────────────────────────────────────────
-_store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
-
-
-# ── Callbacks ─────────────────────────────────────────────────────────────────
 
 @dash_app.callback(
     Output("session-selector-dropdown", "options"),
@@ -25,7 +20,7 @@ def populate_session_dropdown(n_intervals):
     Fills the session dropdown and pre-selects the most recent session
     so the dashboard is never blank on arrival.
     """
-    dirs = _store.list()
+    dirs = get_store().list()
     if not dirs:
         return [], None
     options = [{"label": d, "value": d} for d in dirs]
@@ -45,21 +40,10 @@ def load_selected_session(selected_folder):
     """
     if not selected_folder:
         return no_update
-
     try:
-        db_path = _store.path(selected_folder)
-    except FileNotFoundError as exc:
-        print(f"[screen2] {exc}")
-        return no_update
-
-    try:
-        session = _store.load(selected_folder)
-        MODELS.clear()
-        MODELS.update(load_models_from_results(db_path))
-        set_class_labels(session["class_mappings"])
-        print(f"[screen2] Loaded {len(MODELS)} models from {db_path}")
+        n = activate_session(selected_folder, clear_first=True)
+        print(f"[screen2] Loaded {n} models from session {selected_folder!r}")
     except Exception as exc:
-        print(f"[screen2] WARNING – could not load {db_path}: {exc}")
+        print(f"[screen2] WARNING – could not load session {selected_folder!r}: {exc}")
         MODELS.clear()
-
     return True
