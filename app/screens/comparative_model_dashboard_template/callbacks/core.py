@@ -18,7 +18,7 @@ from app.screens.comparative_model_dashboard_template.utils.chart_builders impor
 )
 from app.screens.comparative_model_dashboard_template.constants import (
     MODELS, METRICS, METRIC_LABELS, MODEL_LABELS,
-    _model_display, _strategy_display, set_class_labels,
+    _model_display, _strategy_display, set_class_labels, get_active_repo,
 )
 
 
@@ -752,6 +752,25 @@ def update_charts(current_step, model_key, result_type, comp_mode, _loaded, posi
                                               comp_mode or COMP_MODE_DEFAULT)
     if not chart_key or chart_key not in MODELS:
         chart_key, chart_rt = model_key, result_type
+
+    # ── Lazy chart hydration ──────────────────────────────────────────────────
+    # Charts are stored as None placeholders in MODELS until first access.
+    # Hydrate only the keys that are actually needed for this render.
+    # Subsequent renders of the same key are free — hydration mutates MODELS
+    # in-place so the data is already there on the next call.
+    repo = get_active_repo()
+    if repo is not None:
+        for key_to_hydrate in {chart_key, model_key}:
+            if key_to_hydrate not in MODELS:
+                continue
+            entry = MODELS[key_to_hydrate]
+            # Check both phases — a None roc_curve on either side means unhydrated.
+            needs_hydration = any(
+                entry[phase]["evaluation"]["charts"].get("roc_curve") is None
+                for phase in ("baseline", "enhanced")
+            )
+            if needs_hydration:
+                repo.hydrate_model_charts(entry)
 
     # Build a descriptive label: show chart model name + which side is displayed
     comp_mode     = comp_mode or COMP_MODE_DEFAULT

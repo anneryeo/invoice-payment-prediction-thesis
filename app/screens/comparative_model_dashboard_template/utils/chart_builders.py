@@ -8,7 +8,7 @@ from app.screens.comparative_model_dashboard_template.constants import (
     MODELS, METRICS, CHART_COLORS,
     _class_label, CLASS_LABELS,
 )
-from app.screens.comparative_model_dashboard_template.utils.data_loaders import json_deserialize
+from machine_learning.utils.io.data_loaders import json_deserialize
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -301,7 +301,7 @@ def build_features_figure(model_key: str, result_type: str,
     features = MODELS[model_key][result_type].get("features", [])
 
     # Use real weights if available, otherwise fall back to rank-based estimates
-    raw_weights = MODELS[model_key][result_type]["evaluation"]["charts"].get("feature_weights")
+    raw_weights = MODELS[model_key][result_type].get("weights")
     if raw_weights and isinstance(raw_weights, (list, dict)):
         if isinstance(raw_weights, dict):
             importance = [float(raw_weights.get(f, 0)) for f in features]
