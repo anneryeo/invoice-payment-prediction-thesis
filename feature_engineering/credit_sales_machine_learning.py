@@ -1279,7 +1279,9 @@ class InvoicePostProcessor:
             print(f"Dropped {before - len(df)} fully paid invoices. Remaining: {len(df)}")
 
         if self.drop_missing_dtp:
+            before = len(df)
             df = df.dropna(subset=['dtp_1', 'dtp_2', 'dtp_3', 'dtp_4'])
+            print(f"Dropped {before - len(df)} invoices with missing DTP values. Remaining: {len(df)}")
 
         return df
 
@@ -1548,10 +1550,3 @@ class CreditSalesProcessor:
     def show_data(self) -> pd.DataFrame:
         """Return the fully processed DataFrame."""
         return self.df_cs
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# Backwards-compatibility alias
-# ─────────────────────────────────────────────────────────────────────────────
-
-CreditSales = CreditSalesProcessor
