@@ -941,6 +941,18 @@ def export_csv(n, sort_metric, result_type, sort_result_type,
         return no_update
 
     comp_mode = comp_mode or COMP_MODE_DEFAULT
+
+    # Hydrate features/weights for every model before building the CSV.
+    # load_models_dict() always initialises features=[] and weights=None as
+    # placeholders; the real data only lands after hydrate_model_charts() is
+    # called — which normally only happens when a user opens a model's charts.
+    # We do a bulk hydration here so every row in the export is complete.
+    repo = get_active_repo()
+    if repo is not None:
+        for entry in MODELS.values():
+            if not entry.get("enhanced", {}).get("features"):
+                repo.hydrate_model_charts(entry)
+
     rows      = _get_all_rows(sort_metric, result_type, sort_result_type or "enhanced",
                               model_filter, strategy_filter, comp_mode)
 
@@ -948,11 +960,42 @@ def export_csv(n, sort_metric, result_type, sort_result_type,
     records = []
     for r in rows:
         rec = {"Model": r["name"], "Strategy": r["strategy"]}
+
+        # ── metric columns ────────────────────────────────────────────────────
         for met in METRICS:
             lv = r.get(f"left_{met}")
             rv = r.get(f"right_{met}")
             rec[f"{left_lbl} {METRIC_LABELS[met]}"]  = round(lv, 4) if lv is not None else ""
             rec[f"{right_lbl} {METRIC_LABELS[met]}"] = round(rv, 4) if rv is not None else "N/A"
+
+        # ── model parameters ──────────────────────────────────────────────────
+        m_data = MODELS.get(r["key"], {})
+        params = m_data.get("parameters", {})
+        rec["Parameters"] = json.dumps(params, sort_keys=True) if params else ""
+
+        # ── feature weights ───────────────────────────────────────────────────
+        # Mirrors build_features_figure: features & weights live inside the
+        # pipeline sub-dict at MODELS[key][result_type]["features"] /
+        # MODELS[key][result_type]["weights"].
+        pipeline    = m_data.get(result_type) or m_data.get("enhanced") or {}
+        features    = pipeline.get("features") or []
+        raw_weights = pipeline.get("weights")
+
+        if features and raw_weights:
+            if isinstance(raw_weights, dict):
+                weights = [raw_weights.get(f, 0.0) for f in features]
+            else:
+                weights = list(raw_weights)
+            rec["Feature Weights"] = ", ".join(
+                f"{name}:{round(float(w), 6)}"
+                for name, w in zip(features, weights)
+            )
+        elif features:
+            # weights not stored — export names only in ranked order
+            rec["Feature Weights"] = ", ".join(features)
+        else:
+            rec["Feature Weights"] = ""
+
         records.append(rec)
 
     return dcc.send_data_frame(
