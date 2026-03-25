@@ -44,9 +44,52 @@ class DataPreparer:
         self.y_train = None
         self.y_test  = None   # Optional — None when training on the full dataset
 
+        # Step-completion flags
+        self._labels_encoded  = False
+        self._data_split      = False   # True after train_test_split() OR use_full_dataset()
+        self._resampled       = False
+        self._lda_applied     = False
+        self._normalized      = False
+
     def _log(self, message):
         if self.verbose:
             print(message)
+
+    # ------------------------------------------------------------------
+    # Internal precondition helpers
+    # ------------------------------------------------------------------
+
+    def _require_labels_encoded(self, caller: str):
+        if not self._labels_encoded:
+            raise RuntimeError(
+                f"{caller}() requires labels to be encoded first. "
+                "Call encode_labels() before this step."
+            )
+
+    def _require_data_split(self, caller: str):
+        if not self._data_split:
+            raise RuntimeError(
+                f"{caller}() requires the data to be partitioned first. "
+                "Call train_test_split() or use_full_dataset() before this step."
+            )
+
+    def _require_resampled(self, caller: str):
+        if not self._resampled:
+            raise RuntimeError(
+                f"{caller}() requires resampling to be completed first. "
+                "Call resample() before this step."
+            )
+
+    def _require_lda_applied(self, caller: str):
+        if not self._lda_applied:
+            raise RuntimeError(
+                f"{caller}() requires LDA to be applied first. "
+                "Call apply_lda() before this step."
+            )
+
+    # ------------------------------------------------------------------
+    # Pipeline steps
+    # ------------------------------------------------------------------
 
     def encode_labels(self):
         """
@@ -76,11 +119,15 @@ class DataPreparer:
         self.label_encoder.fit(ORDINAL_ORDER)  # keeps decode_labels() functional
 
         self.class_mapping = {cat: i for i, cat in enumerate(ORDINAL_ORDER)}
+
+        self._labels_encoded = True
         return self
 
     def train_test_split(self):
         """
         Partition data into train/test sets based on due_date.
+
+        Must be called after encode_labels().
 
         Populates self.X_train, self.X_test, self.y_train,
         self.y_test, and self.cut_off_date.
@@ -89,7 +136,7 @@ class DataPreparer:
         -------
         self
         """
-        self._log("Partitioning datasets based on due_date...")
+        self._require_labels_encoded("train_test_split")
 
         X_train_raw, X_test_raw, y_train_raw, y_test_raw, self.cut_off_date = (
             data_partitioning_by_due_date(
@@ -112,11 +159,20 @@ class DataPreparer:
         self.y_train = y_train_raw
         self.y_test  = y_test_raw
 
+        self._log(
+            f"Partitioning datasets based on due_date "
+            f"(cut-off: {self.cut_off_date.date()} — "
+            f"train: due_date < cut-off, test: due_date >= cut-off)..."
+        )
+
+        self._data_split = True
         return self
 
     def use_full_dataset(self):
         """
         Skip train/test split and use the entire dataset for training.
+
+        Must be called after encode_labels().
 
         Selects only numeric columns and casts to float64 — the same
         dtype contract that train_test_split enforces — so that resample()
@@ -125,6 +181,7 @@ class DataPreparer:
         X_test / y_test are left as None; normalize() already guards
         against this.
         """
+        self._require_labels_encoded("use_full_dataset")
         self._log("Using full dataset for training (no split)...")
 
         X = self.df_data.drop(columns=[self.target_feature])
@@ -143,15 +200,19 @@ class DataPreparer:
         self.y_train = y
         # X_test / y_test intentionally left as None
 
+        self._data_split = True
         return self
 
     def resample(self, balance_strategy="smote", undersample_threshold=0.5):
         """
         Balance the training set using the specified resampling strategy.
 
+        Must be called after encode_labels() and train_test_split() (or
+        use_full_dataset()).
+
         Parameters
         ----------
-        strategy : str
+        balance_strategy : str
             One of: 'smote', 'borderline_smote', 'smote_enn',
             'smote_tomek', 'hybrid', or 'none'.
         undersample_threshold : float
@@ -161,6 +222,9 @@ class DataPreparer:
         -------
         self
         """
+        self._require_labels_encoded("resample")
+        self._require_data_split("resample")
+
         samplers = {
             "smote":            SMOTE(random_state=42),
             "borderline_smote": BorderlineSMOTE(random_state=42),
@@ -186,12 +250,16 @@ class DataPreparer:
             self.X_train = pd.DataFrame(X_res, columns=self.X_train.columns)
             self.y_train = pd.Series(y_res, name=self.target_feature)
 
+        self._resampled = True
         return self
 
     def normalize(self):
         """
         Fit StandardScaler on training data and transform both train and test
         sets.
+
+        Must be called after encode_labels(), train_test_split() (or
+        use_full_dataset()), and resample().
 
         The fitted scaler is stored as ``self.scaler_`` so that
         ``FinalizationRunner`` can pass it to ``InferencePipeline``.  At
@@ -202,6 +270,10 @@ class DataPreparer:
         Step 5), only X_train is normalized and X_test is left as None.
         """
         from sklearn.preprocessing import StandardScaler
+
+        self._require_labels_encoded("normalize")
+        self._require_data_split("normalize")
+        self._require_resampled("normalize")
 
         numeric_cols = self.X_train.select_dtypes(include=["float64", "int64"]).columns
 
@@ -217,6 +289,7 @@ class DataPreparer:
                 self.X_test[numeric_cols]
             )
 
+        self._normalized = True
         return self
 
     def apply_lda(self, mode: str = "append", n_components: int | None = None,
@@ -225,9 +298,8 @@ class DataPreparer:
         Fit an LDATransformer on the training set and project both train
         and test sets into LDA space.
 
-        Must be called AFTER encode_labels() and train_test_split() (or
-        use_full_dataset()), because LDA is a supervised transform that
-        requires labelled training data.
+        Must be called after encode_labels(), train_test_split() (or
+        use_full_dataset()), and resample() — and before normalize().
 
         Call order in a typical pipeline::
 
@@ -256,10 +328,16 @@ class DataPreparer:
         -------
         self
         """
-        if self.X_train is None or self.y_train is None:
+        self._require_labels_encoded("apply_lda")
+        self._require_data_split("apply_lda")
+        self._require_resampled("apply_lda")
+
+        if self._normalized:
             raise RuntimeError(
-                "apply_lda() requires X_train and y_train to be set. "
-                "Call train_test_split() or use_full_dataset() first."
+                "apply_lda() must be called before normalize(). "
+                "Double-scaling will corrupt features — reorder your pipeline: "
+                "encode_labels() → train_test_split()/use_full_dataset() "
+                "→ resample() → apply_lda() → normalize()."
             )
 
         self._log(f"Applying LDA (mode='{mode}')...")
@@ -282,7 +360,12 @@ class DataPreparer:
             f"LD columns: {self.lda_transformer.ld_columns_}"
         )
 
+        self._lda_applied = True
         return self
+
+    # ------------------------------------------------------------------
+    # Convenience pipeline methods
+    # ------------------------------------------------------------------
 
     def prep_data(self, balance_strategy="smote", undersample_threshold=0.5):
         """
@@ -407,5 +490,8 @@ class DataPreparer:
             Original class labels.
         """
         if self.label_encoder is None:
-            raise ValueError("Label encoder not initialized. Run encode_labels() first.")
+            raise ValueError(
+                "Label encoder not initialized. "
+                "Call encode_labels() before decode_labels()."
+            )
         return self.label_encoder.inverse_transform(y_encoded)
