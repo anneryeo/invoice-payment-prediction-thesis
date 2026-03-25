@@ -12,19 +12,24 @@
 #
 # CLI usage
 # ─────────
-#   python -m machine_learning.utils.io.migrate_db_schema Results/
-#   python -m machine_learning.utils.io.migrate_db_schema Results/2025_03_05_01
+#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "Results/"
+#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "Results/" --keep-db
+#   python -m machine_learning.utils.io.migrate_db_schema Results/2025_03_05_01/results.db
 #
 # Programmatic usage
 # ──────────────────
 #   from machine_learning.utils.io.migrate_db_schema import SchemaV1Migrator
 #
-#   # Migrate a single database file
+#   # Migrate a single database file (in-place)
 #   m = SchemaV1Migrator("Results/2025_03_05_01/results.db")
 #   m.run()
 #
-#   # Migrate every session folder under a results root
-#   SchemaV1Migrator.migrate_all("Results/")
+#   # Migrate every session folder from source into dest
+#   SchemaV1Migrator.migrate_all(
+#       "ignored",
+#       source_folder="Results - Backup",
+#       dest_folder="Results",
+#   )
 
 from __future__ import annotations
 
@@ -202,19 +207,29 @@ class SchemaV1Migrator:
     Parameters
     ----------
     db_path : str
-        Absolute or relative path to a ``results.db`` file.
+        Absolute or relative path to the **destination** ``results.db`` file
+        that will be migrated in-place.  When using :meth:`migrate_all` with
+        a ``dest_folder``, this is the copy inside the destination folder —
+        the original source file is never mutated.
+    keep_db : bool, default False
+        When ``True``, copy ``results.db`` to ``results.db.bak`` before
+        making any changes.
 
     Examples
     --------
-    Migrate one file::
+    Migrate one file in-place::
 
         m = SchemaV1Migrator("Results/2025_03_05_01/results.db")
         result = m.run()
         print(result)
 
-    Migrate every session under a results root::
+    Migrate every session from a backup folder into a fresh results folder::
 
-        results = SchemaV1Migrator.migrate_all("Results/")
+        results = SchemaV1Migrator.migrate_all(
+            "ignored",
+            source_folder="Results - Backup",
+            dest_folder="Results",
+        )
         for r in results:
             print(r)
     """
@@ -222,14 +237,18 @@ class SchemaV1Migrator:
     # Matches YYYY_MM_DD_## session folder names.
     _DATE_RE = re.compile(r"^\d{4}_\d{2}_\d{2}_\d{2}$")
 
-    def __init__(self, db_path: str) -> None:
+    def __init__(self, db_path: str, *, keep_db: bool = False) -> None:
         self.db_path = os.path.abspath(db_path)
+        self.keep_db = keep_db
 
     # ── Public entry points ───────────────────────────────────────────────────
 
     def run(self) -> MigrationResult:
         """
         Execute the migration for this database file.
+
+        When ``keep_db`` is ``True`` the original ``results.db`` is copied to
+        ``results.db.bak`` before any changes are made, preserving the v1 data.
 
         Returns a :class:`MigrationResult` describing the outcome.  Never
         raises — all exceptions are caught and stored in
@@ -243,6 +262,12 @@ class SchemaV1Migrator:
         if not self._is_v1():
             print(f"[migrate] SKIP  (already v2):     {self.db_path}")
             return MigrationResult(self.db_path, status="already_v2")
+
+        if self.keep_db:
+            import shutil
+            backup_path = self.db_path + ".bak"
+            shutil.copy2(self.db_path, backup_path)
+            print(f"[migrate] BACKUP created:          {backup_path}")
 
         print(f"[migrate] START migrating:         {self.db_path}")
         try:
@@ -259,64 +284,106 @@ class SchemaV1Migrator:
         results_root: str,
         *,
         dry_run: bool = False,
+        keep_db: bool = False,
+        source_folder: str | None = None,
+        dest_folder: str | None = None,
     ) -> list[MigrationResult]:
         """
-        Discover every dated session folder under *results_root* and migrate
-        each ``results.db`` found there.
+        Discover every dated session folder under *source_folder* and migrate
+        each ``results.db`` into the corresponding sub-folder of *dest_folder*.
 
         Parameters
         ----------
         results_root : str
-            Root directory that contains ``YYYY_MM_DD_##`` session folders.
+            Fallback root directory used when *source_folder* is not provided.
         dry_run : bool, default False
             When ``True``, print what *would* be migrated but make no changes.
+        keep_db : bool, default False
+            When ``True``, copy each ``results.db`` to ``results.db.bak``
+            before migrating so the original v1 data is preserved.
+        source_folder : str
+            Path to the original results folder containing ``YYYY_MM_DD_##``
+            session sub-folders (e.g. ``"Results - Backup"``).
+        dest_folder : str
+            Path to the destination results folder where migrated databases
+            will be written (e.g. ``"Results"``).  Session sub-folders are
+            mirrored from *source_folder* and created if they do not exist.
 
         Returns
         -------
         list[MigrationResult]
             One entry per session folder found, regardless of outcome.
         """
-        results_root = os.path.abspath(results_root)
-        if not os.path.isdir(results_root):
+        import shutil
+
+        # Resolve source (where we read session folders from).
+        effective_source = os.path.abspath(
+            source_folder if source_folder is not None else results_root
+        )
+        if not os.path.isdir(effective_source):
             raise FileNotFoundError(
-                f"Results root not found: {results_root!r}"
+                f"Source folder not found: {effective_source!r}"
             )
+
+        # Resolve destination (where migrated DBs are written).
+        effective_dest = (
+            os.path.abspath(dest_folder) if dest_folder is not None else None
+        )
+        if effective_dest is not None and not dry_run:
+            os.makedirs(effective_dest, exist_ok=True)
 
         session_dirs = sorted(
             [
-                d for d in os.listdir(results_root)
+                d for d in os.listdir(effective_source)
                 if cls._DATE_RE.match(d)
-                and os.path.isdir(os.path.join(results_root, d))
+                and os.path.isdir(os.path.join(effective_source, d))
             ],
             reverse=True,
         )
 
         if not session_dirs:
-            print(f"[migrate] No dated session folders found under {results_root!r}")
+            print(f"[migrate] No dated session folders found under {effective_source!r}")
             return []
 
         print(
             f"[migrate] Found {len(session_dirs)} session folder(s) under "
-            f"{results_root!r}"
+            f"{effective_source!r}"
         )
+        if effective_dest is not None:
+            print(f"[migrate] Destination folder: {effective_dest!r}")
 
         outcomes: list[MigrationResult] = []
         for folder in session_dirs:
-            db_path = os.path.join(results_root, folder, "results.db")
+            src_db = os.path.join(effective_source, folder, "results.db")
+
+            if effective_dest is not None:
+                # dest_db is the copy inside the destination — this is what
+                # gets migrated; the source file is never touched.
+                dest_session = os.path.join(effective_dest, folder)
+                dest_db = os.path.join(dest_session, "results.db")
+                if not dry_run and os.path.exists(src_db) and not os.path.exists(dest_db):
+                    os.makedirs(dest_session, exist_ok=True)
+                    shutil.copy2(src_db, dest_db)
+                    print(f"[migrate] COPIED source DB to:     {dest_db}")
+                migrate_db = dest_db
+            else:
+                # No dest_folder supplied — migrate in-place inside source.
+                migrate_db = src_db
+
             if dry_run:
-                exists = os.path.exists(db_path)
+                exists = os.path.exists(src_db)
                 print(
                     f"[migrate] DRY-RUN {'(would migrate)' if exists else '(no db)':20s}  "
-                    f"{db_path}"
+                    f"{migrate_db}"
                 )
                 outcomes.append(
                     MigrationResult(
-                        db_path,
+                        migrate_db,
                         status="migrated" if exists else "no_db",
                     )
                 )
             else:
-                outcomes.append(cls(db_path).run())
+                outcomes.append(cls(migrate_db, keep_db=keep_db).run())
 
         return outcomes
 
@@ -492,10 +559,19 @@ class SchemaV1Migrator:
         )
 
         raw_weights = row.get(f"{phase}_feature_weights")
-        weights = (
-            raw_weights if isinstance(raw_weights, (list, dict))
-            else (_json_deserialize(raw_weights) if raw_weights else None)
-        )
+        # Preserve raw weight values exactly — do NOT normalise or rescale.
+        # _json_deserialize has already been applied to every column in
+        # _read_v1, so raw_weights is already a Python list/dict/scalar or
+        # the original string if parsing failed.  Convert numpy arrays to
+        # plain Python lists so _to_json round-trips without precision loss.
+        if isinstance(raw_weights, np.ndarray):
+            weights = raw_weights.tolist()
+        elif isinstance(raw_weights, (list, dict)):
+            weights = raw_weights
+        elif raw_weights is not None and raw_weights != "":
+            weights = _json_deserialize(raw_weights)
+        else:
+            weights = None
 
         raw_fp = row.get(f"{phase}_feature_parameters")
         feat_params = (
@@ -537,10 +613,22 @@ def _cli() -> None:
         ),
     )
     parser.add_argument(
-        "path",
+        "source",
         help=(
-            "Path to a results root folder (e.g. Results/) to migrate all "
-            "session sub-folders, OR a direct path to a single results.db file."
+            'Path to the source results folder containing YYYY_MM_DD_## session '
+            'sub-folders (e.g. "Results - Backup/"), OR a direct path to a '
+            "single results.db file (migrated in-place, no dest needed)."
+        ),
+    )
+    parser.add_argument(
+        "dest",
+        nargs="?",
+        default=None,
+        help=(
+            'Path to the destination results folder where migrated databases '
+            'will be written (e.g. "Results/"). Session sub-folders are mirrored '
+            "from source and created if they do not exist. Required when source "
+            "is a folder; omit only when source is a single .db file."
         ),
     )
     parser.add_argument(
@@ -548,16 +636,37 @@ def _cli() -> None:
         action="store_true",
         help="Print what would be migrated without making any changes.",
     )
+    parser.add_argument(
+        "--keep-db",
+        action="store_true",
+        default=False,
+        help=(
+            "Preserve the original results.db by copying it to results.db.bak "
+            "before any changes are made. Has no effect on --dry-run."
+        ),
+    )
     args = parser.parse_args()
-    target = os.path.abspath(args.path)
+    source = os.path.abspath(args.source)
 
-    # Single .db file
-    if target.endswith(".db"):
-        result = SchemaV1Migrator(target).run()
+    # Single .db file — in-place migration, dest is not applicable.
+    if source.endswith(".db"):
+        result = SchemaV1Migrator(source, keep_db=args.keep_db).run()
         sys.exit(0 if result.error is None else 1)
 
-    # Results root folder
-    outcomes = SchemaV1Migrator.migrate_all(target, dry_run=args.dry_run)
+    # Folder migration — dest is required.
+    if args.dest is None:
+        parser.error(
+            "A destination folder is required when source is a results root.\n"
+            '  Example: migrate_db_schema "Results - Backup/" "Results/"'
+        )
+
+    outcomes = SchemaV1Migrator.migrate_all(
+        source,
+        dry_run=args.dry_run,
+        keep_db=args.keep_db,
+        source_folder=args.source,
+        dest_folder=args.dest,
+    )
     errors   = [r for r in outcomes if r.error is not None]
     migrated = [r for r in outcomes if r.status == "migrated" and r.error is None]
     skipped  = [r for r in outcomes if r.status in ("already_v2", "no_db")]
