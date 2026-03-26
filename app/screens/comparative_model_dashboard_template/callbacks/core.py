@@ -727,25 +727,71 @@ def toggle_features_filter(n, currently_top15):
 
 
 @dash_app.callback(
+    Output("features-stage-store", "data",     allow_duplicate=True),
+    Output("features-stage-btn",   "children", allow_duplicate=True),
+    Output("features-stage-btn",   "className", allow_duplicate=True),
+    Input("features-stage-btn",    "n_clicks"),
+    State("features-stage-store",  "data"),
+    prevent_initial_call=True,
+)
+def toggle_features_stage(n, current_stage):
+    """
+    Toggle the active stage for two-stage model feature importance views.
+
+    Cycles between "stage_1" (on_time vs late) and "stage_2" (30/60/90-day).
+    The chart-toolbar-btn-active class stays on whichever stage is displayed
+    so the button always looks selected — it acts as a label+switcher rather
+    than an on/off toggle.  The button is only visible when update_charts
+    detects nested weights.
+    """
+    if not n:
+        return no_update, no_update, no_update
+    new_stage = "stage_2" if current_stage == "stage_1" else "stage_1"
+    label = "▶ Stage 2" if new_stage == "stage_2" else "▶ Stage 1"
+    return new_stage, label, "chart-toolbar-btn chart-toolbar-btn-active"
+
+
+@dash_app.callback(
+    Output("features-stage-store", "data",      allow_duplicate=True),
+    Output("features-stage-btn",   "children",  allow_duplicate=True),
+    Output("features-stage-btn",   "className", allow_duplicate=True),
+    Input("selected-model-store",  "data"),
+    Input("result-type-store",     "data"),
+    prevent_initial_call=True,
+)
+def reset_features_stage(model_key, result_type):
+    """
+    Reset the stage selector back to Stage 1 whenever the user picks a
+    different model or flips the Baseline / Enhanced toggle.  This prevents
+    a stale "Stage 2" selection carrying over to a model that only has Stage 1
+    data, or showing the wrong stage after a result-type switch.
+    """
+    return "stage_1", "▶ Stage 1", "chart-toolbar-btn chart-toolbar-btn-active"
+
+
+@dash_app.callback(
     Output("chart-roc",           "figure"),
     Output("chart-pr",            "figure"),
     Output("chart-cm",            "figure"),
     Output("chart-features",      "figure"),
     Output("charts-model-label",  "children"),
     Output("features-card-title", "children"),
+    Output("features-stage-btn",  "style"),
     Input("current_step",             "data"),
     Input("selected-model-store",     "data"),
     Input("result-type-store",        "data"),
     Input("comp-mode-store",          "data"),
     Input("step4-data-loaded",        "data"),
     Input("features-positive-store",  "data"),
+    Input("features-stage-store",     "data"),
     prevent_initial_call=True,
 )
-def update_charts(current_step, model_key, result_type, comp_mode, _loaded, positives_only):
+def update_charts(current_step, model_key, result_type, comp_mode,
+                  _loaded, positives_only, stage):
     if not model_key or model_key not in MODELS:
         empty = go.Figure()
         empty.update_layout(**_base_layout(""))
-        return empty, empty, empty, empty, "", "Selected Features · Importance"
+        return empty, empty, empty, empty, "", "Selected Features · Importance", {"display": "none"}
 
     # Resolve which model and which data side to show based on comp mode + toggle
     chart_key, chart_rt = _resolve_chart_key(model_key, result_type,
@@ -785,13 +831,30 @@ def update_charts(current_step, model_key, result_type, comp_mode, _loaded, posi
     raw_method     = MODELS[chart_key][chart_rt].get("feature_method", "")
     features_title = f"Selected Features · {raw_method.upper() if raw_method else 'Importance'}"
 
+    # ── Stage toggle visibility ───────────────────────────────────────────────
+    # Show the Stage 1 / Stage 2 button only when the selected model stores
+    # nested per-stage weights {"stage_1": {...}, "stage_2": {...}}.
+    # All other models store a flat {feature: score} dict — button stays hidden.
+    raw_weights   = MODELS[chart_key][chart_rt].get("weights")
+    is_multistage = (
+        isinstance(raw_weights, dict)
+        and bool(raw_weights)
+        and all(isinstance(v, dict) for v in raw_weights.values())
+    )
+    stage_btn_style = {} if is_multistage else {"display": "none"}
+
     return (
         build_roc_figure(chart_key, chart_rt),
         build_pr_figure(chart_key, chart_rt),
         build_cm_figure(chart_key, chart_rt),
-        build_features_figure(chart_key, chart_rt, top15_only=bool(positives_only)),
+        build_features_figure(
+            chart_key, chart_rt,
+            top15_only=bool(positives_only),
+            stage=stage if is_multistage else None,
+        ),
         label,
         features_title,
+        stage_btn_style,
     )
 
 
@@ -981,7 +1044,23 @@ def export_csv(n, sort_metric, result_type, sort_result_type,
         features    = pipeline.get("features") or []
         raw_weights = pipeline.get("weights")
 
-        if features and raw_weights:
+        # Two-stage models store nested {"stage_1": {feat: score},
+        # "stage_2": {feat: score}} weights.  Export each stage as its own
+        # column so the CSV preserves the full per-stage information.
+        is_multistage = (
+            isinstance(raw_weights, dict)
+            and bool(raw_weights)
+            and all(isinstance(v, dict) for v in raw_weights.values())
+        )
+
+        if is_multistage:
+            for stage_name, stage_w in raw_weights.items():
+                label = stage_name.replace("_", " ").title()
+                rec[f"Feature Weights ({label})"] = ", ".join(
+                    f"{name}:{round(float(w), 6)}"
+                    for name, w in stage_w.items()
+                )
+        elif features and raw_weights:
             if isinstance(raw_weights, dict):
                 weights = [raw_weights.get(f, 0.0) for f in features]
             else:

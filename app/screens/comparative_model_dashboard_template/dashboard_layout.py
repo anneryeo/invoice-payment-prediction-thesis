@@ -138,7 +138,10 @@ def build_dashboard_layout(
         children=[
 
             # ── Comparison-mode store (local to this dashboard) ───────────────
-            dcc.Store(id="comp-mode-store", data="base_vs_enh"),
+            dcc.Store(id="comp-mode-store",    data="base_vs_enh"),
+            # Stage selector for two-stage models (local to this dashboard).
+            # Populated automatically; dashboard detects multi-stage weights.
+            dcc.Store(id="features-stage-store", data="stage_1"),
 
             session_selector,
             model_summary_modal,
@@ -308,6 +311,17 @@ def build_dashboard_layout(
                     html.Div(className="chart-card chart-card-features", children=[
                         html.Div(className="features-card-header", children=[
                             html.Span("Selected Features · Importance", id="features-card-title", className="features-card-title"),
+                            # Stage toggle — only visible for two-stage models.
+                            # Hidden by default; update_charts reveals it when
+                            # it detects nested {"stage_1": …, "stage_2": …} weights.
+                            html.Button(
+                                "▶ Stage 1",
+                                id="features-stage-btn",
+                                className="chart-toolbar-btn chart-toolbar-btn-active",
+                                title="Toggle between Stage 1 and Stage 2 feature importances",
+                                style={"display": "none"},
+                                n_clicks=0,
+                            ),
                             html.Button(
                                 "✦ Top 15",
                                 id="features-filter-btn",

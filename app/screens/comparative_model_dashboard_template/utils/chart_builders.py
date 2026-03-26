@@ -297,21 +297,40 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
 
 
 def build_features_figure(model_key: str, result_type: str,
-                           top15_only: bool = True) -> go.Figure:
-    features = MODELS[model_key][result_type].get("features", [])
-
-    # Use real weights if available, otherwise fall back to rank-based estimates
+                           top15_only: bool = True,
+                           stage: str | None = None) -> go.Figure:
     raw_weights = MODELS[model_key][result_type].get("weights")
-    if raw_weights and isinstance(raw_weights, (list, dict)):
-        if isinstance(raw_weights, dict):
-            importance = [float(raw_weights.get(f, 0)) for f in features]
-        else:
-            importance = [float(w) for w in raw_weights]
+
+    # ── Multi-stage detection ─────────────────────────────────────────────────
+    # TwoStagePipeline stores weights as {"stage_1": {feat: score, …},
+    # "stage_2": {feat: score, …}} so the dashboard can toggle between views.
+    # Any other model stores a flat {feat: score} dict.
+    is_multistage = (
+        isinstance(raw_weights, dict)
+        and bool(raw_weights)
+        and all(isinstance(v, dict) for v in raw_weights.values())
+    )
+
+    if is_multistage:
+        # Resolve which stage to show; default to "stage_1" if unspecified.
+        active_stage  = stage if stage in raw_weights else "stage_1"
+        stage_weights = raw_weights[active_stage]
+        features      = list(stage_weights.keys())
+        importance    = [float(v) for v in stage_weights.values()]
     else:
-        importance = sorted(
-            [round(1 - i * 0.1 + np.random.uniform(-0.03, 0.03), 3) for i in range(len(features))],
-            reverse=True,
-        )
+        features = MODELS[model_key][result_type].get("features", [])
+
+        # Use real weights if available, otherwise fall back to rank-based estimates
+        if raw_weights and isinstance(raw_weights, (list, dict)):
+            if isinstance(raw_weights, dict):
+                importance = [float(raw_weights.get(f, 0)) for f in features]
+            else:
+                importance = [float(w) for w in raw_weights]
+        else:
+            importance = sorted(
+                [round(1 - i * 0.1 + np.random.uniform(-0.03, 0.03), 3) for i in range(len(features))],
+                reverse=True,
+            )
 
     # Sort by absolute value descending so magnitude drives rank regardless of sign
     paired = sorted(zip(importance, features), key=lambda p: abs(p[0]), reverse=True)
