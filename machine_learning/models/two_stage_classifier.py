@@ -58,11 +58,14 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         when both base estimators expose ``feature_importances_``.
     stage2_lda_ : LDATransformer or None
         Fitted delinquent-only LDA transformer applied to Stage 2's training
-        and inference data.  ``None`` when ``use_lda=False``.  Fitted on the
-        late-invoice rows only (y > 0) so its components are optimised for
+        and inference data.  ``None`` when Stage 2 LDA is disabled.  Fitted on
+        the late-invoice rows only (y > 0) so its components are optimised for
         separating 30/60/90-day classes without on_time noise.  Uses
         ``mode="append"`` by default so Stage 2 retains all original features
         alongside the compressed LD1/LD2 signal.
+    stage1_lda_ : LDATransformer or None
+        Fitted full-dataset LDA transformer applied to Stage 1's training and
+        inference data.  ``None`` when Stage 1 LDA is disabled.
 
     Notes
     -----
@@ -70,15 +73,17 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
     set. If a class is absent (e.g. no 60_days invoices after filtering),
     Stage 2 will raise a ``ValueError`` from the underlying estimator.
 
-    When ``use_lda=True``, Stage 2 receives a dedicated ``LDATransformer``
-    fitted *only* on the delinquent population.  This is distinct from any
-    LDA applied upstream in ``run_models_parallel.py``, which is a 4-class
-    transformer fitted on the full dataset for Stage 1's benefit.  The two
-    transformers are independent and produce different discriminant axes:
+    ``use_lda`` accepts a single ``bool`` (applies to both stages) or a
+    two-element list ``[stage1_lda, stage2_lda]`` to enable LDA independently
+    per stage.  When Stage 1 LDA is enabled, a full-dataset binary LDA
+    (2 classes → 1 discriminant component) is fitted before Stage 1's estimator.
+    When Stage 2 LDA is enabled, a delinquent-only LDA (3 classes → 2
+    components) is fitted on the late-invoice subset before Stage 2's estimator.
+    The two transformers are independent and produce different discriminant axes:
 
-    - **Full-dataset LDA** (upstream, 4 classes) → LD1 mainly captures
-      on_time vs everyone else (≈97% of separation variance).
-    - **Delinquent-only LDA** (here, 3 classes) → LD1/LD2 are fully
+    - **Stage 1 LDA** (full dataset, 2 classes) → LD1 captures the on_time
+      vs late boundary.
+    - **Stage 2 LDA** (delinquent only, 3 classes) → LD1/LD2 are fully
       dedicated to separating 30 / 60 / 90 days from each other.
     """
 
@@ -121,12 +126,22 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
             cols = [f"f{i}" for i in range(n_cols)]
         return pd.DataFrame(X, columns=cols, dtype=float)
 
-    def __init__(self, stage1_estimator, stage2_estimator, use_lda: bool = False,
-                 lda_mode: str = "append"):
+    def __init__(self, stage1_estimator, stage2_estimator,
+                 use_lda=False, lda_mode: str = "append"):
         self.stage1_estimator = stage1_estimator
         self.stage2_estimator = stage2_estimator
         self.use_lda          = use_lda
         self.lda_mode         = lda_mode
+
+        # Normalise use_lda to per-stage booleans.
+        # Accepts: False/True (applies to both stages) or [bool, bool] / (bool, bool)
+        # where index 0 = Stage 1 and index 1 = Stage 2.
+        if isinstance(use_lda, (list, tuple)):
+            self.use_lda1_ = bool(use_lda[0])
+            self.use_lda2_ = bool(use_lda[1])
+        else:
+            self.use_lda1_ = bool(use_lda)
+            self.use_lda2_ = bool(use_lda)
 
     def fit(self, X, y):
         """
@@ -164,8 +179,17 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         # ── Stage 1 — full dataset, binary target ─────────────────────────────
         # y is binarised: on_time=0, any late class=1.
         y_binary = (y > 0).astype(int)
+
+        if self.use_lda1_:
+            X1_df = self._to_named_df(X)
+            self.stage1_lda_ = LDATransformer(mode=self.lda_mode, verbose=False)
+            X1 = self.stage1_lda_.fit_transform(X1_df, y_binary).to_numpy()
+        else:
+            self.stage1_lda_ = None
+            X1 = X
+
         self.stage1_estimator_ = clone(self.stage1_estimator)
-        self.stage1_estimator_.fit(X, y_binary)
+        self.stage1_estimator_.fit(X1, y_binary)
 
         # ── Stage 2 — late invoices only ──────────────────────────────────────
         # Only rows where y > 0 (30/60/90-day) are used.  Labels are remapped
@@ -176,12 +200,12 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         X_late    = X[late_mask]
         y_late    = y[late_mask] - 1  # remap {1,2,3} → {0,1,2}
 
-        # Optional delinquent-only LDA.
-        # Fitted here on (X_late, y_late) so it sees the same population that
+        # Optional delinquent-only LDA (Stage 2).
+        # Fitted on (X_late, y_late) so it sees the same population that
         # Stage 2's estimator trains on.  n_classes_ is inferred as 3 from
-        # y_late, giving 2 discriminant components (LD1/LD2) that are fully
-        # dedicated to the 30 vs 60 vs 90-day boundary.
-        if self.use_lda:
+        # y_late, giving 2 discriminant components (LD1/LD2) dedicated to
+        # the 30 vs 60 vs 90-day boundary.
+        if self.use_lda2_:
             # Ensure all column names are strings before LDA appends LD1/LD2.
             # np.asarray() earlier strips column names, leaving integer indices
             # that mix with the new string LD columns and cause a TypeError in
@@ -253,8 +277,16 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         late_mask = y > 0
 
         # ── Stage 1 — masked feature subset, binary target ────────────────────
+        if self.use_lda1_:
+            X1_df = self._to_named_df(X[:, mask1])
+            self.stage1_lda_ = LDATransformer(mode=self.lda_mode, verbose=False)
+            X1_masked = self.stage1_lda_.fit_transform(X1_df, y_binary).to_numpy()
+        else:
+            self.stage1_lda_ = None
+            X1_masked = X[:, mask1]
+
         self.stage1_estimator_ = clone(self.stage1_estimator)
-        self.stage1_estimator_.fit(X[:, mask1], y_binary)
+        self.stage1_estimator_.fit(X1_masked, y_binary)
 
         # ── Stage 2 — masked late-invoice subset ──────────────────────────────
         # Apply mask2 first to get the feature-selected late subset, then
@@ -263,7 +295,7 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         X_late_masked = X[late_mask][:, mask2]
         y_late        = y[late_mask] - 1  # remap {1,2,3} → {0,1,2}
 
-        if self.use_lda:
+        if self.use_lda2_:
             # Re-fit LDA on the masked subset so its axes reflect the reduced
             # feature space.  Convert to a named DataFrame first (same reason
             # as in fit() — boolean masking of a numpy array leaves integer
@@ -328,10 +360,14 @@ class TwoStageClassifier(BaseEstimator, ClassifierMixin):
         X1 = X[:, self.mask1_] if self.mask1_ is not None else X
         X2 = X[:, self.mask2_] if self.mask2_ is not None else X
 
-        # ── Delinquent-only LDA (Stage 2 only) ───────────────────────────────
-        # If the classifier was trained with use_lda=True, project X2 through
-        # the stored delinquent-only transformer before Stage 2 scores it.
-        # This mirrors the transform applied to X_late during fit/fit_with_masks.
+        # ── LDA projection (per stage) ────────────────────────────────────────
+        # Apply the stored LDA transformer for each stage when present.
+        # Mirrors the transform applied to the respective training population.
+        if self.stage1_lda_ is not None:
+            X1 = self.stage1_lda_.transform(
+                self._to_named_df(X1, self.stage1_lda_.feature_names_in_)
+            ).to_numpy()
+
         if self.stage2_lda_ is not None:
             # Reconstruct a properly-named DataFrame using the column names
             # recorded at fit time, then project through the stored LDA and
@@ -457,16 +493,17 @@ class TwoStagePipeline(BasePipeline):
     stage2_estimator : sklearn-compatible classifier
         Unfitted estimator for Stage 2 (30_days / 60_days / 90_days,
         trained on late invoices only). Must expose ``predict_proba``.
-    use_lda : bool, default False
-        When True, a dedicated ``LDATransformer`` is fitted on the late-invoice
-        training rows (y > 0) and applied to Stage 2's input at both training
-        and inference time.  The transformer is independent of any upstream LDA
-        applied to the full dataset — its 2 discriminant components (LD1/LD2)
-        are optimised specifically for separating 30 / 60 / 90-day classes.
+    use_lda : bool or list of bool, default False
+        Whether to apply an LDA transformer before each stage's estimator.
+        Pass a single ``bool`` to apply the same setting to both stages, or
+        a two-element list ``[stage1, stage2]`` to control each independently.
+        For example, ``[False, True]`` enables delinquent-only LDA for Stage 2
+        only (the original behaviour), while ``[True, True]`` applies LDA to
+        both stages.
     lda_mode : {"append", "replace"}, default "append"
-        Passed to the internal ``LDATransformer``.  "append" keeps all original
-        Stage 2 features and adds LD1/LD2; "replace" uses only LD1/LD2.
-        "append" is recommended for tree-based Stage 2 estimators.
+        Passed to all internal ``LDATransformer`` instances.  "append" keeps
+        all original features and adds LD columns; "replace" uses only the LD
+        columns.  "append" is recommended for tree-based estimators.
 
     Examples
     --------
@@ -505,7 +542,7 @@ class TwoStagePipeline(BasePipeline):
         feature_names=None,
         stage1_estimator=None,
         stage2_estimator=None,
-        use_lda: bool = False,
+        use_lda=False,
         lda_mode: str = "append",
     ):
         super().__init__(X_train, X_test, y_train, y_test, args, parameters, feature_names)
@@ -518,10 +555,17 @@ class TwoStagePipeline(BasePipeline):
 
         self._stage1_estimator = stage1_estimator
         self._stage2_estimator = stage2_estimator
-        # use_lda / lda_mode are forwarded to TwoStageClassifier.initialize_model()
-        # so the delinquent-only LDA is wired into Stage 2 before any fitting occurs.
-        self._use_lda  = use_lda
-        self._lda_mode = lda_mode
+        self._lda_mode         = lda_mode
+
+        # Normalise use_lda to per-stage booleans for internal use.
+        # Accepts: False/True (applies to both stages) or [bool, bool] / (bool, bool)
+        # where index 0 = Stage 1 and index 1 = Stage 2.
+        if isinstance(use_lda, (list, tuple)):
+            self._use_lda1 = bool(use_lda[0])
+            self._use_lda2 = bool(use_lda[1])
+        else:
+            self._use_lda1 = bool(use_lda)
+            self._use_lda2 = bool(use_lda)
 
     def initialize_model(self):
         """
@@ -540,7 +584,7 @@ class TwoStagePipeline(BasePipeline):
         self.model = TwoStageClassifier(
             stage1_estimator=self._stage1_estimator,
             stage2_estimator=self._stage2_estimator,
-            use_lda=self._use_lda,
+            use_lda=[self._use_lda1, self._use_lda2],
             lda_mode=self._lda_mode,
         )
         return self
@@ -552,11 +596,16 @@ class TwoStagePipeline(BasePipeline):
         Build per-stage boolean feature-selection masks from the importances
         of the already-fitted ``self.model``.
 
-        Stage 1's mask is derived via ``SelectFromModel`` on the binary
-        estimator's importances.  Stage 2's mask replicates SelectFromModel's
-        threshold logic directly on the sliced importance vector so that any
-        appended LDA columns are excluded before the shape is compared with
-        Stage 1's mask.
+        Stage 1's mask is derived via ``SelectFromModel`` when no Stage 1 LDA
+        is used.  When ``use_lda1=True``, the same threshold logic is replicated
+        directly on the sliced original-feature importances to avoid a shape
+        mismatch — ``lda_mode="append"`` causes ``stage1_estimator_`` to have
+        been trained on ``n_original + n_ld`` columns, which would make
+        ``SelectFromModel`` return a mask of the wrong length.
+
+        Stage 2's mask always replicates SelectFromModel's threshold logic
+        directly on the sliced importance vector so that any appended LDA
+        columns are excluded before the shape is compared with Stage 1's mask.
 
         When ``use_lda=True`` and ``lda_mode="replace"``, Stage 2's estimator
         was trained on LD columns only — its importances cannot be aligned with
@@ -580,14 +629,35 @@ class TwoStagePipeline(BasePipeline):
         """
         n_original = self.X_train.shape[1]
 
-        # Stage 1 — always trained on the full original feature space.
-        sel1  = SelectFromModel(
-            self.model.stage1_estimator_, threshold=threshold, prefit=True
-        )
-        mask1 = sel1.get_support()
+        # Stage 1 — derive mask from Stage 1's own importances.
+        # When use_lda1=True and lda_mode="append", stage1_estimator_ was trained
+        # on [n_original + n_ld] columns.  SelectFromModel would return a mask of
+        # that extended shape, misaligning with mask2.  We replicate its threshold
+        # logic on the sliced original-feature importances instead, mirroring the
+        # same approach used for Stage 2.
+        if self._use_lda1 and self._lda_mode == "replace":
+            # Stage 1 trained on LD columns only — select all original features
+            # and let fit_with_masks re-derive the LD columns internally.
+            mask1 = np.ones(n_original, dtype=bool)
+        elif self._use_lda1 and self._lda_mode == "append":
+            fi1 = self.model.stage1_estimator_.feature_importances_[:n_original]
+            if threshold == "median":
+                thresh_val = np.median(fi1)
+            elif threshold == "mean":
+                thresh_val = np.mean(fi1)
+            else:
+                thresh_val = float(threshold)
+            mask1 = fi1 >= thresh_val
+        else:
+            # No Stage 1 LDA — estimator trained on original features only;
+            # SelectFromModel is safe to use directly.
+            sel1  = SelectFromModel(
+                self.model.stage1_estimator_, threshold=threshold, prefit=True
+            )
+            mask1 = sel1.get_support()   # shape: (n_original,)
 
         # Stage 2 — skip SelectFromModel to avoid shape issues from LDA columns.
-        if self._use_lda and self._lda_mode == "replace":
+        if self._use_lda2 and self._lda_mode == "replace":
             mask2 = np.ones(n_original, dtype=bool)
         else:
             fi2 = self.model.stage2_estimator_.feature_importances_[:n_original]
@@ -621,7 +691,12 @@ class TwoStagePipeline(BasePipeline):
             parameters string for traceability.
         """
         union_mask = mask1 | mask2
-        lda_suffix = " + Stage-2 delinquent LDA" if self._use_lda else ""
+        lda_parts  = []
+        if self._use_lda1:
+            lda_parts.append("Stage-1 LDA")
+        if self._use_lda2:
+            lda_parts.append("Stage-2 delinquent LDA")
+        lda_suffix = (" + " + " + ".join(lda_parts)) if lda_parts else ""
         self._set_features(
             method_text       = "Two-stage independent feature selection" + lda_suffix,
             method_parameters = f"threshold={threshold!r}, "
@@ -670,14 +745,35 @@ class TwoStagePipeline(BasePipeline):
         if _names is None:
             return
 
-        n_original   = self.X_train.shape[1]
-        _lda_replace = self._use_lda and self._lda_mode == "replace"
+        n_original    = self.X_train.shape[1]
+        _lda1_replace = self._use_lda1 and self._lda_mode == "replace"
+        _lda2_replace = self._use_lda2 and self._lda_mode == "replace"
 
         if mask1 is not None and mask2 is not None:
             # ── Feature-selection path: estimators trained on masked subsets ──
-            # Stage 1: importances shape (mask1.sum(),) — pad to (n_original,).
-            fi1 = np.zeros(n_original)
-            fi1[mask1] = self.model.stage1_estimator_.feature_importances_
+
+            # Stage 1: importances shape (mask1.sum() [+ n_ld if lda_mode=append]).
+            # lda_mode="replace" → importances describe LD axes only; record those.
+            # lda_mode="append"  → first mask1.sum() entries are original features,
+            #                      remaining are LD columns.
+            # no LDA             → importances map 1-to-1 with mask1 features.
+            stage1_weights: dict = {}
+            fi1_full = self.model.stage1_estimator_.feature_importances_
+            lda1_    = self.model.stage1_lda_
+
+            if _lda1_replace:
+                n_ld     = len(fi1_full)
+                ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                stage1_weights = {ld: round(float(s), 6) for ld, s in zip(ld_names, fi1_full)}
+            else:
+                orig_names = [n for n, keep in zip(_names, mask1) if keep]
+                for name, score in zip(orig_names, fi1_full[:mask1.sum()]):
+                    stage1_weights[name] = round(float(score), 6)
+                if lda1_ is not None:
+                    n_ld     = len(fi1_full) - mask1.sum()
+                    ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                    for ld, score in zip(ld_names, fi1_full[mask1.sum():]):
+                        stage1_weights[ld] = round(float(score), 6)
 
             # Stage 2: build a {feature_name: importance} dict directly rather
             # than padding into a fixed-length array, because lda_mode="append"
@@ -693,68 +789,62 @@ class TwoStagePipeline(BasePipeline):
             stage2_weights: dict = {}
             if hasattr(self.model.stage2_estimator_, "feature_importances_"):
                 fi2_full = self.model.stage2_estimator_.feature_importances_
-                lda_     = self.model.stage2_lda_   # None when use_lda=False
+                lda2_    = self.model.stage2_lda_
 
-                if _lda_replace:
-                    # LD columns only — derive names as LD1, LD2, …
-                    n_ld = len(fi2_full)
+                if _lda2_replace:
+                    n_ld     = len(fi2_full)
                     ld_names = [f"LD{i+1}" for i in range(n_ld)]
-                    stage2_weights = {
-                        ld: round(float(s), 6)
-                        for ld, s in zip(ld_names, fi2_full)
-                    }
+                    stage2_weights = {ld: round(float(s), 6) for ld, s in zip(ld_names, fi2_full)}
                 else:
-                    # Original features (first mask2.sum() entries)
                     orig_names = [n for n, keep in zip(_names, mask2) if keep]
                     for name, score in zip(orig_names, fi2_full[:mask2.sum()]):
                         stage2_weights[name] = round(float(score), 6)
-
-                    # Appended LD columns (remaining entries, only when use_lda=True)
-                    if lda_ is not None:
+                    if lda2_ is not None:
                         n_ld     = len(fi2_full) - mask2.sum()
                         ld_names = [f"LD{i+1}" for i in range(n_ld)]
                         for ld, score in zip(ld_names, fi2_full[mask2.sum():]):
                             stage2_weights[ld] = round(float(score), 6)
 
-            self.features.weights = {
-                "stage_1": {
-                    n: round(float(s), 6)
-                    for n, s, keep in zip(_names, fi1, mask1) if keep
-                },
-                "stage_2": stage2_weights,
-            }
+            self.features.weights = {"stage_1": stage1_weights, "stage_2": stage2_weights}
+
         else:
             # ── No feature selection: estimators trained on full matrix ───────
-            fi1 = self.model.stage1_estimator_.feature_importances_
+            stage1_weights: dict = {}
+            fi1_full = self.model.stage1_estimator_.feature_importances_
+            lda1_    = self.model.stage1_lda_
+
+            if _lda1_replace:
+                n_ld     = len(fi1_full)
+                ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                stage1_weights = {ld: round(float(s), 6) for ld, s in zip(ld_names, fi1_full)}
+            else:
+                for name, score in zip(_names, fi1_full[:n_original]):
+                    stage1_weights[name] = round(float(score), 6)
+                if lda1_ is not None:
+                    n_ld     = len(fi1_full) - n_original
+                    ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                    for ld, score in zip(ld_names, fi1_full[n_original:]):
+                        stage1_weights[ld] = round(float(score), 6)
 
             stage2_weights: dict = {}
             if hasattr(self.model.stage2_estimator_, "feature_importances_"):
                 fi2_full = self.model.stage2_estimator_.feature_importances_
-                lda_     = self.model.stage2_lda_
+                lda2_    = self.model.stage2_lda_
 
-                if _lda_replace:
-                    # LD columns only
+                if _lda2_replace:
                     n_ld     = len(fi2_full)
                     ld_names = [f"LD{i+1}" for i in range(n_ld)]
-                    stage2_weights = {
-                        ld: round(float(s), 6)
-                        for ld, s in zip(ld_names, fi2_full)
-                    }
+                    stage2_weights = {ld: round(float(s), 6) for ld, s in zip(ld_names, fi2_full)}
                 else:
-                    # Original features
                     for name, score in zip(_names, fi2_full[:n_original]):
                         stage2_weights[name] = round(float(score), 6)
-                    # Appended LD columns
-                    if lda_ is not None:
+                    if lda2_ is not None:
                         n_ld     = len(fi2_full) - n_original
                         ld_names = [f"LD{i+1}" for i in range(n_ld)]
                         for ld, score in zip(ld_names, fi2_full[n_original:]):
                             stage2_weights[ld] = round(float(score), 6)
 
-            self.features.weights = {
-                "stage_1": {n: round(float(s), 6) for n, s in zip(_names, fi1)},
-                "stage_2": stage2_weights,
-            }
+            self.features.weights = {"stage_1": stage1_weights, "stage_2": stage2_weights}
 
     # ── Public API ────────────────────────────────────────────────────────────
 
