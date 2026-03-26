@@ -545,6 +545,219 @@ class TwoStagePipeline(BasePipeline):
         )
         return self
 
+    # ── Private helpers ───────────────────────────────────────────────────────
+
+    def _build_stage_masks(self, threshold):
+        """
+        Build per-stage boolean feature-selection masks from the importances
+        of the already-fitted ``self.model``.
+
+        Stage 1's mask is derived via ``SelectFromModel`` on the binary
+        estimator's importances.  Stage 2's mask replicates SelectFromModel's
+        threshold logic directly on the sliced importance vector so that any
+        appended LDA columns are excluded before the shape is compared with
+        Stage 1's mask.
+
+        When ``use_lda=True`` and ``lda_mode="replace"``, Stage 2's estimator
+        was trained on LD columns only — its importances cannot be aligned with
+        the original feature space — so all original features are selected for
+        Stage 2 (``mask2`` is all-True) and ``fit_with_masks`` re-derives the
+        LD columns internally.
+
+        Parameters
+        ----------
+        threshold : str or float
+            Importance threshold passed to ``SelectFromModel`` for Stage 1 and
+            replicated manually for Stage 2.  Accepts ``"median"``, ``"mean"``,
+            or a numeric value.
+
+        Returns
+        -------
+        mask1 : np.ndarray of bool, shape (n_original,)
+            Features selected for Stage 1.
+        mask2 : np.ndarray of bool, shape (n_original,)
+            Features selected for Stage 2.
+        """
+        n_original = self.X_train.shape[1]
+
+        # Stage 1 — always trained on the full original feature space.
+        sel1  = SelectFromModel(
+            self.model.stage1_estimator_, threshold=threshold, prefit=True
+        )
+        mask1 = sel1.get_support()
+
+        # Stage 2 — skip SelectFromModel to avoid shape issues from LDA columns.
+        if self._use_lda and self._lda_mode == "replace":
+            mask2 = np.ones(n_original, dtype=bool)
+        else:
+            fi2 = self.model.stage2_estimator_.feature_importances_[:n_original]
+            if threshold == "median":
+                thresh_val = np.median(fi2)
+            elif threshold == "mean":
+                thresh_val = np.mean(fi2)
+            else:
+                thresh_val = float(threshold)
+            mask2 = fi2 >= thresh_val
+
+        return mask1, mask2
+
+    def _log_feature_selection(self, mask1, mask2, threshold):
+        """
+        Record feature-selection metadata to ``self.features`` via
+        ``_set_features``.
+
+        Logs the **union** of both stage masks so the result row captures every
+        feature used by either stage.  Stage 1's full-fit importances are used
+        as the importance scores for the union because Stage 1 always trains on
+        the original feature space and provides a consistent n_original-length
+        importance vector.
+
+        Parameters
+        ----------
+        mask1 : np.ndarray of bool, shape (n_original,)
+        mask2 : np.ndarray of bool, shape (n_original,)
+        threshold : str or float
+            The threshold value used to build both masks; recorded in the
+            parameters string for traceability.
+        """
+        union_mask = mask1 | mask2
+        lda_suffix = " + Stage-2 delinquent LDA" if self._use_lda else ""
+        self._set_features(
+            method_text       = "Two-stage independent feature selection" + lda_suffix,
+            method_parameters = f"threshold={threshold!r}, "
+                                f"stage1_features={int(mask1.sum())}, "
+                                f"stage2_features={int(mask2.sum())}",
+            mask              = union_mask,
+            importances       = self.model.stage1_estimator_.feature_importances_,
+        )
+
+    def _write_per_stage_weights(self, mask1=None, mask2=None):
+        """
+        Overwrite ``self.features.weights`` with a nested dict
+        ``{"stage_1": {feat: score, …}, "stage_2": {feat: score, …}}``
+        so ``FeatureInfo.__repr__`` renders both stage blocks.
+
+        Must be called **after** the final ``fit`` or ``fit_with_masks`` call
+        so the importances reflect the estimators that will actually be used at
+        inference time.
+
+        When ``use_feature_selection=True`` (``mask1``/``mask2`` provided):
+            Each estimator was re-fitted on its own masked feature subset, so
+            its ``feature_importances_`` has shape ``(mask.sum(),)``.  The
+            scores are padded back to the full original feature space before
+            keying into the dict, keeping only the selected entries.
+
+        When ``use_feature_selection=False`` (masks are ``None``):
+            Both estimators were fitted on the full feature matrix, so their
+            importances already have shape ``(n_original,)``.  No padding is
+            needed.
+
+        When ``lda_mode="replace"``, Stage 2's estimator was trained on LD
+        columns only.  Its ``feature_importances_`` describes LD axes, not
+        original features, so Stage 2 scores are set to zero rather than
+        producing a misleading mapping.
+
+        Parameters
+        ----------
+        mask1 : np.ndarray of bool or None
+            Boolean mask used to select Stage 1 features.  ``None`` when no
+            feature selection was applied.
+        mask2 : np.ndarray of bool or None
+            Boolean mask used to select Stage 2 features.  ``None`` when no
+            feature selection was applied.
+        """
+        _names = self.original_feature_names
+        if _names is None:
+            return
+
+        n_original   = self.X_train.shape[1]
+        _lda_replace = self._use_lda and self._lda_mode == "replace"
+
+        if mask1 is not None and mask2 is not None:
+            # ── Feature-selection path: estimators trained on masked subsets ──
+            # Stage 1: importances shape (mask1.sum(),) — pad to (n_original,).
+            fi1 = np.zeros(n_original)
+            fi1[mask1] = self.model.stage1_estimator_.feature_importances_
+
+            # Stage 2: build a {feature_name: importance} dict directly rather
+            # than padding into a fixed-length array, because lda_mode="append"
+            # adds LD columns that have no slot in the original feature space.
+            #
+            # lda_mode="replace" → estimator trained on LD columns only;
+            #   importances describe LD axes, not original features.  Record
+            #   only the LD column scores (no original-feature entries).
+            # lda_mode="append" → estimator trained on [mask2 originals | LDs];
+            #   first mask2.sum() importances map to original features,
+            #   remaining importances map to LD1, LD2, … columns.
+            # no LDA → importances map 1-to-1 with mask2 original features.
+            stage2_weights: dict = {}
+            if hasattr(self.model.stage2_estimator_, "feature_importances_"):
+                fi2_full = self.model.stage2_estimator_.feature_importances_
+                lda_     = self.model.stage2_lda_   # None when use_lda=False
+
+                if _lda_replace:
+                    # LD columns only — derive names as LD1, LD2, …
+                    n_ld = len(fi2_full)
+                    ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                    stage2_weights = {
+                        ld: round(float(s), 6)
+                        for ld, s in zip(ld_names, fi2_full)
+                    }
+                else:
+                    # Original features (first mask2.sum() entries)
+                    orig_names = [n for n, keep in zip(_names, mask2) if keep]
+                    for name, score in zip(orig_names, fi2_full[:mask2.sum()]):
+                        stage2_weights[name] = round(float(score), 6)
+
+                    # Appended LD columns (remaining entries, only when use_lda=True)
+                    if lda_ is not None:
+                        n_ld     = len(fi2_full) - mask2.sum()
+                        ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                        for ld, score in zip(ld_names, fi2_full[mask2.sum():]):
+                            stage2_weights[ld] = round(float(score), 6)
+
+            self.features.weights = {
+                "stage_1": {
+                    n: round(float(s), 6)
+                    for n, s, keep in zip(_names, fi1, mask1) if keep
+                },
+                "stage_2": stage2_weights,
+            }
+        else:
+            # ── No feature selection: estimators trained on full matrix ───────
+            fi1 = self.model.stage1_estimator_.feature_importances_
+
+            stage2_weights: dict = {}
+            if hasattr(self.model.stage2_estimator_, "feature_importances_"):
+                fi2_full = self.model.stage2_estimator_.feature_importances_
+                lda_     = self.model.stage2_lda_
+
+                if _lda_replace:
+                    # LD columns only
+                    n_ld     = len(fi2_full)
+                    ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                    stage2_weights = {
+                        ld: round(float(s), 6)
+                        for ld, s in zip(ld_names, fi2_full)
+                    }
+                else:
+                    # Original features
+                    for name, score in zip(_names, fi2_full[:n_original]):
+                        stage2_weights[name] = round(float(score), 6)
+                    # Appended LD columns
+                    if lda_ is not None:
+                        n_ld     = len(fi2_full) - n_original
+                        ld_names = [f"LD{i+1}" for i in range(n_ld)]
+                        for ld, score in zip(ld_names, fi2_full[n_original:]):
+                            stage2_weights[ld] = round(float(score), 6)
+
+            self.features.weights = {
+                "stage_1": {n: round(float(s), 6) for n, s in zip(_names, fi1)},
+                "stage_2": stage2_weights,
+            }
+
+    # ── Public API ────────────────────────────────────────────────────────────
+
     def fit(self, use_feature_selection=False, threshold="median"):
         """
         Train the two-stage model, optionally applying independent per-stage
@@ -554,18 +767,19 @@ class TwoStagePipeline(BasePipeline):
 
         1. Fit the full ``TwoStageClassifier`` on all features so both
            stages have trained estimators from which importances can be read.
-        2. Build a ``SelectFromModel`` from Stage 1's own importances and a
-           separate one from Stage 2's own importances. Each selector is
-           applied to the same full ``X_train`` / ``X_test``, producing two
-           boolean masks — ``mask1`` for Stage 1 and ``mask2`` for Stage 2.
-        3. Log the **union** of both masks to ``_set_features`` so the result
-           row records every feature used by either stage.
-        4. Call ``fit_with_masks`` on the classifier to retrain each stage
-           on its own feature subset. ``predict_proba`` then automatically
-           applies the stored masks at inference time.
+        2. Call ``_build_stage_masks`` to derive ``mask1`` and ``mask2`` from
+           each stage's own importances independently.
+        3. Call ``_log_feature_selection`` to record the union mask and
+           feature metadata to ``self.features`` via ``_set_features``.
+        4. Call ``fit_with_masks`` to retrain each stage on its own feature
+           subset.  ``predict_proba`` then applies the stored masks automatically.
+        5. Call ``_write_per_stage_weights`` to overwrite the flat weights with
+           a nested ``{"stage_1": …, "stage_2": …}`` dict.
 
-        When ``use_feature_selection=False``, both stages use the full
-        feature matrix and ``_set_features`` records ``method_text="none"``.
+        When ``use_feature_selection=False``, both stages use the full feature
+        matrix, ``_set_features`` records ``method_text="none"``, and
+        ``_write_per_stage_weights`` is still called so the per-stage breakdown
+        is always available.
 
         Parameters
         ----------
@@ -599,60 +813,12 @@ class TwoStagePipeline(BasePipeline):
         self.model.fit(self.X_train, self.y_train)
 
         if use_feature_selection:
-            n_original = self.X_train.shape[1]
-
-            # ── Stage 1 mask ──────────────────────────────────────────────────
-            # Stage 1 always trains on the original feature space, so its
-            # importance vector is always shape (n_original,).
-            sel1  = SelectFromModel(
-                self.model.stage1_estimator_, threshold=threshold, prefit=True
-            )
-            mask1 = sel1.get_support()   # shape: (n_original,)
-
-            # ── Stage 2 mask ──────────────────────────────────────────────────
-            # When use_lda=True, Stage 2's estimator trained on X_late after
-            # LDATransformer appended LD columns (mode="append").  Its
-            # feature_importances_ therefore has shape (n_original + n_ld,),
-            # which would make mask1 | mask2 fail with a shape mismatch.
-            #
-            # We do NOT use SelectFromModel here to avoid that dependency.
-            # Instead we replicate its threshold logic directly on the sliced
-            # importance array — this is exactly what SelectFromModel does
-            # internally for threshold="median" or a float value.
-            #
-            # The LD columns are excluded from selection because they are
-            # derived features: fit_with_masks re-derives them from the
-            # selected original columns via its own LDATransformer call.
-            fi2 = self.model.stage2_estimator_.feature_importances_[:n_original]
-
-            if threshold == "median":
-                thresh_val = np.median(fi2)
-            elif threshold == "mean":
-                thresh_val = np.mean(fi2)
-            else:
-                # Numeric threshold passed directly
-                thresh_val = float(threshold)
-
-            mask2 = fi2 >= thresh_val    # shape: (n_original,) — aligned with mask1
-
-            # ── Union & logging ───────────────────────────────────────────────
-            union_mask = mask1 | mask2
-
-            lda_suffix = " + Stage-2 delinquent LDA" if self._use_lda else ""
-            self._set_features(
-                method_text       = "Two-stage independent feature selection" + lda_suffix,
-                method_parameters = f"threshold={threshold!r}, "
-                                    f"stage1_features={int(mask1.sum())}, "
-                                    f"stage2_features={int(mask2.sum())}",
-                mask              = union_mask,
-                importances       = self.model.stage1_estimator_.feature_importances_,
-            )
-
-            # Retrain each stage on its own selected original-feature subset.
-            # fit_with_masks re-derives LD columns from the masked subset
-            # internally when use_lda=True — they are never part of the masks.
+            mask1, mask2 = self._build_stage_masks(threshold)
+            self._log_feature_selection(mask1, mask2, threshold)
             self.model.fit_with_masks(self.X_train, self.y_train, mask1, mask2)
+            self._write_per_stage_weights(mask1=mask1, mask2=mask2)
         else:
             self._set_features(method_text="none")
+            self._write_per_stage_weights()
 
         return self
