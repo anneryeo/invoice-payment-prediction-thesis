@@ -107,7 +107,7 @@ class BasePipeline(ABC):
         self._set_features(method_text="none", method_parameters="none")
         return self
 
-    def _set_features(self, method_text, method_parameters, mask=None, importances=None):
+    def _set_features(self, method_text, method_parameters=None, mask=None, importances=None):
         """
         Populate self.features (a FeatureInfo dataclass) after a model has been fitted.
 
@@ -122,7 +122,7 @@ class BasePipeline(ABC):
             Use "none" when no selection was performed, or provide a descriptive string
             such as "SelectFromModel" when a selector was used.
 
-        method_parameters : dict
+        method_parameters : dict, optional
             A dictionary of parameters associated with the feature selection method.
             For example, {"threshold": "median"} if using SelectFromModel with a median threshold.
             Use an empty dict when no parameters are applicable.
