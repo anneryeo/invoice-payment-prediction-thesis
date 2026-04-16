@@ -40,6 +40,106 @@ def _format_duration(seconds: float) -> str:
     return f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
 
 
+def _build_pipelines_fn(
+    model_name, pipeline_class, param,
+    X_train, X_test, X_surv_train, X_surv_test,
+    y_train, y_test,
+    args, use_lda, lda_mode,
+):
+    """Module-level pipeline builder — picklable, shared by worker processes and instance methods."""
+    if model_name in _ORDINAL_ESTIMATOR_MAP:
+        estimator_cls = _ORDINAL_ESTIMATOR_MAP[model_name]
+        scale_pos_weight = param.get("scale_pos_weight", True)
+        estimator_params = {k: v for k, v in param.items() if k != "scale_pos_weight"}
+
+        pipeline_baseline = OrdinalPipeline(
+            X_train, X_test, y_train, y_test, args,
+            parameters={"scale_pos_weight": scale_pos_weight},
+            base_estimator=estimator_cls(**estimator_params),
+        )
+        pipeline_enhanced = OrdinalPipeline(
+            X_surv_train, X_surv_test, y_train, y_test, args,
+            parameters={"scale_pos_weight": scale_pos_weight},
+            base_estimator=estimator_cls(**estimator_params),
+        )
+
+    elif model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+        if "stage1" not in param or "stage2" not in param:
+            raise ValueError(f"{model_name} parameters must define 'stage1' and 'stage2'")
+
+        s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[model_name]
+        pipeline_baseline = TwoStagePipeline(
+            X_train, X_test, y_train, y_test, args,
+            stage1_estimator=s1_cls(**param["stage1"]),
+            stage2_estimator=s2_cls(**param["stage2"]),
+            use_lda=use_lda,
+            lda_mode=lda_mode,
+        )
+        pipeline_enhanced = TwoStagePipeline(
+            X_surv_train, X_surv_test, y_train, y_test, args,
+            stage1_estimator=s1_cls(**param["stage1"]),
+            stage2_estimator=s2_cls(**param["stage2"]),
+            use_lda=use_lda,
+            lda_mode=lda_mode,
+        )
+
+    else:
+        pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, args, param)
+        pipeline_enhanced = pipeline_class(X_surv_train, X_surv_test, y_train, y_test, args, param)
+
+    return pipeline_baseline, pipeline_enhanced
+
+
+def _run_model_experiment_fn(
+    model_name, pipeline_class, param, dataset,
+    balance_strategy, threshold,
+    args, use_lda, lda_mode,
+    fs_baseline, fs_enhanced,
+):
+    """Module-level experiment runner — picklable, called by both Pool workers and instance methods."""
+    (X_train, X_test, y_train, y_test,
+     X_survival_train, X_survival_test) = dataset
+
+    pipeline_baseline, pipeline_enhanced = _build_pipelines_fn(
+        model_name, pipeline_class, param,
+        X_train, X_test, X_survival_train, X_survival_test,
+        y_train, y_test,
+        args, use_lda, lda_mode,
+    )
+
+    pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
+    result_baseline = pipeline_baseline.evaluate().show_results()
+
+    pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
+    result_enhanced = pipeline_enhanced.evaluate().show_results()
+
+    if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+        param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
+    else:
+        param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
+
+    return {
+        "model": model_name,
+        "parameters": param_str,
+        "balance_strategy": balance_strategy,
+        **{f"baseline_{k}": v for k, v in result_baseline.items()},
+        "baseline_feature_method":      pipeline_baseline.features.method_text,
+        "baseline_feature_parameters":  pipeline_baseline.features.method_parameters,
+        "baseline_feature_selected":    pipeline_baseline.features.selected,
+        "baseline_feature_weights":     pipeline_baseline.features.weights,
+        **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
+        "enhanced_feature_method":      pipeline_enhanced.features.method_text,
+        "enhanced_feature_parameters":  pipeline_enhanced.features.method_parameters,
+        "enhanced_feature_selected":    pipeline_enhanced.features.selected,
+        "enhanced_feature_weights":     pipeline_enhanced.features.weights,
+    }
+
+
+def _run_task(task_tuple):
+    """Module-level worker for multiprocessing.Pool — fully self-contained, no instance pickling."""
+    return _run_model_experiment_fn(*task_tuple)
+
+
 class SurvivalExperimentRunner:
     """
     SurvivalExperimentRunner
@@ -206,167 +306,30 @@ class SurvivalExperimentRunner:
 
     def _build_pipelines(
         self,
-        model_name,
-        pipeline_class,
-        param,
-        X_train, X_test,
-        X_surv_train, X_surv_test,
+        model_name, pipeline_class, param,
+        X_train, X_test, X_surv_train, X_surv_test,
         y_train, y_test,
     ):
-        """
-        Construct baseline and enhanced pipeline instances for a single experiment.
-
-        When ``self.use_lda=True`` and the model is a ``TwoStagePipeline``,
-        ``use_lda`` and ``lda_mode`` are forwarded so ``TwoStageClassifier``
-        fits a dedicated delinquent-only LDA inside Stage 2.  This is separate
-        from the upstream 4-class LDA applied in ``prepare_dataset``:
-
-        - **Upstream LDA** (``prepare_dataset``) — fitted on the full 4-class
-          training population.  Both baseline and enhanced X arrays already
-          contain the LD1/LD2/LD3 columns when they reach this method.
-        - **Stage 2 LDA** (inside ``TwoStageClassifier``) — fitted only on the
-          late-invoice rows (y > 0), producing 2 components (LD1/LD2) optimised
-          for separating 30 / 60 / 90-day classes without on_time noise.
-
-        For non-two-stage models the ``use_lda`` flag has no effect here because
-        the upstream LDA in ``prepare_dataset`` already handled projection.
-        """
-
-        if model_name in _ORDINAL_ESTIMATOR_MAP:
-            estimator_cls = _ORDINAL_ESTIMATOR_MAP[model_name]
-            scale_pos_weight = param.get("scale_pos_weight", True)
-            estimator_params = {k: v for k, v in param.items() if k != "scale_pos_weight"}
-
-            pipeline_baseline = OrdinalPipeline(
-                X_train, X_test, y_train, y_test, self.args,
-                parameters={"scale_pos_weight": scale_pos_weight},
-                base_estimator=estimator_cls(**estimator_params),
-            )
-
-            pipeline_enhanced = OrdinalPipeline(
-                X_surv_train, X_surv_test, y_train, y_test, self.args,
-                parameters={"scale_pos_weight": scale_pos_weight},
-                base_estimator=estimator_cls(**estimator_params),
-            )
-
-        elif model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
-            if "stage1" not in param or "stage2" not in param:
-                raise ValueError(f"{model_name} parameters must define 'stage1' and 'stage2'")
-
-            s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[model_name]
-            stage1_params = param["stage1"]
-            stage2_params = param["stage2"]
-
-            # use_lda / lda_mode are forwarded so TwoStageClassifier can fit
-            # a dedicated delinquent-only LDA for Stage 2 when enabled.
-            # The upstream 4-class LDA (applied in prepare_dataset) is separate
-            # and independent — it operates on Stage 1's full-population input.
-            pipeline_baseline = TwoStagePipeline(
-                X_train, X_test, y_train, y_test, self.args,
-                stage1_estimator=s1_cls(**stage1_params),
-                stage2_estimator=s2_cls(**stage2_params),
-                use_lda=self.use_lda,
-                lda_mode=self.lda_mode,
-            )
-
-            pipeline_enhanced = TwoStagePipeline(
-                X_surv_train, X_surv_test, y_train, y_test, self.args,
-                stage1_estimator=s1_cls(**stage1_params),
-                stage2_estimator=s2_cls(**stage2_params),
-                use_lda=self.use_lda,
-                lda_mode=self.lda_mode,
-            )
-
-        else:
-            pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, self.args, param)
-            pipeline_enhanced = pipeline_class(X_surv_train, X_surv_test, y_train, y_test, self.args, param)
-
-        return pipeline_baseline, pipeline_enhanced
+        """Thin wrapper — delegates to the module-level _build_pipelines_fn."""
+        return _build_pipelines_fn(
+            model_name, pipeline_class, param,
+            X_train, X_test, X_surv_train, X_surv_test,
+            y_train, y_test,
+            self.args, self.use_lda, self.lda_mode,
+        )
 
     # -----------------------------
     # Single experiment runner
     # -----------------------------
 
-    def _run_task(self, task_args):
-        """Picklable wrapper for multiprocessing.Pool — unpacks a task tuple."""
-        return self.run_model_experiment(*task_args)
-
     def run_model_experiment(self, model_name, pipeline_class, param, dataset, balance_strategy, threshold):
-        """
-        Run a single experiment for a given model, parameter set, and dataset.
-
-        Executes both baseline and enhanced pipelines, performs training and
-        evaluation, then returns a flat result dict suitable for direct
-        concatenation into a pandas DataFrame.
-
-        Parameters
-        ----------
-        model_name : str
-            Name of the model being tested.
-        pipeline_class : class
-            Pipeline class implementing the model workflow.
-        param : dict
-            Parameter set for the model.
-        dataset : tuple
-            Prepared dataset of the form:
-            (X_train, X_test, y_train, y_test, X_survival_train, X_survival_test).
-        balance_strategy : str
-            Balancing strategy used to prepare the dataset.
-        threshold : float or None
-            Threshold for hybrid balancing strategy. None if not applicable.
-
-        Returns
-        -------
-        dict
-            Flat dictionary with the following keys:
-            - model, parameters, balance_strategy, undersample_threshold
-            - baseline_accuracy, baseline_precision_macro, baseline_recall_macro,
-            baseline_f1_macro, baseline_roc_auc_macro, baseline_confusion_matrix,
-            baseline_roc_curve, baseline_pr_curve
-            - baseline_feature_method, baseline_feature_selected, baseline_feature_weights
-            - enhanced_accuracy, enhanced_precision_macro, enhanced_recall_macro,
-            enhanced_f1_macro, enhanced_roc_auc_macro, enhanced_confusion_matrix,
-            enhanced_roc_curve, enhanced_pr_curve
-            - enhanced_feature_method, enhanced_feature_selected, enhanced_feature_weights
-        """
-        (X_train, X_test, y_train, y_test,
-        X_survival_train, X_survival_test) = dataset
-
-        pipeline_baseline, pipeline_enhanced = self._build_pipelines(
-            model_name, pipeline_class, param,
-            X_train, X_test, X_survival_train, X_survival_test,
-            y_train, y_test,
+        """Thin wrapper — delegates to the module-level _run_model_experiment_fn."""
+        return _run_model_experiment_fn(
+            model_name, pipeline_class, param, dataset,
+            balance_strategy, threshold,
+            self.args, self.use_lda, self.lda_mode,
+            self.feature_selection_baseline, self.feature_selection_enhanced,
         )
-
-        pipeline_baseline.initialize_model().fit(use_feature_selection=self.feature_selection_baseline)
-        result_baseline = pipeline_baseline.evaluate().show_results()
-
-        # Enhanced pipeline
-        pipeline_enhanced.initialize_model().fit(use_feature_selection=self.feature_selection_enhanced)
-        result_enhanced = pipeline_enhanced.evaluate().show_results()
-
-        if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
-            param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
-        else:
-            param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
-
-        results = {
-            "model": model_name,
-            "parameters": param_str,
-            "balance_strategy": balance_strategy,
-            **{f"baseline_{k}": v for k, v in result_baseline.items()},
-            "baseline_feature_method": pipeline_baseline.features.method_text,
-            "baseline_feature_parameters": pipeline_baseline.features.method_parameters,
-            "baseline_feature_selected": pipeline_baseline.features.selected,
-            "baseline_feature_weights": pipeline_baseline.features.weights,
-            **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
-            "enhanced_feature_method": pipeline_enhanced.features.method_text,
-            "enhanced_feature_parameters": pipeline_enhanced.features.method_parameters,
-            "enhanced_feature_selected": pipeline_enhanced.features.selected,
-            "enhanced_feature_weights": pipeline_enhanced.features.weights,
-        }
-
-        return results
 
     # -----------------------------
     # Main experiment runner
@@ -415,12 +378,18 @@ class SurvivalExperimentRunner:
 
                 for model_name, pipeline_class in self.models.items():
                     for param in self.parameters_by_model[model_name]:
-                        task_args = (model_name, pipeline_class, param, dataset, balance_strategy, threshold)
+                        # Full self-contained tuple — no SurvivalExperimentRunner instance needed
+                        task_tuple = (
+                            model_name, pipeline_class, param, dataset,
+                            balance_strategy, threshold,
+                            self.args, self.use_lda, self.lda_mode,
+                            self.feature_selection_baseline, self.feature_selection_enhanced,
+                        )
 
                         if model_name in self.do_not_parallel_compute:
-                            sequential_tasks.append(task_args)
+                            sequential_tasks.append(task_tuple)
                         else:
-                            parallel_tasks.append(task_args)
+                            parallel_tasks.append(task_tuple)
 
         progress_state["total"] = len(parallel_tasks) + len(sequential_tasks)
         progress_state["completed"] = 0
@@ -432,7 +401,7 @@ class SurvivalExperimentRunner:
             n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
             with Pool(processes=n_workers) as pool:
                 for i, result in enumerate(
-                    pool.imap_unordered(self._run_task, parallel_tasks), start=1
+                    pool.imap_unordered(_run_task, parallel_tasks), start=1
                 ):
                     all_results.append(result)
                     progress_state["completed"] += 1
@@ -449,8 +418,8 @@ class SurvivalExperimentRunner:
                         flush=True,
                     )
 
-        for task_args in sequential_tasks:
-            all_results.append(self.run_model_experiment(*task_args))
+        for task_tuple in sequential_tasks:
+            all_results.append(_run_model_experiment_fn(*task_tuple))
             progress_state["completed"] += 1
             completed = progress_state["completed"]
             total = progress_state["total"]
@@ -458,7 +427,7 @@ class SurvivalExperimentRunner:
             avg_per_task = elapsed / completed
             remaining = total - completed
             eta = avg_per_task * remaining
-            model_label = task_args[0]
+            model_label = task_tuple[0]
             print(
                 f"[{completed}/{total}] {model_label} | "
                 f"Elapsed: {_format_duration(elapsed)} | "
