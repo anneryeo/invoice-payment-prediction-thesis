@@ -1,8 +1,7 @@
 import pandas as pd
 import numpy as np
 from datetime import datetime
-from multiprocessing.pool import ThreadPool
-from multiprocessing import cpu_count
+from multiprocessing import Pool, cpu_count
 from sklearn.preprocessing import OneHotEncoder
 
 
@@ -483,7 +482,7 @@ class InvoiceBuilder:
         grouped = df_cs.groupby(['school_year', 'student_id_pseudonimized', 'category_name'])
         args = ((g, disc_groups, adj_dict, disc_amount_idx) for _, g in grouped)
 
-        with ThreadPool(processes=cpu_count()) as pool:
+        with Pool(processes=cpu_count()) as pool:
             results = pool.map(_allocate_discount_and_adjustments, args)
 
         if results:
@@ -514,7 +513,7 @@ class InvoiceBuilder:
             receivables['cs_index'] = receivables.index
             tasks.append((receivables, payments))
 
-        with ThreadPool(processes=cpu_count()) as pool:
+        with Pool(processes=cpu_count()) as pool:
             results = pool.map(_allocate_date_fully_paid_sequential, tasks)
 
         df_fully_paid_dates = pd.concat(results, ignore_index=True)
@@ -569,7 +568,7 @@ class InvoiceBuilder:
             receivables['cs_index'] = receivables.index
             tasks.append((receivables, payments))
 
-        with ThreadPool(processes=cpu_count()) as pool:
+        with Pool(processes=cpu_count()) as pool:
             results = pool.map(_allocate_payment_amounts_sequential, tasks)
 
         df_payment_amounts = pd.concat(results, ignore_index=True)
