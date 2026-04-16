@@ -1,7 +1,6 @@
 import pandas as pd
 import time
-from multiprocessing.pool import ThreadPool
-from multiprocessing import cpu_count
+from multiprocessing import Pool, cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
 
@@ -288,6 +287,10 @@ class SurvivalExperimentRunner:
     # Single experiment runner
     # -----------------------------
 
+    def _run_task(self, task_args):
+        """Picklable wrapper for multiprocessing.Pool — unpacks a task tuple."""
+        return self.run_model_experiment(*task_args)
+
     def run_model_experiment(self, model_name, pipeline_class, param, dataset, balance_strategy, threshold):
         """
         Run a single experiment for a given model, parameter set, and dataset.
@@ -426,12 +429,12 @@ class SurvivalExperimentRunner:
         all_results = []
 
         if parallel_tasks:
-            import threading
-            lock = threading.Lock()
-
-            def _run_and_track(task_args):
-                result = self.run_model_experiment(*task_args)
-                with lock:
+            n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
+            with Pool(processes=n_workers) as pool:
+                for i, result in enumerate(
+                    pool.imap_unordered(self._run_task, parallel_tasks), start=1
+                ):
+                    all_results.append(result)
                     progress_state["completed"] += 1
                     completed = progress_state["completed"]
                     total = progress_state["total"]
@@ -439,18 +442,12 @@ class SurvivalExperimentRunner:
                     avg_per_task = elapsed / completed
                     remaining = total - completed
                     eta = avg_per_task * remaining
-                    model_label = task_args[0]
                     print(
-                        f"[{completed}/{total}] {model_label} | "
+                        f"[{completed}/{total}] parallel task done | "
                         f"Elapsed: {_format_duration(elapsed)} | "
                         f"ETA: ~{_format_duration(eta)} remaining",
                         flush=True,
                     )
-                return result
-
-            n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
-            with ThreadPool(processes=n_workers) as pool:
-                all_results.extend(pool.map(_run_and_track, parallel_tasks))
 
         for task_args in sequential_tasks:
             all_results.append(self.run_model_experiment(*task_args))

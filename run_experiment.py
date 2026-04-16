@@ -3,6 +3,9 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+
 # Create logs folder if it doesn't exist
 log_dir = Path("annesnotes/logs")
 log_dir.mkdir(parents=True, exist_ok=True)
