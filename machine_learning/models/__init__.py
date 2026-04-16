@@ -8,8 +8,6 @@ __all__ = [
     "StackedEnsemblePipeline",
     "OrdinalPipeline",
     "TwoStagePipeline",
-    "MultiLayerPerceptronPipeline",
-    "TransformerPipeline",
 ]
 
 # Lazy imports: only load when accessed
@@ -29,8 +27,6 @@ def __getattr__(name: str):
         "StackedEnsemblePipeline": "machine_learning.models.stacked_ensemble",
         "OrdinalPipeline": "machine_learning.models.ordinal_classifier",
         "TwoStagePipeline": "machine_learning.models.two_stage_classifier",
-        "MultiLayerPerceptronPipeline": "machine_learning.models.multi_layer_perceptron",
-        "TransformerPipeline": "machine_learning.models.transformer",
     }
 
     module = importlib.import_module(module_map[name])
