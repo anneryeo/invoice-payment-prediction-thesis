@@ -12,6 +12,57 @@ class FeatureInfo:
     selected: Optional[list] = None
     weights: Optional[dict] = None
 
+    def __repr__(self) -> str:
+        lines = ["FeatureInfo("]
+
+        # ── Method ────────────────────────────────────────────────────────────
+        lines.append(f"  method      : {self.method_text or '—'}")
+        lines.append(f"  parameters  : {self.method_parameters or '—'}")
+
+        # ── Selected features ─────────────────────────────────────────────────
+        if not self.selected:
+            lines.append("  selected    : —")
+        else:
+            n = len(self.selected)
+            lines.append(f"  selected    : {n} feature{'s' if n != 1 else ''}")
+            for feat in self.selected:
+                lines.append(f"    · {feat}")
+
+        # ── Weights ───────────────────────────────────────────────────────────
+        # Detect multi-stage: {"stage_1": {feat: score}, "stage_2": {feat: score}}
+        _is_multistage = (
+            isinstance(self.weights, dict)
+            and bool(self.weights)
+            and all(isinstance(v, dict) for v in self.weights.values())
+        )
+
+        if not self.weights:
+            lines.append("  weights     : —")
+
+        elif _is_multistage:
+            for stage_key, stage_w in self.weights.items():
+                label = stage_key.replace("_", " ").title()
+                lines.append(f"  weights [{label}] : {len(stage_w)} feature{'s' if len(stage_w) != 1 else ''}")
+                if stage_w:
+                    max_w    = max(stage_w.values())
+                    bar_max  = 30
+                    for feat, score in sorted(stage_w.items(), key=lambda x: x[1], reverse=True):
+                        bar_len = int(round(score / max_w * bar_max)) if max_w > 0 else 0
+                        bar     = "█" * bar_len
+                        lines.append(f"    {feat:<36}  {score:.6f}  {bar}")
+
+        else:
+            lines.append(f"  weights     : {len(self.weights)} feature{'s' if len(self.weights) != 1 else ''}")
+            max_w   = max(self.weights.values()) if self.weights else 0
+            bar_max = 30
+            for feat, score in sorted(self.weights.items(), key=lambda x: x[1], reverse=True):
+                bar_len = int(round(score / max_w * bar_max)) if max_w > 0 else 0
+                bar     = "█" * bar_len
+                lines.append(f"    {feat:<36}  {score:.6f}  {bar}")
+
+        lines.append(")")
+        return "\n".join(lines)
+
 
 class BasePipeline(ABC):
     def __init__(self, X_train, X_test,
@@ -56,7 +107,7 @@ class BasePipeline(ABC):
         self._set_features(method_text="none", method_parameters="none")
         return self
 
-    def _set_features(self, method_text, method_parameters, mask=None, importances=None):
+    def _set_features(self, method_text, method_parameters=None, mask=None, importances=None):
         """
         Populate self.features (a FeatureInfo dataclass) after a model has been fitted.
 
@@ -71,7 +122,7 @@ class BasePipeline(ABC):
             Use "none" when no selection was performed, or provide a descriptive string
             such as "SelectFromModel" when a selector was used.
 
-        method_parameters : dict
+        method_parameters : dict, optional
             A dictionary of parameters associated with the feature selection method.
             For example, {"threshold": "median"} if using SelectFromModel with a median threshold.
             Use an empty dict when no parameters are applicable.

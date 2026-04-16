@@ -46,6 +46,35 @@ html_step_2 = (
                 value=["nn_mlp"],
                 className="checklist"
             ),
+
+            html.H5("Ordinal Models", className="sub-sub-header"),
+            html.P(
+                "Trains Random Forest, XGBoost, and AdaBoost under an "
+                "ordinal decomposition — each model is split into K-1 binary classifiers "
+                "that respect the natural payment delay ordering (on-time < 30 days < "
+                "60 days < 90 days).",
+                className="section-description"
+            ),
+            dcc.Checklist(
+                id="model_selection_ordinal",
+                options=[{"label": "Ordinal Classifier (all tree-based variants)", "value": "ordinal"}],
+                value=["ordinal"],
+                className="checklist"
+            ),
+
+            html.H5("Two Stage Models", className="sub-sub-header"),
+            html.P(
+                "Trains Random Forest, XGBoost, and AdaBoost under a "
+                "two-stage decomposition — first stage predicts delay/no-delay, "
+                "second stage predicts the severity of delay.",
+                className="section-description"
+            ),
+            dcc.Checklist(
+                id="model_selection_two_stage",
+                options=[{"label": "Two Stage Classifier (all tree-based variants)", "value": "two_stage"}],
+                value=["two_stage"],
+                className="checklist"
+            ),
         ], className="section-block"),
 
         # Balancing Strategies Section
@@ -83,13 +112,15 @@ html_step_2 = (
         Input("model_selection_prob", "value"),
         Input("model_selection_neighbors", "value"),
         Input("model_selection_nn", "value"),
+        Input("model_selection_ordinal", "value"),
+        Input("model_selection_two_stage", "value"),
         Input("balancing_selection", "value"),
     ],
     prevent_initial_call=True,
 )
-def toggle_confirm_button(trees, prob, neighbors, nn, balancing):
+def toggle_confirm_button(trees, prob, neighbors, nn, ordinal, two_stage, balancing):
     # Combine all selected models
-    selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or [])
+    selected_models = (trees or []) + (prob or []) + (neighbors or []) + (nn or []) + (ordinal or []) + (two_stage or [])
     selected_balancing = balancing or []
 
     # Use selected values directly so that unchecking all correctly yields an empty list.

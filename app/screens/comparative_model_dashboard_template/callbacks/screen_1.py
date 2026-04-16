@@ -7,12 +7,7 @@ from app.screens.comparative_model_dashboard_template.constants import (
     _strategy_display,
 )
 from app.screens.comparative_model_dashboard_template.utils.chart_builders import build_leaderboard_rows
-from app.screens.comparative_model_dashboard_template.utils.data_loaders import load_models_from_results
-from utils.data_loaders.read_settings_json import read_settings_json
-from machine_learning.utils.io.load_results_from_folder import SessionStore
-
-
-_store = SessionStore(read_settings_json()["Training"]["RESULTS_ROOT"])
+from app.screens.comparative_model_dashboard_template.utils.session_loader import activate_session
 
 
 @dash_app.callback(
@@ -27,28 +22,15 @@ def load_step4_data(current_step, already_loaded):
     if already_loaded:
         return no_update
     try:
-        db_path = _store.path()
-        MODELS.update(load_models_from_results(db_path))
-        print(f"[screen1] Loaded {len(MODELS)} models from {db_path}")
+        n = activate_session()
+        print(f"[screen1] Loaded {n} models")
     except Exception as exc:
         print(f"[screen1] WARNING – could not load results.db: {exc}")
         MODELS.clear()
     return True
 
 
-@dash_app.callback(
-    Output("selected-model-store", "data", allow_duplicate=True),
-    Input("step4-data-loaded",     "data"),
-    State("selected-model-store",  "data"),
-    prevent_initial_call=True,
-)
-def initialise_selection(loaded, current_selected):
-    if not loaded or not MODELS:
-        return no_update
-    if current_selected:
-        return no_update
-    rows = build_leaderboard_rows("f1_macro", "enhanced", sort_result_type="enhanced")
-    return rows[0]["key"] if rows else no_update
+# initialise_selection moved to core.py
 
 
 @dash_app.callback(

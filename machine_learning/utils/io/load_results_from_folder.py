@@ -1,114 +1,110 @@
-import os
-import re
+# machine_learning/utils/io/load_results_from_folder.py
+#
+# Public API for loading training sessions from dated run folders.
+#
+# For SQLite v2 sessions the load path delegates entirely to ResultsRepository
+# so that callers automatically benefit from lazy chart loading.
+#
+# The top-level function load_training_results() retains its original
+# four-value return signature for backward compatibility; the SessionStore
+# class additionally exposes a repository() accessor so Dash callbacks that
+# need lazy chart hydration can skip the full DataFrame load entirely.
+
+from __future__ import annotations
+
 import json
+import os
 import pickle
-import sqlite3
+import re
 
 import pandas as pd
 
+from .results_repository import ResultsRepository
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  DESERIALIZATION HELPERS  (load-side only)
+#  HELPERS
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _try_json_loads(value):
-    """Attempt to deserialize a JSON string; return the original value on failure."""
-    if not isinstance(value, str):
-        return value
-    try:
-        return json.loads(value)
-    except (json.JSONDecodeError, ValueError):
-        return value
+_DATE_RE = re.compile(r"^\d{4}_\d{2}_\d{2}_\d{2}$")   # YYYY_MM_DD_##
 
 
-def _load_sqlite(run_folder_path: str):
-    """
-    Load results, class_mappings, survival_results, and metadata from
-    results.db inside *run_folder_path*.
+def _has_legacy_metadata(run_folder_path: str) -> bool:
+    return os.path.exists(os.path.join(run_folder_path, "metadata.json"))
 
-    Columns that contain JSON-serialized dicts or lists are automatically
-    deserialized back to native Python objects.
 
-    Returns
-    -------
-    pd.DataFrame, dict, dict, dict
-    """
-    db_path = os.path.join(run_folder_path, "results.db")
-    con = sqlite3.connect(db_path)
-    try:
-        model_results_df = pd.read_sql("SELECT * FROM results", con)
-
-        for col in model_results_df.columns:
-            if model_results_df[col].dtype == object:
-                model_results_df[col] = model_results_df[col].apply(_try_json_loads)
-
-        row = con.execute("SELECT data FROM class_mappings WHERE id=1").fetchone()
-        class_mappings = json.loads(row[0]) if row else {}
-
-        # survival_results table may not exist in older databases
-        try:
-            row = con.execute("SELECT data FROM survival_results WHERE id=1").fetchone()
-            survival_results = json.loads(row[0]) if row else {}
-        except sqlite3.OperationalError:
-            survival_results = {}
-
-        row = con.execute("SELECT data FROM metadata WHERE id=1").fetchone()
-        metadata = json.loads(row[0]) if row else {}
-
-    finally:
-        con.close()
-
-    return model_results_df, class_mappings, survival_results, metadata
+def _read_json(path: str) -> dict:
+    with open(path, "r") as f:
+        return json.load(f)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  PUBLIC LOAD FUNCTION
 # ══════════════════════════════════════════════════════════════════════════════
 
-def load_training_results(run_folder_path: str):
+def load_training_results(
+    run_folder_path: str,
+) -> tuple[pd.DataFrame, dict, dict, dict]:
     """
-    Load training results, class mappings, survival results, and metadata
-    from a run folder.  Automatically detects the storage format (pickle,
-    Excel, or SQLite) from the metadata recorded at save time.
+    Load training results, class mappings, survival results, and metadata from
+    a run folder.
+
+    Automatically detects the storage format from metadata and routes to the
+    appropriate reader.  For the SQLite v2 format the returned DataFrame
+    contains all columns (including chart blobs) reconstructed from the
+    normalized schema — use :class:`SessionStore` and
+    :meth:`ResultsRepository.load_models_dict` in new code to benefit from
+    lazy chart loading.
 
     Parameters
     ----------
     run_folder_path : str
-        Path to the run folder created by save_training_results.
+        Path to the dated run folder (e.g. ``Results/2025_03_05_01``).
 
     Returns
     -------
-    pd.DataFrame, dict, dict, dict
-        Results DataFrame, class mappings, survival results, metadata.
+    model_results_df : pd.DataFrame
+    class_mappings   : dict
+    survival_results : dict
+    metadata         : dict
     """
     db_path = os.path.join(run_folder_path, "results.db")
-    if os.path.exists(db_path) and not os.path.exists(
-        os.path.join(run_folder_path, "metadata.json")
-    ):
-        return _load_sqlite(run_folder_path)
 
-    with open(os.path.join(run_folder_path, "metadata.json"), "r") as f:
-        metadata = json.load(f)
+    # ── SQLite v2 ─────────────────────────────────────────────────────────────
+    if os.path.exists(db_path):
+        repo = ResultsRepository(db_path)
+        return (
+            repo.load_as_flat_dataframe(),
+            repo.load_class_mappings(),
+            repo.load_survival_results(),
+            repo.load_metadata(),
+        )
 
+    # ── Legacy metadata.json path (pickle / excel) ────────────────────────────
+    if not _has_legacy_metadata(run_folder_path):
+        raise FileNotFoundError(
+            f"No results.db or metadata.json found in {run_folder_path!r}"
+        )
+
+    metadata = _read_json(os.path.join(run_folder_path, "metadata.json"))
     fmt = metadata.get("results_format", "pickle")
 
-    if fmt == "sqlite":
-        return _load_sqlite(run_folder_path)
-    elif fmt == "excel":
-        model_results_df = pd.read_excel(os.path.join(run_folder_path, "results.xlsx"))
+    if fmt == "excel":
+        model_results_df = pd.read_excel(
+            os.path.join(run_folder_path, "results.xlsx")
+        )
     else:
         with open(os.path.join(run_folder_path, "results.pkl"), "rb") as f:
             model_results_df = pickle.load(f)
 
-    with open(os.path.join(run_folder_path, "class_mappings.json"), "r") as f:
-        class_mappings = json.load(f)
+    class_mappings = _read_json(
+        os.path.join(run_folder_path, "class_mappings.json")
+    )
 
-    survival_results_path = os.path.join(run_folder_path, "survival_results.json")
-    if os.path.exists(survival_results_path):
-        with open(survival_results_path, "r") as f:
-            survival_results = json.load(f)
-    else:
-        survival_results = {}
+    survival_path = os.path.join(run_folder_path, "survival_results.json")
+    survival_results = (
+        _read_json(survival_path) if os.path.exists(survival_path) else {}
+    )
 
     return model_results_df, class_mappings, survival_results, metadata
 
@@ -116,9 +112,6 @@ def load_training_results(run_folder_path: str):
 # ══════════════════════════════════════════════════════════════════════════════
 #  SESSION STORE
 # ══════════════════════════════════════════════════════════════════════════════
-
-_DATE_RE = re.compile(r"^\d{4}_\d{2}_\d{2}_\d{2}$")   # YYYY_MM_DD_##
-
 
 class SessionStore:
     """
@@ -135,14 +128,27 @@ class SessionStore:
 
     Examples
     --------
-    >>> store = SessionStore("Results/")
-    >>> store.list()
-    ['2025_03_05_02', '2025_03_05_01', '2025_03_04_01']
-    >>> store.load()                   # latest
-    >>> store.load(1)                  # second-most-recent by index
-    >>> store.load("2025_03_04_01")    # by exact folder name
-    >>> store.path()                   # just the db path, no loading
-    >>> store.path(2)
+    ::
+
+        store = SessionStore("Results/")
+
+        # Enumerate sessions
+        store.list()
+        # → ['2025_03_05_02', '2025_03_05_01', '2025_03_04_01']
+
+        # Full load (backward-compatible, includes chart data)
+        store.load()        # latest
+        store.load(1)       # second-most-recent by index
+        store.load("2025_03_04_01")  # by exact folder name
+
+        # Lazy-loading via repository (preferred for dashboard callbacks)
+        repo = store.repository()          # latest session
+        models = repo.load_models_dict()   # fast: no charts loaded
+        repo.hydrate_model_charts(models[key])  # on demand
+
+        # Just the db path
+        store.path()
+        store.path(2)
     """
 
     def __init__(self, results_root: str) -> None:
@@ -154,7 +160,7 @@ class SessionStore:
         """
         Return all dated session folder names, newest first.
 
-        Returns an empty list when no sessions exist yet rather than raising.
+        Returns an empty list (rather than raising) when no sessions exist.
         """
         try:
             return sorted(
@@ -173,16 +179,16 @@ class SessionStore:
         Parameters
         ----------
         session : str, int, or None
-            - ``None`` → most-recent session (index 0).
-            - ``int``  → zero-based index into :meth:`list` (0 = newest).
-            - ``str``  → exact folder name (e.g. ``"2025_03_05_01"``).
+            - ``None``  → most-recent session (index 0).
+            - ``int``   → zero-based index into :meth:`list` (0 = newest).
+            - ``str``   → exact folder name (e.g. ``"2025_03_05_01"``).
 
         Raises
         ------
         FileNotFoundError
-            If no sessions exist, or the named session is not found.
+            When no sessions exist, or the named session is not found.
         IndexError
-            If an integer index is out of range.
+            When an integer index is out of range.
         """
         dirs = self.list()
         if not dirs:
@@ -211,31 +217,64 @@ class SessionStore:
 
     def path(self, session: "str | int | None" = None) -> str:
         """
-        Return the path to ``results.db`` for the given session without
-        loading its contents.
+        Return the path to ``results.db`` without loading its contents.
 
         Parameters
         ----------
         session : str, int, or None
-            See :meth:`_resolve` for accepted values.  Defaults to the
-            most-recent session.
+            See :meth:`_resolve`.  Defaults to the most-recent session.
 
         Returns
         -------
-        str
-            Absolute path to ``results.db``.
+        str  –  Absolute path to ``results.db``.
+
+        Raises
+        ------
+        FileNotFoundError  –  When ``results.db`` is absent from the folder.
         """
         run_folder = self._resolve(session)
         db_path    = os.path.join(run_folder, "results.db")
         if not os.path.exists(db_path):
-            raise FileNotFoundError(f"results.db not found in {run_folder!r}")
+            raise FileNotFoundError(
+                f"results.db not found in {run_folder!r}"
+            )
         return db_path
 
-    # ── Loading ───────────────────────────────────────────────────────────────
+    # ── Repository access (preferred for new code) ────────────────────────────
+
+    def repository(self, session: "str | int | None" = None) -> ResultsRepository:
+        """
+        Return a :class:`ResultsRepository` bound to the given session's
+        database without loading any data.
+
+        This is the preferred entry point for Dash callbacks: the leaderboard
+        callback calls :meth:`ResultsRepository.load_models_dict` (fast, no
+        charts), and the modal callback calls
+        :meth:`ResultsRepository.hydrate_model_charts` only for the selected
+        model.
+
+        Parameters
+        ----------
+        session : str, int, or None
+            See :meth:`_resolve`.  Defaults to the most-recent session.
+
+        Returns
+        -------
+        ResultsRepository
+        """
+        return ResultsRepository(self.path(session))
+
+    # ── Full load (backward-compatible) ───────────────────────────────────────
 
     def load(self, session: "str | int | None" = None) -> dict:
         """
         Load a training session and return its contents as a plain dict.
+
+        For SQLite sessions this calls
+        :meth:`ResultsRepository.load_as_flat_dataframe` which reconstructs
+        chart columns from the normalized schema.  Prefer
+        :meth:`repository` + :meth:`~ResultsRepository.load_models_dict` in
+        new Dash callback code to avoid the overhead.
 
         Parameters
         ----------
@@ -246,12 +285,9 @@ class SessionStore:
 
         Returns
         -------
-        dict with keys:
-            model_results_df   – pd.DataFrame of experiment results
-            class_mappings     – dict of original label → encoded int
-            survival_results   – dict with best_c_index,
-                                 best_surv_parameters, best_time_points
-            metadata           – dict of run metadata
+        dict
+            Keys: ``model_results_df``, ``class_mappings``,
+            ``survival_results``, ``metadata``.
         """
         run_folder          = self._resolve(session)
         df, cls, surv, meta = load_training_results(run_folder)

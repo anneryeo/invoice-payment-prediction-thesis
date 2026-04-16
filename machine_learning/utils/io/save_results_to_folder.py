@@ -1,18 +1,40 @@
-import os
+# machine_learning/utils/io/save_results_to_folder.py
+#
+# Public API for persisting a training session to disk.
+#
+# Storage layout
+# ──────────────
+# Each call to save_training_results() creates a dated run folder:
+#
+#     <base_output_folder>/
+#       YYYY_MM_DD_01/
+#         results.db          ← SQLite v2 normalized schema (default)
+#       YYYY_MM_DD_02/        ← auto-incremented when the date folder exists
+#
+# The SQLite writer delegates all schema knowledge and I/O to
+# ResultsRepository so that this file stays thin and focused on the
+# folder-naming / format-routing concern only.
+#
+# Legacy formats (pickle / excel) are preserved for backward compatibility
+# but are no longer the default.
+
 import json
+import os
 import pickle
-import sqlite3
+from datetime import datetime
+
 import numpy as np
 import pandas as pd
-from datetime import datetime
+
+from .results_repository import ResultsRepository
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  SERIALIZATION HELPERS  (save-side only)
+#  SERIALIZATION HELPERS  (pickle / excel paths only)
 # ══════════════════════════════════════════════════════════════════════════════
 
 def _sanitize_for_json(obj):
-    """Recursively convert numpy types to native Python types for JSON serialization."""
+    """Recursively convert numpy types to native Python types."""
     if isinstance(obj, dict):
         return {k: _sanitize_for_json(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -26,10 +48,10 @@ def _sanitize_for_json(obj):
     return obj
 
 
-def _prepare_df_for_excel(df):
+def _prepare_df_for_excel(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Coerce object columns containing dicts or lists to JSON strings so that
-    Excel can store them without raising serialization errors.
+    Coerce object columns that contain dicts or lists to JSON strings so that
+    openpyxl can write them without raising serialization errors.
     """
     df = df.copy()
     for col in df.columns:
@@ -41,104 +63,55 @@ def _prepare_df_for_excel(df):
     return df
 
 
-def _sanitize_column_names(df):
-    """
-    Ensure all DataFrame column names are non-empty strings safe for use as
-    SQLite identifiers.  Blank/whitespace-only names are replaced with
-    ``col_<position>``, and any character that is not alphanumeric or an
-    underscore is replaced with ``_``.
-    """
-    import re
-    new_cols = []
-    for i, col in enumerate(df.columns):
-        name = str(col).strip()
-        if not name:
-            name = f"col_{i}"
-        name = re.sub(r"[^\w]", "_", name)
-        if name[0].isdigit():
-            name = f"col_{name}"
-        new_cols.append(name)
-    df.columns = new_cols
-    return df
-
-
-def _prepare_df_for_sqlite(df):
-    """
-    Coerce object columns containing dicts, lists, or numpy types to JSON
-    strings so that SQLite can store them.  Numeric numpy scalars in
-    otherwise-numeric columns are also cast to native Python floats/ints.
-    Column names are sanitized to be valid SQLite identifiers.
-    """
-    df = df.copy()
-    df = _sanitize_column_names(df)
-    for col in df.columns:
-        if df[col].dtype == object:
-            df[col] = df[col].apply(
-                lambda x: json.dumps(_sanitize_for_json(x))
-                if isinstance(x, (dict, list, np.ndarray)) else x
-            )
-        elif np.issubdtype(df[col].dtype, np.integer):
-            df[col] = df[col].astype(int)
-        elif np.issubdtype(df[col].dtype, np.floating):
-            df[col] = df[col].astype(float)
-    return df
-
-
 # ══════════════════════════════════════════════════════════════════════════════
-#  SQLITE WRITER
+#  LEGACY FORMAT WRITERS  (pickle / excel)
 # ══════════════════════════════════════════════════════════════════════════════
 
-def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, metadata, run_folder_path):
-    """
-    Write all artefacts into a single SQLite database file
-    (results.db) inside *run_folder_path*.
+def _save_pickle(
+    model_results_df: pd.DataFrame,
+    class_mappings_dict: dict,
+    survival_results_dict: dict,
+    metadata: dict,
+    run_folder_path: str,
+) -> str:
+    results_path = os.path.join(run_folder_path, "results.pkl")
+    with open(results_path, "wb") as f:
+        pickle.dump(model_results_df, f)
 
-    Tables
-    ------
-    results           – one row per experiment, columns mirror the DataFrame.
-    class_mappings    – single row: id=1, data TEXT (JSON blob).
-    survival_results  – single row: id=1, data TEXT (JSON blob).
-    metadata          – single row: id=1, data TEXT (JSON blob).
-    """
-    db_path = os.path.join(run_folder_path, "results.db")
-    con = sqlite3.connect(db_path)
-    try:
-        _prepare_df_for_sqlite(model_results_df).to_sql(
-            "results", con, if_exists="replace", index=False
-        )
+    with open(os.path.join(run_folder_path, "class_mappings.json"), "w") as f:
+        json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
 
-        con.execute(
-            "CREATE TABLE IF NOT EXISTS class_mappings (id INTEGER PRIMARY KEY, data TEXT)"
-        )
-        con.execute("DELETE FROM class_mappings")
-        con.execute(
-            "INSERT INTO class_mappings (id, data) VALUES (1, ?)",
-            (json.dumps(_sanitize_for_json(class_mappings_dict)),),
-        )
+    with open(os.path.join(run_folder_path, "survival_results.json"), "w") as f:
+        json.dump(_sanitize_for_json(survival_results_dict), f, indent=4)
 
-        con.execute(
-            "CREATE TABLE IF NOT EXISTS survival_results (id INTEGER PRIMARY KEY, data TEXT)"
-        )
-        con.execute("DELETE FROM survival_results")
-        con.execute(
-            "INSERT INTO survival_results (id, data) VALUES (1, ?)",
-            (json.dumps(_sanitize_for_json(survival_results_dict)),),
-        )
+    metadata_path = os.path.join(run_folder_path, "metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=4)
 
-        con.execute(
-            "CREATE TABLE IF NOT EXISTS metadata (id INTEGER PRIMARY KEY, data TEXT)"
-        )
-        con.execute("DELETE FROM metadata")
-        con.execute(
-            "INSERT INTO metadata (id, data) VALUES (1, ?)",
-            (json.dumps(metadata),),
-        )
+    return results_path
 
-        con.commit()
-    finally:
-        con.close()
 
-    return db_path
+def _save_excel(
+    model_results_df: pd.DataFrame,
+    class_mappings_dict: dict,
+    survival_results_dict: dict,
+    metadata: dict,
+    run_folder_path: str,
+) -> str:
+    results_path = os.path.join(run_folder_path, "results.xlsx")
+    _prepare_df_for_excel(model_results_df).to_excel(results_path, index=False)
+
+    with open(os.path.join(run_folder_path, "class_mappings.json"), "w") as f:
+        json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
+
+    with open(os.path.join(run_folder_path, "survival_results.json"), "w") as f:
+        json.dump(_sanitize_for_json(survival_results_dict), f, indent=4)
+
+    metadata_path = os.path.join(run_folder_path, "metadata.json")
+    with open(metadata_path, "w") as f:
+        json.dump(metadata, f, indent=4)
+
+    return results_path
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -146,34 +119,45 @@ def _save_sqlite(model_results_df, class_mappings_dict, survival_results_dict, m
 # ══════════════════════════════════════════════════════════════════════════════
 
 def save_training_results(
-    model_results_df, survival_results_dict, class_mappings_dict,
-    base_output_folder, model_names, start_time, end_time, total_run_time,
-    format="sqlite",
-):
+    model_results_df: pd.DataFrame,
+    survival_results_dict: dict,
+    class_mappings_dict: dict,
+    base_output_folder: str,
+    model_names: list,
+    start_time: str,
+    end_time: str,
+    total_run_time: str,
+    format: str = "sqlite",
+) -> tuple[dict, str]:
     """
     Save training results, survival results, class mappings, and metadata to
-    a dynamically created run folder.
+    a dynamically created, date-stamped run folder.
+
+    The SQLite format (default) writes to a fully normalized v2 schema via
+    :class:`ResultsRepository`, separating heavy chart blobs from scalar
+    metrics so the dashboard leaderboard loads instantly on future sessions.
 
     Parameters
     ----------
     model_results_df : pd.DataFrame
-        Flat DataFrame where each row is one experiment run.
+        Flat results DataFrame produced by SurvivalExperimentRunner.run().
     survival_results_dict : dict
         Survival analysis results (best_c_index, best_surv_parameters, …).
     class_mappings_dict : dict
         Original class labels → encoded integer representations.
     base_output_folder : str
-        Base path where run folders will be created.
+        Root path under which dated run folders are created.
     model_names : list of str
-        Names of models trained in this run.
+        Names of models included in this training run.
     start_time : str
         ISO-format timestamp when training started.
     end_time : str
         ISO-format timestamp when training ended.
     total_run_time : str
-        Total run time as a formatted string.
-    format : {"pickle", "excel", "sqlite"}, default "sqlite"
-        Storage format.
+        Human-readable total run duration.
+    format : {'sqlite', 'pickle', 'excel'}, default 'sqlite'
+        Storage format.  ``'sqlite'`` is strongly recommended for all new
+        sessions; ``'pickle'`` and ``'excel'`` are kept for compatibility.
 
     Returns
     -------
@@ -181,8 +165,11 @@ def save_training_results(
     run_folder_path : str
     """
     if format not in ("pickle", "excel", "sqlite"):
-        raise ValueError(f"Invalid format {format!r}. Must be 'pickle', 'excel', or 'sqlite'.")
+        raise ValueError(
+            f"Invalid format {format!r}. Choose 'sqlite', 'pickle', or 'excel'."
+        )
 
+    # ── Create the dated run folder ───────────────────────────────────────────
     os.makedirs(base_output_folder, exist_ok=True)
 
     date_str  = datetime.now().strftime("%Y_%m_%d")
@@ -195,6 +182,7 @@ def save_training_results(
             break
         run_index += 1
 
+    # ── Build metadata ────────────────────────────────────────────────────────
     metadata = {
         "timestamp":           datetime.now().isoformat(),
         "num_models_trained":  len(model_names),
@@ -207,51 +195,31 @@ def save_training_results(
         "run_folder_path":     run_folder_path,
     }
 
-    if format == "pickle":
-        results_path = os.path.join(run_folder_path, "results.pkl")
-        with open(results_path, "wb") as f:
-            pickle.dump(model_results_df, f)
-        metadata["results_file_path"] = results_path
-
-        class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
-        with open(class_mappings_path, "w") as f:
-            json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
-        metadata["class_mappings_file_path"] = class_mappings_path
-
-        survival_results_path = os.path.join(run_folder_path, "survival_results.json")
-        with open(survival_results_path, "w") as f:
-            json.dump(_sanitize_for_json(survival_results_dict), f, indent=4)
-        metadata["survival_results_file_path"] = survival_results_path
-
-        metadata_path = os.path.join(run_folder_path, "metadata.json")
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=4)
-
-    elif format == "excel":
-        results_path = os.path.join(run_folder_path, "results.xlsx")
-        _prepare_df_for_excel(model_results_df).to_excel(results_path, index=False)
-        metadata["results_file_path"] = results_path
-
-        class_mappings_path = os.path.join(run_folder_path, "class_mappings.json")
-        with open(class_mappings_path, "w") as f:
-            json.dump(_sanitize_for_json(class_mappings_dict), f, indent=4)
-        metadata["class_mappings_file_path"] = class_mappings_path
-
-        survival_results_path = os.path.join(run_folder_path, "survival_results.json")
-        with open(survival_results_path, "w") as f:
-            json.dump(_sanitize_for_json(survival_results_dict), f, indent=4)
-        metadata["survival_results_file_path"] = survival_results_path
-
-        metadata_path = os.path.join(run_folder_path, "metadata.json")
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=4)
-
-    else:  # sqlite
-        db_path = _save_sqlite(
-            model_results_df, class_mappings_dict, survival_results_dict,
-            metadata, run_folder_path,
+    # ── Write ─────────────────────────────────────────────────────────────────
+    if format == "sqlite":
+        db_path = os.path.join(run_folder_path, "results.db")
+        repo = ResultsRepository(db_path)
+        repo.save_session(
+            model_results_df,
+            class_mappings_dict,
+            survival_results_dict,
+            metadata,
         )
         metadata["results_file_path"] = db_path
+
+    elif format == "pickle":
+        results_path = _save_pickle(
+            model_results_df, class_mappings_dict,
+            survival_results_dict, metadata, run_folder_path,
+        )
+        metadata["results_file_path"] = results_path
+
+    else:  # excel
+        results_path = _save_excel(
+            model_results_df, class_mappings_dict,
+            survival_results_dict, metadata, run_folder_path,
+        )
+        metadata["results_file_path"] = results_path
 
     print(f"Results saved as {format} to {run_folder_path}")
     return metadata, run_folder_path

@@ -176,7 +176,7 @@ def update_progress_classes(current_step):
 )
 def go_to_step_2(upload_clicks):
     if upload_clicks:
-        return "progress-4"
+        return "progress-2"
     return no_update
 
 

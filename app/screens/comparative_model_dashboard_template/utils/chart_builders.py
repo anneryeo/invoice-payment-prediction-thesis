@@ -6,9 +6,9 @@ from dash import html
 
 from app.screens.comparative_model_dashboard_template.constants import (
     MODELS, METRICS, CHART_COLORS,
-    _class_label
+    _class_label, CLASS_LABELS,
 )
-from app.screens.comparative_model_dashboard_template.utils.data_loaders import json_deserialize
+from machine_learning.utils.io.data_loaders import json_deserialize
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -170,16 +170,6 @@ def build_pr_figure(model_key: str, result_type: str) -> go.Figure:
     return fig
 
 
-# Short axis labels for the confusion matrix (index → tick label)
-# Derived from _CLASS_MAPPINGS_RAW so they stay in sync automatically.
-_CM_TICK_LABELS: dict[int, str] = {
-    0: "30 days",
-    1: "60 days",
-    2: "90 days",
-    3: "On Time",
-}
-
-
 def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
     cm_raw = MODELS[model_key][result_type]["evaluation"]["charts"].get("confusion_matrix")
     if isinstance(cm_raw, str):
@@ -190,11 +180,13 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
         cm_arr = np.array(cm_raw)
 
     n = cm_arr.shape[0]
-    tick_vals   = list(range(n))
-    tick_labels = [_CM_TICK_LABELS.get(i, str(i)) for i in range(n)]
+    tick_vals = list(range(n))
 
-    _full_labels = {0: "30 Days", 1: "60 Days", 2: "90 Days", 3: "On Time"}
-    full_labels  = [_full_labels.get(i, tick_labels[i]) for i in range(n)]
+    # Derive tick labels from the runtime CLASS_LABELS dict (populated from
+    # session class_mappings) rather than any hardcoded mapping.
+    # Short label used on the axis ticks; full label used in hover tooltips.
+    tick_labels = [_class_label(str(i)) for i in range(n)]
+    full_labels = tick_labels  # CLASS_LABELS already contains human-readable names
 
     # cm_arr[actual][predicted]; flip rows so index 0 appears at top in Plotly
     cm_plot    = cm_arr[::-1]
@@ -305,21 +297,40 @@ def build_cm_figure(model_key: str, result_type: str) -> go.Figure:
 
 
 def build_features_figure(model_key: str, result_type: str,
-                           top15_only: bool = True) -> go.Figure:
-    features = MODELS[model_key][result_type].get("features", [])
+                           top15_only: bool = True,
+                           stage: str | None = None) -> go.Figure:
+    raw_weights = MODELS[model_key][result_type].get("weights")
 
-    # Use real weights if available, otherwise fall back to rank-based estimates
-    raw_weights = MODELS[model_key][result_type]["evaluation"]["charts"].get("feature_weights")
-    if raw_weights and isinstance(raw_weights, (list, dict)):
-        if isinstance(raw_weights, dict):
-            importance = [float(raw_weights.get(f, 0)) for f in features]
-        else:
-            importance = [float(w) for w in raw_weights]
+    # ── Multi-stage detection ─────────────────────────────────────────────────
+    # TwoStagePipeline stores weights as {"stage_1": {feat: score, …},
+    # "stage_2": {feat: score, …}} so the dashboard can toggle between views.
+    # Any other model stores a flat {feat: score} dict.
+    is_multistage = (
+        isinstance(raw_weights, dict)
+        and bool(raw_weights)
+        and all(isinstance(v, dict) for v in raw_weights.values())
+    )
+
+    if is_multistage:
+        # Resolve which stage to show; default to "stage_1" if unspecified.
+        active_stage  = stage if stage in raw_weights else "stage_1"
+        stage_weights = raw_weights[active_stage]
+        features      = list(stage_weights.keys())
+        importance    = [float(v) for v in stage_weights.values()]
     else:
-        importance = sorted(
-            [round(1 - i * 0.1 + np.random.uniform(-0.03, 0.03), 3) for i in range(len(features))],
-            reverse=True,
-        )
+        features = MODELS[model_key][result_type].get("features", [])
+
+        # Use real weights if available, otherwise fall back to rank-based estimates
+        if raw_weights and isinstance(raw_weights, (list, dict)):
+            if isinstance(raw_weights, dict):
+                importance = [float(raw_weights.get(f, 0)) for f in features]
+            else:
+                importance = [float(w) for w in raw_weights]
+        else:
+            importance = sorted(
+                [round(1 - i * 0.1 + np.random.uniform(-0.03, 0.03), 3) for i in range(len(features))],
+                reverse=True,
+            )
 
     # Sort by absolute value descending so magnitude drives rank regardless of sign
     paired = sorted(zip(importance, features), key=lambda p: abs(p[0]), reverse=True)
