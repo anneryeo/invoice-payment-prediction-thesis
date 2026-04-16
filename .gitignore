@@ -1,6 +1,7 @@
 #ANNE
 annesnotes/
 docs/
+.github/
 
 # Jupyter Notebooks
 .ipynb_checkpoints
