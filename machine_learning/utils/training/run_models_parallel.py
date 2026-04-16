@@ -109,7 +109,7 @@ class SurvivalExperimentRunner:
         self.best_parameters = best_parameters
         self.thresholds = thresholds
         self.n_jobs = n_jobs
-        self.do_not_parallel_compute = do_not_parallel_compute or []
+        self.do_not_parallel_compute = list(do_not_parallel_compute or [])
         self.feature_selection_baseline = feature_selection_baseline
         self.feature_selection_enhanced = feature_selection_enhanced
         self.use_lda  = use_lda
@@ -129,6 +129,13 @@ class SurvivalExperimentRunner:
                     self.models[variant_key] = TwoStagePipeline
             else:
                 self.models[model_name] = pipeline_class
+
+        # Auto-route any expanded model that uses XGBClassifier to sequential
+        # execution to avoid CUDA context conflicts in the thread pool.
+        # This covers: xgboost, ordinal_xgboost, two_stage_xgb_*, two_stage_ada_xgb.
+        for expanded_name in self.models:
+            if "xgb" in expanded_name and expanded_name not in self.do_not_parallel_compute:
+                self.do_not_parallel_compute.append(expanded_name)
 
         self.parameters_by_model = {m: self.loader.get_parameters(m) for m in self.models}
 
@@ -152,6 +159,9 @@ class SurvivalExperimentRunner:
         Runs data preparation, splits train/test sets, and generates survival features.
         Results are cached and reused across models and parameters.
         """
+        label = f"{balance_strategy}" + (f"@{threshold}" if threshold is not None else "")
+        print(f"[dataset] Preparing: {label} ...", flush=True)
+        _ds_start = time.time()
         self.preparer.resample(balance_strategy=balance_strategy, undersample_threshold=threshold)
 
         # Snapshot BEFORE LDA — Cox scaler was fitted on original features
@@ -165,10 +175,12 @@ class SurvivalExperimentRunner:
         E = self.df_data_surv["censor"]
 
         # Pass original features to Cox — survival features generated first
+        print(f"[dataset]   Generating survival features ...", flush=True)
         X_surv_train, X_surv_test = generate_survival_features(
             X_surv, T, E, X_train_raw, X_test_raw,
             best_params=self.best_parameters, time_points=self.args.time_points
         )
+        print(f"[dataset]   Done ({_format_duration(time.time() - _ds_start)})", flush=True)
 
         # Apply LDA AFTER survival feature generation.
         # Two separate transformers: one for the enhanced (survival) set,
