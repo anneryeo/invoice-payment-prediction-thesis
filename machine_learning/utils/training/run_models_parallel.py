@@ -1,4 +1,5 @@
 import pandas as pd
+import time
 from multiprocessing.pool import ThreadPool
 from multiprocessing import cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
@@ -31,7 +32,13 @@ _TWO_STAGE_ESTIMATOR_PAIRS = {
 }
 
 # Used for the progress bar in Dash
-progress_state = {"completed": 0, "total": 0}
+progress_state = {"completed": 0, "total": 0, "start_time": None}
+
+
+def _format_duration(seconds: float) -> str:
+    """Format a duration in seconds as 'Xm Ys'."""
+    minutes, secs = divmod(int(seconds), 60)
+    return f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
 
 
 class SurvivalExperimentRunner:
@@ -402,6 +409,7 @@ class SurvivalExperimentRunner:
 
         progress_state["total"] = len(parallel_tasks) + len(sequential_tasks)
         progress_state["completed"] = 0
+        progress_state["start_time"] = time.time()
 
         all_results = []
 
@@ -413,6 +421,19 @@ class SurvivalExperimentRunner:
                 result = self.run_model_experiment(*task_args)
                 with lock:
                     progress_state["completed"] += 1
+                    completed = progress_state["completed"]
+                    total = progress_state["total"]
+                    elapsed = time.time() - progress_state["start_time"]
+                    avg_per_task = elapsed / completed
+                    remaining = total - completed
+                    eta = avg_per_task * remaining
+                    model_label = task_args[0]
+                    print(
+                        f"[{completed}/{total}] {model_label} | "
+                        f"Elapsed: {_format_duration(elapsed)} | "
+                        f"ETA: ~{_format_duration(eta)} remaining",
+                        flush=True,
+                    )
                 return result
 
             n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
@@ -422,6 +443,19 @@ class SurvivalExperimentRunner:
         for task_args in sequential_tasks:
             all_results.append(self.run_model_experiment(*task_args))
             progress_state["completed"] += 1
+            completed = progress_state["completed"]
+            total = progress_state["total"]
+            elapsed = time.time() - progress_state["start_time"]
+            avg_per_task = elapsed / completed
+            remaining = total - completed
+            eta = avg_per_task * remaining
+            model_label = task_args[0]
+            print(
+                f"[{completed}/{total}] {model_label} | "
+                f"Elapsed: {_format_duration(elapsed)} | "
+                f"ETA: ~{_format_duration(eta)} remaining",
+                flush=True,
+            )
 
         return pd.DataFrame(all_results), self.class_mappings
 
