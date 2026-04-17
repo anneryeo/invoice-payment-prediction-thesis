@@ -15,19 +15,18 @@ executed_nb = log_dir / "Machine Learning_executed.ipynb"
 
 with open(log_file, "w") as f:
     f.write(f"Starting experiment at {datetime.now()}\n")
-    f.flush()
-    
-    result = subprocess.run(
-        [
-            "papermill",
-            "Machine Learning.ipynb",
-            str(executed_nb),
-            "--log-output",
-            "--stdout-file", str(log_file)
-        ],
-        capture_output=False,
-        text=True
-    )
+
+result = subprocess.run(
+    [
+        "papermill",
+        "Machine Learning.ipynb",
+        str(executed_nb),
+        "--log-output",
+        "--stdout-file", str(log_file)
+    ],
+    capture_output=False,
+    text=True
+)
 
 if result.returncode == 0:
     print(f"✓ Experiment completed successfully. Log: {log_file}")
