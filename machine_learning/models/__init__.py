@@ -10,6 +10,17 @@ __all__ = [
     "TwoStagePipeline",
 ]
 
+# Eager imports: allow static analysis tools (Pylance) to resolve symbols
+from .ada_boost import AdaBoostPipeline
+from .decision_tree import DecisionTreePipeline
+from .gaussian_naive_bayes import GaussianNaiveBayesPipeline
+from .k_nearest_neighbor import KNearestNeighborPipeline
+from .random_forest import RandomForestPipeline
+from .xg_boost import XGBoostPipeline
+from .stacked_ensemble import StackedEnsemblePipeline
+from .ordinal_classifier import OrdinalPipeline
+from .two_stage_classifier import TwoStagePipeline
+
 # Lazy imports: only load when accessed
 import importlib
 

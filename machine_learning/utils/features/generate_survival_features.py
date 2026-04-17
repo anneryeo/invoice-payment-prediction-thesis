@@ -126,7 +126,7 @@ def generate_survival_features(
     X_surv,
     T,
     E,
-    X_train: pd.DataFrame,
+    X_train: Optional[pd.DataFrame],
     X_test: Optional[pd.DataFrame] = None,
     best_params: dict = None,
     time_points: list = None,
