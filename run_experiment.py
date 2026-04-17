@@ -1,10 +1,11 @@
-import subprocess
 import sys
 from datetime import datetime
 from pathlib import Path
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+
+import papermill as pm
 
 # Create logs folder if it doesn't exist
 log_dir = Path("annesnotes/logs")
@@ -16,22 +17,20 @@ executed_nb = log_dir / "Machine Learning_executed.ipynb"
 with open(log_file, "w") as f:
     f.write(f"Starting experiment at {datetime.now()}\n")
 
-result = subprocess.run(
-    [
-        "papermill",
-        "Machine Learning.ipynb",
-        str(executed_nb),
-        "--log-output",
-        "--stdout-file", str(log_file)
-    ],
-    capture_output=False,
-    text=True
-)
-
-if result.returncode == 0:
+try:
+    with open(log_file, "a") as stdout_file:
+        pm.execute_notebook(
+            "Machine Learning.ipynb",
+            str(executed_nb),
+            log_output=True,
+            stdout_file=stdout_file,
+            start_timeout=120,
+        )
     print(f"✓ Experiment completed successfully. Log: {log_file}")
     sys.exit(0)
-else:
+except Exception as e:
+    with open(log_file, "a") as f:
+        f.write(f"\nExperiment failed: {e}\n")
     print(f"✗ Experiment failed. Check log: {log_file}")
     sys.exit(1)
 
