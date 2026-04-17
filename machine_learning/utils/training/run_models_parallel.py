@@ -247,6 +247,16 @@ class SurvivalExperimentRunner:
 
         self.class_mappings = self.preparer.class_mapping
 
+        # Bug fix: snapshot the original train/test split so that prepare_dataset()
+        # can reset before each balance strategy instead of resampling cumulatively.
+        self._X_train_orig = self.preparer.X_train.copy()
+        self._X_test_orig  = self.preparer.X_test.copy()
+        self._y_train_orig = self.preparer.y_train.copy()
+        self._y_test_orig  = self.preparer.y_test.copy()
+        # Train-partition indices (before resampling resets them) — used to
+        # restrict Cox fitting to train rows only, preventing test-set leakage.
+        self._train_indices = self.preparer.X_train.index
+
     # -----------------------------
     # Dataset preparation helper
     # -----------------------------
@@ -261,6 +271,12 @@ class SurvivalExperimentRunner:
         label = f"{balance_strategy}" + (f"@{threshold}" if threshold is not None else "")
         print(f"[dataset] Preparing: {label} ...", flush=True)
         _ds_start = time.time()
+
+        # Bug fix: reset to the original split before each balance strategy so
+        # strategies don't stack on top of each other's resampled output.
+        self.preparer.X_train = self._X_train_orig.copy()
+        self.preparer.y_train = self._y_train_orig.copy()
+
         self.preparer.resample(balance_strategy=balance_strategy, undersample_threshold=threshold)
 
         # Snapshot BEFORE LDA — Cox scaler was fitted on original features
@@ -269,9 +285,18 @@ class SurvivalExperimentRunner:
         X_test_raw  = self.preparer.X_test.copy()
         y_train, y_test = self.preparer.y_train.copy(), self.preparer.y_test.copy()
 
-        X_surv = self.df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
-        T = adjust_payment_period(self.df_data_surv["days_elapsed_until_fully_paid"])
-        E = self.df_data_surv["censor"]
+        # Bug fix: restrict Cox fitting to train-partition rows (plus all censored
+        # rows, which don't belong to either classifier partition). Fitting Cox on
+        # the full dataset — including test-partition rows' survival outcomes — is
+        # data leakage that inflates test-set survival feature quality.
+        _train_mask = (
+            self.df_data_surv.index.isin(self._train_indices)
+            | (self.df_data_surv["censor"] == 0)
+        )
+        _df_surv_train = self.df_data_surv[_train_mask]
+        X_surv = _df_surv_train.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+        T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
+        E = _df_surv_train["censor"]
 
         # Pass original features to Cox — survival features generated first
         print(f"[dataset]   Generating survival features ...", flush=True)
