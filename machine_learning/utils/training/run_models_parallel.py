@@ -1,5 +1,6 @@
 import pandas as pd
 import time
+import joblib
 from multiprocessing import Pool, cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
@@ -107,11 +108,14 @@ def _run_model_experiment_fn(
         args, use_lda, lda_mode,
     )
 
-    pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
-    result_baseline = pipeline_baseline.evaluate().show_results()
+    # Use threading backend so nested joblib calls (e.g. permutation_importance
+    # inside KNN) don't try to spawn Loky subprocesses from within a Pool worker.
+    with joblib.parallel_backend('threading'):
+        pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
+        result_baseline = pipeline_baseline.evaluate().show_results()
 
-    pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
-    result_enhanced = pipeline_enhanced.evaluate().show_results()
+        pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
+        result_enhanced = pipeline_enhanced.evaluate().show_results()
 
     if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
         param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
