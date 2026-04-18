@@ -1,6 +1,10 @@
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
+
+# Set OpenBLAS thread limit to suppress warning
+os.environ["OPENBLAS_NUM_THREADS"] = "24"
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
@@ -32,7 +36,7 @@ print(f"Starting experiment at {datetime.now()}")
 print(f"Log: {log_file}\n")
 
 try:
-    with open(log_file, "w") as log_f:
+    with open(log_file, "w", encoding="utf-8") as log_f:
         tee = _Tee(sys.stdout, log_f)
         pm.execute_notebook(
             "Machine Learning.ipynb",
@@ -44,7 +48,7 @@ try:
     print(f"\n✓ Experiment completed successfully.")
     sys.exit(0)
 except Exception as e:
-    with open(log_file, "a") as f:
+    with open(log_file, "a", encoding="utf-8") as f:
         f.write(f"\nExperiment failed: {e}\n")
     print(f"\n✗ Experiment failed: {e}")
     print(f"Check log: {log_file}")
