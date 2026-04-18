@@ -3,14 +3,22 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Configure threading limits to prevent memory exhaustion and OpenBLAS warnings
-os.environ["OPENBLAS_NUM_THREADS"] = "4"
-os.environ["MKL_NUM_THREADS"] = "4"
-os.environ["NUMEXPR_NUM_THREADS"] = "4"
-os.environ["OMP_NUM_THREADS"] = "4"
+# Configure threading limits to prevent memory exhaustion and OpenBLAS warnings.
+# OPENBLAS_NUM_THREADS=1 per worker: Pool provides process-level parallelism;
+# >1 OpenBLAS threads per worker causes oversubscription and the
+# "precompiled NUM_THREADS exceeded" warning on machines with >24 cores.
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+# PYTHONWARNINGS is an OS-level env var read at interpreter startup by every
+# spawned child process (including multiprocessing Pool workers on Windows),
+# unlike warnings.filterwarnings() which only affects the current process.
+os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:sklearn.utils.parallel"
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
 
 import papermill as pm
 
