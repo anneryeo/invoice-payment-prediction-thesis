@@ -1,9 +1,13 @@
 import pandas as pd
 import time
 import joblib
+import warnings
 from multiprocessing import Pool, cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
+
+# Suppress sklearn joblib warnings in all processes
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
 
 from machine_learning.utils.training.load_parameters import ParameterLoader
 from machine_learning.utils.data.data_preparation import DataPreparer
