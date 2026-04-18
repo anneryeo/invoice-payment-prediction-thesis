@@ -1,3 +1,5 @@
+import os
+import pickle
 import pandas as pd
 import time
 import joblib
@@ -8,6 +10,53 @@ from xgboost import XGBClassifier
 
 # Suppress sklearn joblib warnings in all processes
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
+
+
+def _worker_init():
+    """Pool initializer: suppresses noisy warnings inside each worker process."""
+    import warnings as _w
+    _w.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+    _w.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
+
+
+def _make_task_key(model_name, param, balance_strategy, threshold, fs_baseline, fs_enhanced):
+    """Deterministic string key uniquely identifying one experiment task."""
+    if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+        param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
+    else:
+        param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
+    return f"{model_name}|{balance_strategy}|{threshold}|{param_str}|{int(fs_baseline)}|{int(fs_enhanced)}"
+
+
+def _load_checkpoint(path):
+    """Load checkpoint from disk. Returns (completed_keys: set, results: list)."""
+    if path is None or not os.path.exists(path):
+        return set(), []
+    try:
+        with open(path, "rb") as f:
+            data = pickle.load(f)
+        completed_keys = set(data.get("completed_keys", []))
+        results = data.get("results", [])
+        print(f"[checkpoint] Loaded {len(results)} prior results from: {path}", flush=True)
+        return completed_keys, results
+    except Exception as e:
+        print(f"[checkpoint] Could not load checkpoint ({e}); starting fresh.", flush=True)
+        return set(), []
+
+
+def _save_checkpoint(path, completed_keys, results):
+    """Atomically save checkpoint to disk using write-then-rename."""
+    if path is None:
+        return
+    tmp_path = path + ".tmp"
+    try:
+        with open(tmp_path, "wb") as f:
+            pickle.dump({"completed_keys": list(completed_keys), "results": results}, f)
+        os.replace(tmp_path, path)
+    except Exception as e:
+        print(f"[checkpoint] Warning: could not save checkpoint ({e})", flush=True)
+
 
 from machine_learning.utils.training.load_parameters import ParameterLoader
 from machine_learning.utils.data.data_preparation import DataPreparer
@@ -128,6 +177,7 @@ def _run_model_experiment_fn(
 
     return {
         "model": model_name,
+        "undersample_threshold": threshold,
         "parameters": param_str,
         "balance_strategy": balance_strategy,
         **{f"baseline_{k}": v for k, v in result_baseline.items()},
@@ -145,7 +195,9 @@ def _run_model_experiment_fn(
 
 def _run_task(task_tuple):
     """Module-level worker for multiprocessing.Pool — fully self-contained, no instance pickling."""
-    return _run_model_experiment_fn(*task_tuple)
+    result = _run_model_experiment_fn(*task_tuple)
+    key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
+    return key, result
 
 
 class SurvivalExperimentRunner:
@@ -207,6 +259,7 @@ class SurvivalExperimentRunner:
         feature_selection_enhanced=True,
         use_lda: bool = False,
         lda_mode: str = "append",
+        checkpoint_path=None,
     ):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
@@ -221,6 +274,7 @@ class SurvivalExperimentRunner:
         self.feature_selection_enhanced = feature_selection_enhanced
         self.use_lda  = use_lda
         self.lda_mode = lda_mode
+        self.checkpoint_path = checkpoint_path
 
         # Initialize parameter loader
         self.loader = ParameterLoader(args.parameters_dir)
@@ -401,6 +455,7 @@ class SurvivalExperimentRunner:
         """
         parallel_tasks = []
         sequential_tasks = []
+        completed_keys, prior_results = _load_checkpoint(self.checkpoint_path)
 
         for balance_strategy in self.balance_strategies:
             # Guard against thresholds=None when hybrid is selected
@@ -424,19 +479,27 @@ class SurvivalExperimentRunner:
                         else:
                             parallel_tasks.append(task_tuple)
 
+        parallel_tasks = [t for t in parallel_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
+        sequential_tasks = [t for t in sequential_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
+
+        if prior_results:
+            print(f"[checkpoint] Resuming: skipping {len(prior_results)} already-completed experiments.", flush=True)
+
         progress_state["total"] = len(parallel_tasks) + len(sequential_tasks)
         progress_state["completed"] = 0
         progress_state["start_time"] = time.time()
 
-        all_results = []
+        all_results = list(prior_results)
 
         if parallel_tasks:
             n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
-            with Pool(processes=n_workers) as pool:
-                for i, result in enumerate(
+            with Pool(processes=n_workers, initializer=_worker_init, maxtasksperchild=4) as pool:
+                for i, (key, result) in enumerate(
                     pool.imap_unordered(_run_task, parallel_tasks), start=1
                 ):
                     all_results.append(result)
+                    completed_keys.add(key)
+                    _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
                     progress_state["completed"] += 1
                     completed = progress_state["completed"]
                     total = progress_state["total"]
@@ -452,7 +515,11 @@ class SurvivalExperimentRunner:
                     )
 
         for task_tuple in sequential_tasks:
-            all_results.append(_run_model_experiment_fn(*task_tuple))
+            result = _run_model_experiment_fn(*task_tuple)
+            key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
+            all_results.append(result)
+            completed_keys.add(key)
+            _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
             progress_state["completed"] += 1
             completed = progress_state["completed"]
             total = progress_state["total"]
@@ -468,6 +535,12 @@ class SurvivalExperimentRunner:
                 flush=True,
             )
 
+        if self.checkpoint_path and os.path.exists(self.checkpoint_path):
+            try:
+                os.remove(self.checkpoint_path)
+                print("[checkpoint] Run complete — checkpoint removed.", flush=True)
+            except Exception:
+                pass
         return pd.DataFrame(all_results), self.class_mappings
 
 # ══════════════════════════════════════════════════════════════════════════════
