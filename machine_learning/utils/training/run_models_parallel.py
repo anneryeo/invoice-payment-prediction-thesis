@@ -197,7 +197,7 @@ class SurvivalExperimentRunner:
         args,
         best_parameters,
         thresholds=None,
-        n_jobs=-1,
+        n_jobs=4,
         do_not_parallel_compute=None,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,

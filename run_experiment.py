@@ -3,8 +3,11 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# Set OpenBLAS thread limit to suppress warning
-os.environ["OPENBLAS_NUM_THREADS"] = "24"
+# Configure threading limits to prevent memory exhaustion and OpenBLAS warnings
+os.environ["OPENBLAS_NUM_THREADS"] = "4"
+os.environ["MKL_NUM_THREADS"] = "4"
+os.environ["NUMEXPR_NUM_THREADS"] = "4"
+os.environ["OMP_NUM_THREADS"] = "4"
 
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
