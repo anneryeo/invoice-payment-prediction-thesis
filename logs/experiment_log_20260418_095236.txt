@@ -1,0 +1,309 @@
+Single due date records:   10377
+Multiple due date records: 289
+             count  percentage
+dtp_bracket                   
+on_time       3877       39.44
+30_days       2996       30.48
+90_days       1887       19.20
+60_days       1070       10.89
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ███████████████████████████████           79.5%
+  LD2: ███████                                   19.3%
+  LD3:                                           1.2%
+=======================================================
+
+                feature   before    after  improvement_%
+   opening_balance_flag 1.192663 1.192663       0.000000
+        opening_balance 0.363706 1.305319     258.894041
+           prev_bracket 0.300249 0.300249       0.000000
+               dtp_wavg 0.291680 0.291680       0.000000
+                dtp_avg 0.284761 0.284761       0.000000
+                dtp_max 0.246985 0.246985       0.000000
+          payment_ratio 0.237275 0.237275       0.000000
+                  dtp_1 0.213074 0.213074       0.000000
+                  dtp_2 0.205780 0.205780       0.000000
+                  dtp_3 0.175111 0.175111       0.000000
+                  dtp_4 0.150397 0.150397       0.000000
+         on_time_streak 0.124560 0.124560       0.000000
+       early_payer_flag 0.120615 0.120615       0.000000
+        dtp_rolling_std 0.114262 0.114262       0.000000
+   plan_type_risk_score 0.064020 0.064020       0.000000
+     plan_type_Plan - D 0.057423 0.057423       0.000000
+     amount_paid_cumsum 0.040008 0.047804      19.484763
+days_since_last_payment 0.039856 0.039856       0.000000
+      amount_due_cumsum 0.018570 0.018145      -2.290201
+     credit_sale_amount 0.016820 0.023806      41.532142
+     plan_type_Plan - B 0.013814 0.013814       0.000000
+     plan_type_Plan - E 0.009390 0.009390       0.000000
+     plan_type_Plan - C 0.003810 0.003810       0.000000
+            due_quarter 0.003792 0.003792       0.000000
+              due_month 0.003376 0.003376       0.000000
+     plan_type_Plan - A 0.001399 0.001399       0.000000
+            dtp_3_trend 0.000899 0.000899       0.000000
+            dtp_2_trend 0.000497 0.000497       0.000000
+          plan_type_nan 0.000379 0.000379       0.000000
+
+Saved → lda_before_after.png
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ██████████████████████████████████████    95.9%
+  LD2: █                                         4.1%
+=======================================================
+
+           feature   before    after  improvement_%
+          dtp_wavg 0.226306 0.226306       0.000000
+           dtp_avg 0.222605 0.222605       0.000000
+             dtp_2 0.167918 0.167918       0.000000
+             dtp_1 0.165470 0.165470       0.000000
+             dtp_3 0.139237 0.139237       0.000000
+             dtp_4 0.128412 0.128412       0.000000
+   opening_balance 0.121562 0.000534     -99.561020
+     payment_ratio 0.073670 0.073670       0.000000
+amount_paid_cumsum 0.025726 0.024540      -4.610788
+ amount_due_cumsum 0.016005 0.012960     -19.028934
+credit_sale_amount 0.002423 0.004119      69.979449
+
+Saved → lda_before_after.png
+Single due date records:   10377
+Multiple due date records: 289
+Excluded school years [2016, 2017, 2018]: removed 234 rows, 10177 remaining.
+Dropped 3650 invoices with missing DTP values. Remaining: 6527
+Partitioning datasets based on due_date (cut-off: 2025-03-07 — train: due_date < cut-off, test: due_date >= cut-off)...
+Applying smote_tomek...
+Accuracy: 0.7063697566027964
+Precission: 0.5958875266120093
+Recall: 0.5658618689474402
+F1: 0.5578475817663362
+AUC: 0.8314966995678342
+Accuracy: 0.7389953392024857
+Precission: 0.5900884064712296
+Recall: 0.5766860319438261
+F1: 0.5726681905029541
+AUC: 0.8798304626055071
+[dataset] Preparing: none ...
+[dataset]   Generating survival features ...
+[dataset]   Done (6s)
+[dataset] Preparing: smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: borderline_smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: smote_tomek ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: hybrid@0.5 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (7s)
+[dataset] Preparing: hybrid@0.7 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (5s)
+[dataset] Preparing: hybrid@0.9 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (4s)
+[1/1092] parallel task done | Elapsed: 7s | ETA: ~144m 51s remaining
+[2/1092] parallel task done | Elapsed: 8s | ETA: ~73m 18s remaining
+[3/1092] parallel task done | Elapsed: 8s | ETA: ~49m 36s remaining
+[4/1092] parallel task done | Elapsed: 8s | ETA: ~37m 38s remaining
+[5/1092] parallel task done | Elapsed: 8s | ETA: ~30m 42s remaining
+[6/1092] parallel task done | Elapsed: 8s | ETA: ~25m 46s remaining
+[7/1092] parallel task done | Elapsed: 8s | ETA: ~22m 09s remaining
+[8/1092] parallel task done | Elapsed: 8s | ETA: ~19m 36s remaining
+[9/1092] parallel task done | Elapsed: 8s | ETA: ~17m 31s remaining
+[10/1092] parallel task done | Elapsed: 8s | ETA: ~15m 45s remaining
+[11/1092] parallel task done | Elapsed: 8s | ETA: ~14m 19s remaining
+[12/1092] parallel task done | Elapsed: 8s | ETA: ~13m 09s remaining
+[13/1092] parallel task done | Elapsed: 8s | ETA: ~12m 19s remaining
+[14/1092] parallel task done | Elapsed: 9s | ETA: ~11m 55s remaining
+[15/1092] parallel task done | Elapsed: 26s | ETA: ~32m 10s remaining
+[16/1092] parallel task done | Elapsed: 34s | ETA: ~39m 08s remaining
+[17/1092] parallel task done | Elapsed: 36s | ETA: ~38m 24s remaining
+[18/1092] parallel task done | Elapsed: 38s | ETA: ~38m 14s remaining
+[19/1092] parallel task done | Elapsed: 44s | ETA: ~41m 29s remaining
+[20/1092] parallel task done | Elapsed: 46s | ETA: ~41m 14s remaining
+[21/1092] parallel task done | Elapsed: 50s | ETA: ~43m 17s remaining
+[22/1092] parallel task done | Elapsed: 1m 12s | ETA: ~59m 06s remaining
+[23/1092] parallel task done | Elapsed: 1m 15s | ETA: ~58m 39s remaining
+[24/1092] parallel task done | Elapsed: 1m 20s | ETA: ~59m 27s remaining
+[25/1092] parallel task done | Elapsed: 1m 23s | ETA: ~59m 06s remaining
+[26/1092] parallel task done | Elapsed: 1m 27s | ETA: ~59m 50s remaining
+[27/1092] parallel task done | Elapsed: 1m 30s | ETA: ~59m 46s remaining
+[28/1092] parallel task done | Elapsed: 1m 37s | ETA: ~61m 48s remaining
+[29/1092] parallel task done | Elapsed: 1m 38s | ETA: ~59m 58s remaining
+[30/1092] parallel task done | Elapsed: 1m 43s | ETA: ~61m 04s remaining
+[31/1092] parallel task done | Elapsed: 1m 44s | ETA: ~59m 23s remaining
+[32/1092] parallel task done | Elapsed: 1m 51s | ETA: ~61m 32s remaining
+[33/1092] parallel task done | Elapsed: 1m 56s | ETA: ~62m 29s remaining
+[34/1092] parallel task done | Elapsed: 1m 57s | ETA: ~60m 50s remaining
+[35/1092] parallel task done | Elapsed: 2m 01s | ETA: ~61m 24s remaining
+[36/1092] parallel task done | Elapsed: 2m 10s | ETA: ~63m 41s remaining
+[37/1092] parallel task done | Elapsed: 2m 11s | ETA: ~62m 24s remaining
+[38/1092] parallel task done | Elapsed: 2m 17s | ETA: ~63m 24s remaining
+[39/1092] parallel task done | Elapsed: 4m 09s | ETA: ~112m 22s remaining
+[40/1092] parallel task done | Elapsed: 4m 14s | ETA: ~111m 23s remaining
+[41/1092] parallel task done | Elapsed: 4m 30s | ETA: ~115m 40s remaining
+[42/1092] parallel task done | Elapsed: 4m 33s | ETA: ~113m 53s remaining
+[43/1092] parallel task done | Elapsed: 4m 38s | ETA: ~113m 03s remaining
+[44/1092] parallel task done | Elapsed: 4m 38s | ETA: ~110m 26s remaining
+[45/1092] parallel task done | Elapsed: 4m 46s | ETA: ~111m 09s remaining
+[46/1092] parallel task done | Elapsed: 4m 48s | ETA: ~109m 27s remaining
+[47/1092] parallel task done | Elapsed: 4m 49s | ETA: ~107m 13s remaining
+[48/1092] parallel task done | Elapsed: 4m 58s | ETA: ~108m 15s remaining
+[49/1092] parallel task done | Elapsed: 5m 02s | ETA: ~107m 13s remaining
+[50/1092] parallel task done | Elapsed: 5m 09s | ETA: ~107m 33s remaining
+[51/1092] parallel task done | Elapsed: 5m 19s | ETA: ~108m 33s remaining
+[52/1092] parallel task done | Elapsed: 5m 36s | ETA: ~112m 01s remaining
+[53/1092] parallel task done | Elapsed: 5m 42s | ETA: ~111m 52s remaining
+[54/1092] parallel task done | Elapsed: 5m 46s | ETA: ~111m 03s remaining
+[55/1092] parallel task done | Elapsed: 5m 47s | ETA: ~109m 07s remaining
+[56/1092] parallel task done | Elapsed: 5m 49s | ETA: ~107m 48s remaining
+[57/1092] parallel task done | Elapsed: 5m 53s | ETA: ~107m 01s remaining
+[58/1092] parallel task done | Elapsed: 5m 58s | ETA: ~106m 38s remaining
+[59/1092] parallel task done | Elapsed: 6m 02s | ETA: ~105m 42s remaining
+[60/1092] parallel task done | Elapsed: 6m 02s | ETA: ~103m 51s remaining
+[61/1092] parallel task done | Elapsed: 6m 04s | ETA: ~102m 32s remaining
+[62/1092] parallel task done | Elapsed: 6m 04s | ETA: ~100m 49s remaining
+[63/1092] parallel task done | Elapsed: 6m 08s | ETA: ~100m 26s remaining
+[64/1092] parallel task done | Elapsed: 6m 09s | ETA: ~98m 50s remaining
+[65/1092] parallel task done | Elapsed: 6m 09s | ETA: ~97m 20s remaining
+[66/1092] parallel task done | Elapsed: 6m 17s | ETA: ~97m 43s remaining
+[67/1092] parallel task done | Elapsed: 6m 20s | ETA: ~96m 58s remaining
+[68/1092] parallel task done | Elapsed: 6m 24s | ETA: ~96m 22s remaining
+[69/1092] parallel task done | Elapsed: 6m 25s | ETA: ~95m 08s remaining
+[70/1092] parallel task done | Elapsed: 6m 30s | ETA: ~95m 05s remaining
+[71/1092] parallel task done | Elapsed: 6m 31s | ETA: ~93m 55s remaining
+[72/1092] parallel task done | Elapsed: 6m 31s | ETA: ~92m 31s remaining
+[73/1092] parallel task done | Elapsed: 6m 31s | ETA: ~91m 10s remaining
+[74/1092] parallel task done | Elapsed: 6m 31s | ETA: ~89m 52s remaining
+[75/1092] parallel task done | Elapsed: 6m 35s | ETA: ~89m 28s remaining
+[76/1092] parallel task done | Elapsed: 6m 37s | ETA: ~88m 33s remaining
+[77/1092] parallel task done | Elapsed: 6m 37s | ETA: ~87m 22s remaining
+[78/1092] parallel task done | Elapsed: 6m 39s | ETA: ~86m 35s remaining
+[79/1092] parallel task done | Elapsed: 6m 43s | ETA: ~86m 15s remaining
+[80/1092] parallel task done | Elapsed: 6m 48s | ETA: ~86m 10s remaining
+[81/1092] parallel task done | Elapsed: 6m 49s | ETA: ~85m 12s remaining
+[82/1092] parallel task done | Elapsed: 6m 51s | ETA: ~84m 22s remaining
+[83/1092] parallel task done | Elapsed: 6m 52s | ETA: ~83m 29s remaining
+[84/1092] parallel task done | Elapsed: 6m 52s | ETA: ~82m 30s remaining
+[85/1092] parallel task done | Elapsed: 6m 53s | ETA: ~81m 37s remaining
+[86/1092] parallel task done | Elapsed: 6m 53s | ETA: ~80m 42s remaining
+[87/1092] parallel task done | Elapsed: 6m 55s | ETA: ~80m 01s remaining
+[88/1092] parallel task done | Elapsed: 6m 55s | ETA: ~79m 03s remaining
+[89/1092] parallel task done | Elapsed: 6m 55s | ETA: ~78m 07s remaining
+[90/1092] parallel task done | Elapsed: 6m 56s | ETA: ~77m 13s remaining
+[91/1092] parallel task done | Elapsed: 6m 56s | ETA: ~76m 20s remaining
+[92/1092] parallel task done | Elapsed: 6m 56s | ETA: ~75m 27s remaining
+[93/1092] parallel task done | Elapsed: 6m 56s | ETA: ~74m 36s remaining
+[94/1092] parallel task done | Elapsed: 6m 56s | ETA: ~73m 46s remaining
+[95/1092] parallel task done | Elapsed: 6m 56s | ETA: ~72m 55s remaining
+[96/1092] parallel task done | Elapsed: 6m 57s | ETA: ~72m 06s remaining
+[97/1092] parallel task done | Elapsed: 6m 57s | ETA: ~71m 18s remaining
+[98/1092] parallel task done | Elapsed: 6m 57s | ETA: ~70m 30s remaining
+[99/1092] parallel task done | Elapsed: 6m 57s | ETA: ~69m 46s remaining
+[100/1092] parallel task done | Elapsed: 6m 57s | ETA: ~69m 03s remaining
+[101/1092] parallel task done | Elapsed: 6m 58s | ETA: ~68m 28s remaining
+[102/1092] parallel task done | Elapsed: 7m 00s | ETA: ~68m 01s remaining
+[103/1092] parallel task done | Elapsed: 7m 00s | ETA: ~67m 17s remaining
+[104/1092] parallel task done | Elapsed: 7m 03s | ETA: ~67m 07s remaining
+[105/1092] parallel task done | Elapsed: 7m 07s | ETA: ~67m 01s remaining
+[106/1092] parallel task done | Elapsed: 7m 08s | ETA: ~66m 21s remaining
+[107/1092] parallel task done | Elapsed: 7m 12s | ETA: ~66m 25s remaining
+[108/1092] parallel task done | Elapsed: 7m 28s | ETA: ~68m 03s remaining
+[109/1092] parallel task done | Elapsed: 7m 32s | ETA: ~68m 02s remaining
+[110/1092] parallel task done | Elapsed: 7m 32s | ETA: ~67m 23s remaining
+[111/1092] parallel task done | Elapsed: 7m 32s | ETA: ~66m 43s remaining
+
+Experiment failed: 
+---------------------------------------------------------------------------
+Exception encountered at "In [37]":
+---------------------------------------------------------------------------
+RemoteTraceback                           Traceback (most recent call last)
+RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "C:\Python314\Lib\multiprocessing\pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ~~~~^^^^^^^^^^^^^^^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\machine_learning\utils\training\run_models_parallel.py", line 144, in _run_task
+    return _run_model_experiment_fn(*task_tuple)
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\machine_learning\utils\training\run_models_parallel.py", line 117, in _run_model_experiment_fn
+    pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\machine_learning\models\ada_boost.py", line 33, in fit
+    self.model.fit(self.X_train, self.y_train)
+    ~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\base.py", line 1336, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\ensemble\_weight_boosting.py", line 167, in fit
+    sample_weight, estimator_weight, estimator_error = self._boost(
+                                                       ~~~~~~~~~~~^
+        iboost, X, y, sample_weight, random_state
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\ensemble\_weight_boosting.py", line 526, in _boost
+    estimator.fit(X, y, sample_weight=sample_weight)
+    ~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\base.py", line 1336, in wrapper
+    return fit_method(estimator, *args, **kwargs)
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\tree\_classes.py", line 1027, in fit
+    super()._fit(
+    ~~~~~~~~~~~~^
+        X,
+        ^^
+    ...<2 lines>...
+        check_input=check_input,
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\tree\_classes.py", line 255, in _fit
+    X, y = validate_data(
+           ~~~~~~~~~~~~~^
+        self, X, y, validate_separately=(check_X_params, check_y_params)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\utils\validation.py", line 2914, in validate_data
+    X = check_array(X, input_name="X", **check_X_params)
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\utils\validation.py", line 1022, in check_array
+    array = _asarray_with_order(array, order=order, dtype=dtype, xp=xp)
+  File "D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\sklearn\utils\_array_api.py", line 878, in _asarray_with_order
+    array = numpy.asarray(array, order=order, dtype=dtype)
+numpy._core._exceptions._ArrayMemoryError: Unable to allocate 1.15 MiB for an array with shape (6300, 48) and data type float32
+"""
+
+The above exception was the direct cause of the following exception:
+
+MemoryError                               Traceback (most recent call last)
+Cell In[37], line 25
+     10 runner = SurvivalExperimentRunner(
+     11     df_data=df_data,
+     12     df_data_surv=df_data_surv,
+   (...)     21     feature_selection_enhanced=True,
+     22 )
+     24 # Run all experiments — returns (results_df, class_mappings)
+---> 25 df_results, class_mappings = runner.run()
+     27 # Record end time
+     28 _train_end = time.time()
+
+File D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\machine_learning\utils\training\run_models_parallel.py:432, in SurvivalExperimentRunner.run(self)
+    430 n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
+    431 with Pool(processes=n_workers) as pool:
+--> 432     for i, result in enumerate(
+    433         pool.imap_unordered(_run_task, parallel_tasks), start=1
+    434     ):
+    435         all_results.append(result)
+    436         progress_state["completed"] += 1
+
+File C:\Python314\Lib\multiprocessing\pool.py:873, in IMapIterator.next(self, timeout)
+    871 if success:
+    872     return value
+--> 873 raise value
+
+MemoryError: Unable to allocate 1.15 MiB for an array with shape (6300, 48) and data type float32
+
