@@ -14,7 +14,7 @@ Database/
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
-Results/
+results/
 Excel Files/
 temp_cache/
 /!Documents

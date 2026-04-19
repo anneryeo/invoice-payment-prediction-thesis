@@ -19,7 +19,7 @@ from scipy import stats
 warnings.filterwarnings("ignore")
 
 # ── Config ────────────────────────────────────────────────────────────────────
-DB_PATH    = "Results/2026_04_18_02/results.db"
+DB_PATH    = "results/2026_04_18_02/results.db"
 OUTPUT_DIR = Path("docs/202616APRIL-RESULTSGRAPHS")
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 

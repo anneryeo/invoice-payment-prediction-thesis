@@ -1,7 +1,7 @@
 import sqlite3
 import pandas as pd
 
-DB = "Results/2026_04_18_02/results.db"
+DB = "results/2026_04_18_02/results.db"
 conn = sqlite3.connect(DB)
 
 # Distinct models

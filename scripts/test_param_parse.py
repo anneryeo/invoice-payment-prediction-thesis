@@ -1,6 +1,6 @@
 import sqlite3, ast
 
-conn = sqlite3.connect("Results/2026_04_18_02/results.db")
+conn = sqlite3.connect("results/2026_04_18_02/results.db")
 
 # Test two-stage parse
 row = conn.execute("SELECT model, parameters FROM experiments WHERE model='two_stage_xgb_ada' LIMIT 1").fetchone()
