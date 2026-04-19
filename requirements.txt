@@ -132,7 +132,7 @@ six==1.16.0
 sklearn-compat==0.1.5
 soupsieve==2.7
 stack-data==0.6.3
-statsmodels==0.14.5
+statsmodels==0.14.6
 sympy==1.14.0
 tensorboard==2.20.0
 tensorboard-data-server==0.7.2
