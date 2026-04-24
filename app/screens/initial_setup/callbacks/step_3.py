@@ -173,7 +173,7 @@ def tune_cox_model(df_data_surv):
     tuner = CoxHyperparameterTuner(
         alpha_grid       = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0],
         l1_ratios        = [0.5, 0.75, 1.0],
-        save_report_path = "Results/",
+        save_report_path = "results/",
     )
     tuner.fit(X_surv, T, E)
     progress_state["survival_done"] = True

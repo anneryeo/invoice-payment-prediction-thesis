@@ -22,6 +22,7 @@ import json
 import os
 import pickle
 from datetime import datetime
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -121,7 +122,7 @@ def _save_excel(
 def save_training_results(
     model_results_df: pd.DataFrame,
     survival_results_dict: dict,
-    class_mappings_dict: dict,
+    class_mappings_dict: Optional[dict],
     base_output_folder: str,
     model_names: list,
     start_time: str,
