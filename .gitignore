@@ -71,3 +71,7 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 desktop.ini
+logs/
+*.db
+*.sqlite
+*.sqlite3
