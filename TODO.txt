@@ -1,1 +1,0 @@
-- The T is not shifted before the CoxPHFitter is fitted, idk why it still runs despite having negative values for it
