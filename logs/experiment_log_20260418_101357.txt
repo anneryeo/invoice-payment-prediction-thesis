@@ -1,0 +1,146 @@
+Single due date records:   10377
+Multiple due date records: 289
+             count  percentage
+dtp_bracket                   
+on_time       3877       39.44
+30_days       2996       30.48
+90_days       1887       19.20
+60_days       1070       10.89
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ███████████████████████████████           79.5%
+  LD2: ███████                                   19.3%
+  LD3:                                           1.2%
+=======================================================
+
+                feature   before    after  improvement_%
+   opening_balance_flag 1.192663 1.192663       0.000000
+        opening_balance 0.363706 1.305319     258.894041
+           prev_bracket 0.300249 0.300249       0.000000
+               dtp_wavg 0.291680 0.291680       0.000000
+                dtp_avg 0.284761 0.284761       0.000000
+                dtp_max 0.246985 0.246985       0.000000
+          payment_ratio 0.237275 0.237275       0.000000
+                  dtp_1 0.213074 0.213074       0.000000
+                  dtp_2 0.205780 0.205780       0.000000
+                  dtp_3 0.175111 0.175111       0.000000
+                  dtp_4 0.150397 0.150397       0.000000
+         on_time_streak 0.124560 0.124560       0.000000
+       early_payer_flag 0.120615 0.120615       0.000000
+        dtp_rolling_std 0.114262 0.114262       0.000000
+   plan_type_risk_score 0.064020 0.064020       0.000000
+     plan_type_Plan - D 0.057423 0.057423       0.000000
+     amount_paid_cumsum 0.040008 0.047804      19.484763
+days_since_last_payment 0.039856 0.039856       0.000000
+      amount_due_cumsum 0.018570 0.018145      -2.290201
+     credit_sale_amount 0.016820 0.023806      41.532142
+     plan_type_Plan - B 0.013814 0.013814       0.000000
+     plan_type_Plan - E 0.009390 0.009390       0.000000
+     plan_type_Plan - C 0.003810 0.003810       0.000000
+            due_quarter 0.003792 0.003792       0.000000
+              due_month 0.003376 0.003376       0.000000
+     plan_type_Plan - A 0.001399 0.001399       0.000000
+            dtp_3_trend 0.000899 0.000899       0.000000
+            dtp_2_trend 0.000497 0.000497       0.000000
+          plan_type_nan 0.000379 0.000379       0.000000
+
+Saved → lda_before_after.png
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ██████████████████████████████████████    95.9%
+  LD2: █                                         4.1%
+=======================================================
+
+           feature   before    after  improvement_%
+          dtp_wavg 0.226306 0.226306       0.000000
+           dtp_avg 0.222605 0.222605       0.000000
+             dtp_2 0.167918 0.167918       0.000000
+             dtp_1 0.165470 0.165470       0.000000
+             dtp_3 0.139237 0.139237       0.000000
+             dtp_4 0.128412 0.128412       0.000000
+   opening_balance 0.121562 0.000534     -99.561020
+     payment_ratio 0.073670 0.073670       0.000000
+amount_paid_cumsum 0.025726 0.024540      -4.610788
+ amount_due_cumsum 0.016005 0.012960     -19.028934
+credit_sale_amount 0.002423 0.004119      69.979449
+
+Saved → lda_before_after.png
+Single due date records:   10377
+Multiple due date records: 289
+Excluded school years [2016, 2017, 2018]: removed 234 rows, 10177 remaining.
+Dropped 3650 invoices with missing DTP values. Remaining: 6527
+Partitioning datasets based on due_date (cut-off: 2025-03-07 — train: due_date < cut-off, test: due_date >= cut-off)...
+Applying smote_tomek...
+Accuracy: 0.7063697566027964
+Precission: 0.5958875266120093
+Recall: 0.5658618689474402
+F1: 0.5578475817663362
+AUC: 0.8314966995678342
+Accuracy: 0.7379596064215432
+Precission: 0.589536865039253
+Recall: 0.5766002083140792
+F1: 0.572458553837563
+AUC: 0.8800850286770033
+[dataset] Preparing: none ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (9s)
+[dataset] Preparing: borderline_smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (12s)
+[dataset] Preparing: smote_tomek ...
+[dataset]   Generating survival features ...
+[dataset]   Done (11s)
+[dataset] Preparing: hybrid@0.5 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: hybrid@0.7 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (7s)
+[dataset] Preparing: hybrid@0.9 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (7s)
+[1/1092] parallel task done | Elapsed: 7s | ETA: ~139m 22s remaining
+[2/1092] parallel task done | Elapsed: 7s | ETA: ~71m 10s remaining
+[3/1092] parallel task done | Elapsed: 7s | ETA: ~47m 59s remaining
+[4/1092] parallel task done | Elapsed: 7s | ETA: ~36m 14s remaining
+[5/1092] parallel task done | Elapsed: 8s | ETA: ~29m 04s remaining
+[6/1092] parallel task done | Elapsed: 8s | ETA: ~24m 30s remaining
+[7/1092] parallel task done | Elapsed: 8s | ETA: ~21m 13s remaining
+[8/1092] parallel task done | Elapsed: 8s | ETA: ~18m 42s remaining
+[9/1092] parallel task done | Elapsed: 8s | ETA: ~16m 40s remaining
+[10/1092] parallel task done | Elapsed: 8s | ETA: ~15m 10s remaining
+[11/1092] parallel task done | Elapsed: 8s | ETA: ~13m 59s remaining
+[12/1092] parallel task done | Elapsed: 8s | ETA: ~12m 56s remaining
+[13/1092] parallel task done | Elapsed: 8s | ETA: ~11m 59s remaining
+[14/1092] parallel task done | Elapsed: 8s | ETA: ~11m 10s remaining
+[15/1092] parallel task done | Elapsed: 33s | ETA: ~39m 40s remaining
+[16/1092] parallel task done | Elapsed: 33s | ETA: ~37m 37s remaining
+[17/1092] parallel task done | Elapsed: 33s | ETA: ~35m 41s remaining
+[18/1092] parallel task done | Elapsed: 37s | ETA: ~37m 16s remaining
+[19/1092] parallel task done | Elapsed: 38s | ETA: ~36m 19s remaining
+[20/1092] parallel task done | Elapsed: 38s | ETA: ~34m 37s remaining
+[21/1092] parallel task done | Elapsed: 41s | ETA: ~34m 57s remaining
+[22/1092] parallel task done | Elapsed: 1m 08s | ETA: ~55m 43s remaining
+[23/1092] parallel task done | Elapsed: 1m 10s | ETA: ~54m 42s remaining
+[24/1092] parallel task done | Elapsed: 1m 10s | ETA: ~52m 34s remaining
+[25/1092] parallel task done | Elapsed: 1m 11s | ETA: ~51m 10s remaining
+[26/1092] parallel task done | Elapsed: 1m 12s | ETA: ~49m 45s remaining
+[27/1092] parallel task done | Elapsed: 1m 18s | ETA: ~51m 39s remaining
+[28/1092] parallel task done | Elapsed: 1m 19s | ETA: ~50m 27s remaining
+[29/1092] parallel task done | Elapsed: 1m 33s | ETA: ~56m 54s remaining
+[30/1092] parallel task done | Elapsed: 1m 34s | ETA: ~55m 34s remaining
+[31/1092] parallel task done | Elapsed: 1m 34s | ETA: ~53m 57s remaining
+[32/1092] parallel task done | Elapsed: 1m 38s | ETA: ~54m 34s remaining
+[33/1092] parallel task done | Elapsed: 1m 40s | ETA: ~53m 47s remaining
+[34/1092] parallel task done | Elapsed: 1m 44s | ETA: ~54m 20s remaining
+[35/1092] parallel task done | Elapsed: 1m 46s | ETA: ~53m 26s remaining
+[36/1092] parallel task done | Elapsed: 1m 49s | ETA: ~53m 44s remaining
+[37/1092] parallel task done | Elapsed: 1m 53s | ETA: ~53m 51s remaining
+[38/1092] parallel task done | Elapsed: 1m 54s | ETA: ~52m 47s remaining
