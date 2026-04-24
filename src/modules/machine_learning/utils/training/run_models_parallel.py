@@ -58,21 +58,12 @@ def _save_checkpoint(path, completed_keys, results):
         print(f"[checkpoint] Warning: could not save checkpoint ({e})", flush=True)
 
 
-<<<<<<< HEAD:machine_learning/utils/training/run_models_parallel.py
-from machine_learning.utils.training.load_parameters import ParameterLoader
-from machine_learning.utils.data.data_preparation import DataPreparer
-from machine_learning.utils.features.generate_survival_features import generate_survival_features
-from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
-from machine_learning.models.ordinal_classifier import OrdinalPipeline
-from machine_learning.models.two_stage_classifier import TwoStagePipeline
-=======
 from src.modules.machine_learning.utils.training.load_parameters import ParameterLoader
 from src.modules.machine_learning.utils.data.data_preparation import DataPreparer
 from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
 from src.modules.machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
 from src.modules.machine_learning.models.ordinal_classifier import OrdinalPipeline
 from src.modules.machine_learning.models.two_stage_classifier import TwoStagePipeline
->>>>>>> beley:src/modules/machine_learning/utils/training/run_models_parallel.py
 
 
 # When the user selects "ordinal", the runner expands it into these four
