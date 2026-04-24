@@ -3,7 +3,8 @@ import warnings
 import numpy as np
 import pandas as pd
 from itertools import product
-from multiprocessing import Pool, cpu_count
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 from sklearn.model_selection import KFold
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxnetSurvivalAnalysis
@@ -11,9 +12,6 @@ from sksurv.util import Surv
 
 from machine_learning.utils.data.clean_survival_inputs import clean_survival_inputs
 
-import warnings
-
-warnings.filterwarnings('ignore', message='.*sklearn.utils.parallel.delayed.*') #just getting warnings in experiment runs saying UserWarning: sklearn.utils.parallel.delayed should be used with sklearn.utils.parallel.Parallel to make it possible to propagate the scikit-learn configuration of the current thread to the joblib workers. | put this in because its not breaking functionality anyway
 
 # ── module-level worker ─────────────────────────────────────────────────────
 # Must be module-level so multiprocessing.Pool can pickle it.
@@ -187,7 +185,7 @@ class CoxHyperparameterTuner:
         ]
 
         raw_results = []
-        with Pool(processes=cpu_count()) as pool:
+        with ThreadPool(processes=cpu_count()) as pool:
             for i, result in enumerate(
                 pool.imap_unordered(_evaluate_params, task_args), start=1
             ):
