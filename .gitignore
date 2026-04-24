@@ -1,22 +1,25 @@
+#ANNE
+annesnotes/
+docs/
+.github/
+.geminiignore
+
 # Jupyter Notebooks
 .ipynb_checkpoints
 Pseudonymizer.ipynb
 Test - Credit Sales Refactor.ipynb
 
-
-
 # Data files
 Database/
-
-
 
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
-Results/
-Excel Files/
-temp_cache/
-
+data/training_input/
+data/training_logs/
+data/training_results/
+data/temp_cache/
+/!Documents
 
 
 # Python
@@ -69,3 +72,7 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 desktop.ini
+logs/
+*.db
+*.sqlite
+*.sqlite3
