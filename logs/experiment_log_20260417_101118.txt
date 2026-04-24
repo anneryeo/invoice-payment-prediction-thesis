@@ -1,0 +1,412 @@
+Single due date records:   10377
+Multiple due date records: 289
+             count  percentage
+dtp_bracket                   
+on_time       3877       39.44
+30_days       2996       30.48
+90_days       1887       19.20
+60_days       1070       10.89
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ███████████████████████████████           79.5%
+  LD2: ███████                                   19.3%
+  LD3:                                           1.2%
+=======================================================
+
+                feature   before    after  improvement_%
+   opening_balance_flag 1.192663 1.192663       0.000000
+        opening_balance 0.363706 1.305319     258.894041
+           prev_bracket 0.300249 0.300249       0.000000
+               dtp_wavg 0.291680 0.291680       0.000000
+                dtp_avg 0.284761 0.284761       0.000000
+                dtp_max 0.246985 0.246985       0.000000
+          payment_ratio 0.237275 0.237275       0.000000
+                  dtp_1 0.213074 0.213074       0.000000
+                  dtp_2 0.205780 0.205780       0.000000
+                  dtp_3 0.175111 0.175111       0.000000
+                  dtp_4 0.150397 0.150397       0.000000
+         on_time_streak 0.124560 0.124560       0.000000
+       early_payer_flag 0.120615 0.120615       0.000000
+        dtp_rolling_std 0.114262 0.114262       0.000000
+   plan_type_risk_score 0.064020 0.064020       0.000000
+     plan_type_Plan - D 0.057423 0.057423       0.000000
+     amount_paid_cumsum 0.040008 0.047804      19.484763
+days_since_last_payment 0.039856 0.039856       0.000000
+      amount_due_cumsum 0.018570 0.018145      -2.290201
+     credit_sale_amount 0.016820 0.023806      41.532142
+     plan_type_Plan - B 0.013814 0.013814       0.000000
+     plan_type_Plan - E 0.009390 0.009390       0.000000
+     plan_type_Plan - C 0.003810 0.003810       0.000000
+            due_quarter 0.003792 0.003792       0.000000
+              due_month 0.003376 0.003376       0.000000
+     plan_type_Plan - A 0.001399 0.001399       0.000000
+            dtp_3_trend 0.000899 0.000899       0.000000
+            dtp_2_trend 0.000497 0.000497       0.000000
+          plan_type_nan 0.000379 0.000379       0.000000
+
+Saved → lda_before_after.png
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ██████████████████████████████████████    95.9%
+  LD2: █                                         4.1%
+=======================================================
+
+           feature   before    after  improvement_%
+          dtp_wavg 0.226306 0.226306       0.000000
+           dtp_avg 0.222605 0.222605       0.000000
+             dtp_2 0.167918 0.167918       0.000000
+             dtp_1 0.165470 0.165470       0.000000
+             dtp_3 0.139237 0.139237       0.000000
+             dtp_4 0.128412 0.128412       0.000000
+   opening_balance 0.121562 0.000534     -99.561020
+     payment_ratio 0.073670 0.073670       0.000000
+amount_paid_cumsum 0.025726 0.024540      -4.610788
+ amount_due_cumsum 0.016005 0.012960     -19.028934
+credit_sale_amount 0.002423 0.004119      69.979449
+
+Saved → lda_before_after.png
+Single due date records:   10377
+Multiple due date records: 289
+Excluded school years [2016, 2017, 2018]: removed 234 rows, 10177 remaining.
+Dropped 3650 invoices with missing DTP values. Remaining: 6527
+Partitioning datasets based on due_date (cut-off: 2025-03-07 — train: due_date < cut-off, test: due_date >= cut-off)...
+Applying smote_tomek...
+Accuracy: 0.7063697566027964
+Precission: 0.5958875266120093
+Recall: 0.5658618689474402
+F1: 0.5578475817663362
+AUC: 0.8314966995678342
+Accuracy: 0.7389953392024857
+Precission: 0.5900884064712296
+Recall: 0.5766860319438261
+F1: 0.5726681905029541
+AUC: 0.8798304626055071
+[dataset] Preparing: none ...
+[dataset]   Generating survival features ...
+[dataset]   Done (3s)
+[dataset] Preparing: smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (4s)
+[dataset] Preparing: borderline_smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (4s)
+[dataset] Preparing: smote_tomek ...
+[dataset]   Generating survival features ...
+[dataset]   Done (4s)
+[dataset] Preparing: hybrid@0.5 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (3s)
+[dataset] Preparing: hybrid@0.7 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (2s)
+[dataset] Preparing: hybrid@0.9 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (2s)
+[1/1092] parallel task done | Elapsed: 5s | ETA: ~107m 39s remaining
+[2/1092] parallel task done | Elapsed: 5s | ETA: ~54m 00s remaining
+[3/1092] parallel task done | Elapsed: 5s | ETA: ~36m 14s remaining
+[4/1092] parallel task done | Elapsed: 6s | ETA: ~27m 19s remaining
+[5/1092] parallel task done | Elapsed: 6s | ETA: ~21m 57s remaining
+[6/1092] parallel task done | Elapsed: 6s | ETA: ~18m 19s remaining
+[7/1092] parallel task done | Elapsed: 6s | ETA: ~15m 42s remaining
+[8/1092] parallel task done | Elapsed: 6s | ETA: ~13m 52s remaining
+[9/1092] parallel task done | Elapsed: 6s | ETA: ~12m 21s remaining
+[10/1092] parallel task done | Elapsed: 6s | ETA: ~11m 08s remaining
+[11/1092] parallel task done | Elapsed: 6s | ETA: ~10m 12s remaining
+[12/1092] parallel task done | Elapsed: 6s | ETA: ~9m 24s remaining
+[13/1092] parallel task done | Elapsed: 6s | ETA: ~8m 41s remaining
+[14/1092] parallel task done | Elapsed: 6s | ETA: ~8m 11s remaining
+[15/1092] parallel task done | Elapsed: 11s | ETA: ~14m 21s remaining
+[16/1092] parallel task done | Elapsed: 12s | ETA: ~14m 21s remaining
+[17/1092] parallel task done | Elapsed: 13s | ETA: ~14m 05s remaining
+[18/1092] parallel task done | Elapsed: 13s | ETA: ~13m 22s remaining
+[19/1092] parallel task done | Elapsed: 24s | ETA: ~22m 35s remaining
+[20/1092] parallel task done | Elapsed: 24s | ETA: ~21m 45s remaining
+[21/1092] parallel task done | Elapsed: 27s | ETA: ~23m 25s remaining
+[22/1092] parallel task done | Elapsed: 35s | ETA: ~28m 39s remaining
+[23/1092] parallel task done | Elapsed: 35s | ETA: ~27m 25s remaining
+[24/1092] parallel task done | Elapsed: 36s | ETA: ~27m 18s remaining
+[25/1092] parallel task done | Elapsed: 37s | ETA: ~26m 48s remaining
+[26/1092] parallel task done | Elapsed: 37s | ETA: ~25m 54s remaining
+[27/1092] parallel task done | Elapsed: 39s | ETA: ~25m 58s remaining
+[28/1092] parallel task done | Elapsed: 40s | ETA: ~25m 28s remaining
+[29/1092] parallel task done | Elapsed: 49s | ETA: ~30m 24s remaining
+[30/1092] parallel task done | Elapsed: 52s | ETA: ~30m 48s remaining
+[31/1092] parallel task done | Elapsed: 57s | ETA: ~32m 45s remaining
+[32/1092] parallel task done | Elapsed: 1m 03s | ETA: ~34m 56s remaining
+[33/1092] parallel task done | Elapsed: 1m 04s | ETA: ~34m 18s remaining
+[34/1092] parallel task done | Elapsed: 1m 06s | ETA: ~34m 21s remaining
+[35/1092] parallel task done | Elapsed: 1m 07s | ETA: ~34m 09s remaining
+[36/1092] parallel task done | Elapsed: 1m 11s | ETA: ~34m 44s remaining
+[37/1092] parallel task done | Elapsed: 1m 11s | ETA: ~33m 49s remaining
+[38/1092] parallel task done | Elapsed: 1m 11s | ETA: ~33m 00s remaining
+[39/1092] parallel task done | Elapsed: 2m 44s | ETA: ~74m 09s remaining
+[40/1092] parallel task done | Elapsed: 2m 50s | ETA: ~74m 46s remaining
+[41/1092] parallel task done | Elapsed: 2m 57s | ETA: ~75m 54s remaining
+[42/1092] parallel task done | Elapsed: 2m 58s | ETA: ~74m 26s remaining
+[43/1092] parallel task done | Elapsed: 3m 01s | ETA: ~73m 55s remaining
+[44/1092] parallel task done | Elapsed: 3m 06s | ETA: ~74m 01s remaining
+[45/1092] parallel task done | Elapsed: 3m 07s | ETA: ~72m 52s remaining
+[46/1092] parallel task done | Elapsed: 3m 10s | ETA: ~72m 10s remaining
+[47/1092] parallel task done | Elapsed: 3m 10s | ETA: ~70m 35s remaining
+[48/1092] parallel task done | Elapsed: 3m 13s | ETA: ~70m 01s remaining
+[49/1092] parallel task done | Elapsed: 3m 13s | ETA: ~68m 43s remaining
+[50/1092] parallel task done | Elapsed: 3m 15s | ETA: ~67m 47s remaining
+[51/1092] parallel task done | Elapsed: 3m 15s | ETA: ~66m 26s remaining
+[52/1092] parallel task done | Elapsed: 3m 19s | ETA: ~66m 30s remaining
+[53/1092] parallel task done | Elapsed: 3m 20s | ETA: ~65m 31s remaining
+[54/1092] parallel task done | Elapsed: 3m 21s | ETA: ~64m 32s remaining
+[55/1092] parallel task done | Elapsed: 3m 33s | ETA: ~67m 12s remaining
+[56/1092] parallel task done | Elapsed: 3m 35s | ETA: ~66m 31s remaining
+[57/1092] parallel task done | Elapsed: 3m 39s | ETA: ~66m 20s remaining
+[58/1092] parallel task done | Elapsed: 3m 41s | ETA: ~65m 40s remaining
+[59/1092] parallel task done | Elapsed: 3m 41s | ETA: ~64m 43s remaining
+[60/1092] parallel task done | Elapsed: 3m 42s | ETA: ~63m 46s remaining
+[61/1092] parallel task done | Elapsed: 3m 44s | ETA: ~63m 14s remaining
+[62/1092] parallel task done | Elapsed: 3m 45s | ETA: ~62m 31s remaining
+[63/1092] parallel task done | Elapsed: 3m 50s | ETA: ~62m 50s remaining
+[64/1092] parallel task done | Elapsed: 3m 52s | ETA: ~62m 15s remaining
+[65/1092] parallel task done | Elapsed: 3m 54s | ETA: ~61m 43s remaining
+[66/1092] parallel task done | Elapsed: 3m 54s | ETA: ~60m 47s remaining
+[67/1092] parallel task done | Elapsed: 3m 57s | ETA: ~60m 28s remaining
+[68/1092] parallel task done | Elapsed: 3m 57s | ETA: ~59m 41s remaining
+[69/1092] parallel task done | Elapsed: 3m 59s | ETA: ~59m 17s remaining
+[70/1092] parallel task done | Elapsed: 4m 02s | ETA: ~58m 59s remaining
+[71/1092] parallel task done | Elapsed: 4m 02s | ETA: ~58m 10s remaining
+[72/1092] parallel task done | Elapsed: 4m 03s | ETA: ~57m 29s remaining
+[73/1092] parallel task done | Elapsed: 4m 06s | ETA: ~57m 19s remaining
+[74/1092] parallel task done | Elapsed: 4m 07s | ETA: ~56m 48s remaining
+[75/1092] parallel task done | Elapsed: 4m 09s | ETA: ~56m 21s remaining
+[76/1092] parallel task done | Elapsed: 4m 12s | ETA: ~56m 14s remaining
+[77/1092] parallel task done | Elapsed: 4m 13s | ETA: ~55m 40s remaining
+[78/1092] parallel task done | Elapsed: 4m 13s | ETA: ~54m 55s remaining
+[79/1092] parallel task done | Elapsed: 4m 13s | ETA: ~54m 14s remaining
+[80/1092] parallel task done | Elapsed: 4m 17s | ETA: ~54m 18s remaining
+[81/1092] parallel task done | Elapsed: 4m 18s | ETA: ~53m 47s remaining
+[82/1092] parallel task done | Elapsed: 4m 21s | ETA: ~53m 36s remaining
+[83/1092] parallel task done | Elapsed: 4m 22s | ETA: ~53m 06s remaining
+[84/1092] parallel task done | Elapsed: 4m 23s | ETA: ~52m 36s remaining
+[85/1092] parallel task done | Elapsed: 4m 23s | ETA: ~52m 01s remaining
+[86/1092] parallel task done | Elapsed: 4m 23s | ETA: ~51m 22s remaining
+[87/1092] parallel task done | Elapsed: 4m 23s | ETA: ~50m 48s remaining
+[88/1092] parallel task done | Elapsed: 4m 24s | ETA: ~50m 13s remaining
+[89/1092] parallel task done | Elapsed: 4m 24s | ETA: ~49m 37s remaining
+[90/1092] parallel task done | Elapsed: 4m 24s | ETA: ~49m 03s remaining
+[91/1092] parallel task done | Elapsed: 4m 24s | ETA: ~48m 30s remaining
+[92/1092] parallel task done | Elapsed: 4m 24s | ETA: ~47m 57s remaining
+[93/1092] parallel task done | Elapsed: 4m 24s | ETA: ~47m 24s remaining
+[94/1092] parallel task done | Elapsed: 4m 24s | ETA: ~46m 51s remaining
+[95/1092] parallel task done | Elapsed: 4m 24s | ETA: ~46m 19s remaining
+[96/1092] parallel task done | Elapsed: 4m 24s | ETA: ~45m 49s remaining
+[97/1092] parallel task done | Elapsed: 4m 24s | ETA: ~45m 18s remaining
+[98/1092] parallel task done | Elapsed: 4m 25s | ETA: ~44m 48s remaining
+[99/1092] parallel task done | Elapsed: 4m 25s | ETA: ~44m 19s remaining
+[100/1092] parallel task done | Elapsed: 4m 25s | ETA: ~43m 54s remaining
+[101/1092] parallel task done | Elapsed: 4m 26s | ETA: ~43m 37s remaining
+[102/1092] parallel task done | Elapsed: 4m 28s | ETA: ~43m 28s remaining
+[103/1092] parallel task done | Elapsed: 4m 29s | ETA: ~43m 05s remaining
+[104/1092] parallel task done | Elapsed: 4m 29s | ETA: ~42m 40s remaining
+[105/1092] parallel task done | Elapsed: 4m 30s | ETA: ~42m 19s remaining
+[106/1092] parallel task done | Elapsed: 4m 30s | ETA: ~41m 54s remaining
+[107/1092] parallel task done | Elapsed: 4m 39s | ETA: ~42m 48s remaining
+[108/1092] parallel task done | Elapsed: 4m 44s | ETA: ~43m 12s remaining
+[109/1092] parallel task done | Elapsed: 4m 52s | ETA: ~44m 00s remaining
+[110/1092] parallel task done | Elapsed: 4m 55s | ETA: ~43m 58s remaining
+[111/1092] parallel task done | Elapsed: 4m 56s | ETA: ~43m 40s remaining
+[112/1092] parallel task done | Elapsed: 4m 58s | ETA: ~43m 29s remaining
+[113/1092] parallel task done | Elapsed: 5m 00s | ETA: ~43m 22s remaining
+[114/1092] parallel task done | Elapsed: 5m 03s | ETA: ~43m 22s remaining
+[115/1092] parallel task done | Elapsed: 5m 12s | ETA: ~44m 14s remaining
+[116/1092] parallel task done | Elapsed: 5m 16s | ETA: ~44m 19s remaining
+[117/1092] parallel task done | Elapsed: 5m 16s | ETA: ~44m 00s remaining
+[118/1092] parallel task done | Elapsed: 5m 19s | ETA: ~43m 55s remaining
+[119/1092] parallel task done | Elapsed: 5m 31s | ETA: ~45m 07s remaining
+[120/1092] parallel task done | Elapsed: 5m 31s | ETA: ~44m 46s remaining
+[121/1092] parallel task done | Elapsed: 5m 33s | ETA: ~44m 36s remaining
+[122/1092] parallel task done | Elapsed: 5m 38s | ETA: ~44m 47s remaining
+[123/1092] parallel task done | Elapsed: 5m 39s | ETA: ~44m 32s remaining
+[124/1092] parallel task done | Elapsed: 5m 40s | ETA: ~44m 20s remaining
+[125/1092] parallel task done | Elapsed: 5m 54s | ETA: ~45m 44s remaining
+[126/1092] parallel task done | Elapsed: 6m 00s | ETA: ~46m 07s remaining
+[127/1092] parallel task done | Elapsed: 6m 01s | ETA: ~45m 50s remaining
+[128/1092] parallel task done | Elapsed: 6m 03s | ETA: ~45m 40s remaining
+[129/1092] parallel task done | Elapsed: 7m 43s | ETA: ~57m 39s remaining
+[130/1092] parallel task done | Elapsed: 7m 43s | ETA: ~57m 10s remaining
+[131/1092] parallel task done | Elapsed: 7m 49s | ETA: ~57m 23s remaining
+[132/1092] parallel task done | Elapsed: 7m 59s | ETA: ~58m 05s remaining
+[133/1092] parallel task done | Elapsed: 8m 05s | ETA: ~58m 21s remaining
+[134/1092] parallel task done | Elapsed: 8m 10s | ETA: ~58m 28s remaining
+[135/1092] parallel task done | Elapsed: 8m 15s | ETA: ~58m 34s remaining
+[136/1092] parallel task done | Elapsed: 8m 19s | ETA: ~58m 34s remaining
+[137/1092] parallel task done | Elapsed: 8m 30s | ETA: ~59m 20s remaining
+[138/1092] parallel task done | Elapsed: 8m 36s | ETA: ~59m 28s remaining
+[139/1092] parallel task done | Elapsed: 10m 18s | ETA: ~70m 39s remaining
+[140/1092] parallel task done | Elapsed: 10m 22s | ETA: ~70m 33s remaining
+[141/1092] parallel task done | Elapsed: 10m 23s | ETA: ~70m 07s remaining
+[142/1092] parallel task done | Elapsed: 10m 26s | ETA: ~69m 50s remaining
+[143/1092] parallel task done | Elapsed: 10m 32s | ETA: ~69m 57s remaining
+[144/1092] parallel task done | Elapsed: 10m 44s | ETA: ~70m 44s remaining
+[145/1092] parallel task done | Elapsed: 11m 07s | ETA: ~72m 41s remaining
+[146/1092] parallel task done | Elapsed: 11m 07s | ETA: ~72m 06s remaining
+[147/1092] parallel task done | Elapsed: 11m 12s | ETA: ~72m 04s remaining
+[148/1092] parallel task done | Elapsed: 11m 16s | ETA: ~71m 52s remaining
+[149/1092] parallel task done | Elapsed: 11m 24s | ETA: ~72m 13s remaining
+[150/1092] parallel task done | Elapsed: 11m 25s | ETA: ~71m 42s remaining
+[151/1092] parallel task done | Elapsed: 11m 26s | ETA: ~71m 20s remaining
+[152/1092] parallel task done | Elapsed: 11m 29s | ETA: ~71m 04s remaining
+[153/1092] parallel task done | Elapsed: 11m 36s | ETA: ~71m 12s remaining
+[154/1092] parallel task done | Elapsed: 11m 36s | ETA: ~70m 44s remaining
+[155/1092] parallel task done | Elapsed: 11m 38s | ETA: ~70m 19s remaining
+[156/1092] parallel task done | Elapsed: 11m 45s | ETA: ~70m 33s remaining
+[157/1092] parallel task done | Elapsed: 11m 47s | ETA: ~70m 13s remaining
+[158/1092] parallel task done | Elapsed: 11m 58s | ETA: ~70m 48s remaining
+[159/1092] parallel task done | Elapsed: 11m 59s | ETA: ~70m 23s remaining
+[160/1092] parallel task done | Elapsed: 12m 00s | ETA: ~69m 58s remaining
+[161/1092] parallel task done | Elapsed: 12m 02s | ETA: ~69m 35s remaining
+[162/1092] parallel task done | Elapsed: 12m 12s | ETA: ~70m 05s remaining
+[163/1092] parallel task done | Elapsed: 12m 12s | ETA: ~69m 36s remaining
+[164/1092] parallel task done | Elapsed: 12m 17s | ETA: ~69m 34s remaining
+[165/1092] parallel task done | Elapsed: 12m 18s | ETA: ~69m 09s remaining
+[166/1092] parallel task done | Elapsed: 12m 23s | ETA: ~69m 05s remaining
+[167/1092] parallel task done | Elapsed: 12m 25s | ETA: ~68m 48s remaining
+[168/1092] parallel task done | Elapsed: 12m 25s | ETA: ~68m 19s remaining
+[169/1092] parallel task done | Elapsed: 12m 28s | ETA: ~68m 08s remaining
+[170/1092] parallel task done | Elapsed: 12m 36s | ETA: ~68m 25s remaining
+[171/1092] parallel task done | Elapsed: 12m 37s | ETA: ~67m 58s remaining
+[172/1092] parallel task done | Elapsed: 12m 40s | ETA: ~67m 50s remaining
+[173/1092] parallel task done | Elapsed: 12m 41s | ETA: ~67m 26s remaining
+[174/1092] parallel task done | Elapsed: 12m 42s | ETA: ~67m 04s remaining
+[175/1092] parallel task done | Elapsed: 12m 43s | ETA: ~66m 40s remaining
+[176/1092] parallel task done | Elapsed: 12m 44s | ETA: ~66m 17s remaining
+[177/1092] parallel task done | Elapsed: 12m 44s | ETA: ~65m 52s remaining
+[178/1092] parallel task done | Elapsed: 12m 45s | ETA: ~65m 33s remaining
+[179/1092] parallel task done | Elapsed: 12m 46s | ETA: ~65m 07s remaining
+[180/1092] parallel task done | Elapsed: 12m 46s | ETA: ~64m 42s remaining
+[181/1092] parallel task done | Elapsed: 12m 46s | ETA: ~64m 17s remaining
+[182/1092] parallel task done | Elapsed: 12m 46s | ETA: ~63m 52s remaining
+[183/1092] parallel task done | Elapsed: 12m 46s | ETA: ~63m 27s remaining
+[184/1092] parallel task done | Elapsed: 12m 46s | ETA: ~63m 03s remaining
+[185/1092] parallel task done | Elapsed: 12m 46s | ETA: ~62m 39s remaining
+[186/1092] parallel task done | Elapsed: 12m 46s | ETA: ~62m 15s remaining
+[187/1092] parallel task done | Elapsed: 12m 46s | ETA: ~61m 51s remaining
+[188/1092] parallel task done | Elapsed: 12m 47s | ETA: ~61m 28s remaining
+[189/1092] parallel task done | Elapsed: 12m 48s | ETA: ~61m 14s remaining
+[190/1092] parallel task done | Elapsed: 12m 56s | ETA: ~61m 24s remaining
+[191/1092] parallel task done | Elapsed: 12m 57s | ETA: ~61m 07s remaining
+[192/1092] parallel task done | Elapsed: 13m 00s | ETA: ~60m 56s remaining
+[193/1092] parallel task done | Elapsed: 13m 22s | ETA: ~62m 15s remaining
+[194/1092] parallel task done | Elapsed: 13m 24s | ETA: ~62m 02s remaining
+[195/1092] parallel task done | Elapsed: 13m 35s | ETA: ~62m 31s remaining
+[196/1092] parallel task done | Elapsed: 13m 36s | ETA: ~62m 14s remaining
+[197/1092] parallel task done | Elapsed: 13m 50s | ETA: ~62m 51s remaining
+[198/1092] parallel task done | Elapsed: 14m 12s | ETA: ~64m 09s remaining
+[199/1092] parallel task done | Elapsed: 14m 18s | ETA: ~64m 10s remaining
+[200/1092] parallel task done | Elapsed: 14m 20s | ETA: ~63m 55s remaining
+[201/1092] parallel task done | Elapsed: 14m 29s | ETA: ~64m 13s remaining
+[202/1092] parallel task done | Elapsed: 14m 30s | ETA: ~63m 57s remaining
+[203/1092] parallel task done | Elapsed: 14m 35s | ETA: ~63m 54s remaining
+[204/1092] parallel task done | Elapsed: 14m 46s | ETA: ~64m 20s remaining
+[205/1092] parallel task done | Elapsed: 14m 49s | ETA: ~64m 07s remaining
+[206/1092] parallel task done | Elapsed: 14m 58s | ETA: ~64m 26s remaining
+[207/1092] parallel task done | Elapsed: 15m 03s | ETA: ~64m 24s remaining
+[208/1092] parallel task done | Elapsed: 15m 05s | ETA: ~64m 10s remaining
+[209/1092] parallel task done | Elapsed: 15m 13s | ETA: ~64m 21s remaining
+[210/1092] parallel task done | Elapsed: 15m 17s | ETA: ~64m 12s remaining
+[211/1092] parallel task done | Elapsed: 15m 22s | ETA: ~64m 10s remaining
+[212/1092] parallel task done | Elapsed: 15m 26s | ETA: ~64m 06s remaining
+[213/1092] parallel task done | Elapsed: 15m 32s | ETA: ~64m 08s remaining
+[214/1092] parallel task done | Elapsed: 15m 39s | ETA: ~64m 16s remaining
+[215/1092] parallel task done | Elapsed: 15m 46s | ETA: ~64m 22s remaining
+[216/1092] parallel task done | Elapsed: 15m 52s | ETA: ~64m 23s remaining
+[217/1092] parallel task done | Elapsed: 15m 54s | ETA: ~64m 09s remaining
+[218/1092] parallel task done | Elapsed: 15m 57s | ETA: ~63m 57s remaining
+[219/1092] parallel task done | Elapsed: 19m 02s | ETA: ~75m 53s remaining
+[220/1092] parallel task done | Elapsed: 19m 10s | ETA: ~76m 00s remaining
+[221/1092] parallel task done | Elapsed: 19m 26s | ETA: ~76m 36s remaining
+[222/1092] parallel task done | Elapsed: 19m 29s | ETA: ~76m 21s remaining
+[223/1092] parallel task done | Elapsed: 19m 39s | ETA: ~76m 36s remaining
+[224/1092] parallel task done | Elapsed: 19m 48s | ETA: ~76m 47s remaining
+[225/1092] parallel task done | Elapsed: 20m 02s | ETA: ~77m 12s remaining
+[226/1092] parallel task done | Elapsed: 20m 07s | ETA: ~77m 05s remaining
+[227/1092] parallel task done | Elapsed: 20m 13s | ETA: ~77m 03s remaining
+[228/1092] parallel task done | Elapsed: 20m 23s | ETA: ~77m 17s remaining
+[229/1092] parallel task done | Elapsed: 20m 42s | ETA: ~78m 02s remaining
+[230/1092] parallel task done | Elapsed: 20m 43s | ETA: ~77m 41s remaining
+[231/1092] parallel task done | Elapsed: 20m 44s | ETA: ~77m 17s remaining
+[232/1092] parallel task done | Elapsed: 21m 08s | ETA: ~78m 22s remaining
+[233/1092] parallel task done | Elapsed: 21m 11s | ETA: ~78m 05s remaining
+[234/1092] parallel task done | Elapsed: 21m 28s | ETA: ~78m 44s remaining
+[235/1092] parallel task done | Elapsed: 21m 46s | ETA: ~79m 23s remaining
+[236/1092] parallel task done | Elapsed: 21m 52s | ETA: ~79m 20s remaining
+[237/1092] parallel task done | Elapsed: 21m 53s | ETA: ~78m 58s remaining
+[238/1092] parallel task done | Elapsed: 21m 54s | ETA: ~78m 37s remaining
+[239/1092] parallel task done | Elapsed: 21m 55s | ETA: ~78m 13s remaining
+[240/1092] parallel task done | Elapsed: 21m 57s | ETA: ~77m 55s remaining
+[241/1092] parallel task done | Elapsed: 21m 57s | ETA: ~77m 33s remaining
+[242/1092] parallel task done | Elapsed: 22m 07s | ETA: ~77m 43s remaining
+[243/1092] parallel task done | Elapsed: 22m 14s | ETA: ~77m 42s remaining
+[244/1092] parallel task done | Elapsed: 22m 16s | ETA: ~77m 25s remaining
+[245/1092] parallel task done | Elapsed: 22m 43s | ETA: ~78m 35s remaining
+[246/1092] parallel task done | Elapsed: 22m 45s | ETA: ~78m 14s remaining
+[247/1092] parallel task done | Elapsed: 22m 49s | ETA: ~78m 05s remaining
+[248/1092] parallel task done | Elapsed: 22m 50s | ETA: ~77m 42s remaining
+[249/1092] parallel task done | Elapsed: 22m 50s | ETA: ~77m 19s remaining
+[250/1092] parallel task done | Elapsed: 22m 54s | ETA: ~77m 08s remaining
+[251/1092] parallel task done | Elapsed: 22m 56s | ETA: ~76m 52s remaining
+[252/1092] parallel task done | Elapsed: 22m 56s | ETA: ~76m 29s remaining
+[253/1092] parallel task done | Elapsed: 23m 00s | ETA: ~76m 17s remaining
+[254/1092] parallel task done | Elapsed: 23m 01s | ETA: ~75m 56s remaining
+[255/1092] parallel task done | Elapsed: 23m 01s | ETA: ~75m 33s remaining
+[256/1092] parallel task done | Elapsed: 23m 09s | ETA: ~75m 39s remaining
+[257/1092] parallel task done | Elapsed: 23m 11s | ETA: ~75m 19s remaining
+[258/1092] parallel task done | Elapsed: 23m 21s | ETA: ~75m 29s remaining
+[259/1092] parallel task done | Elapsed: 23m 24s | ETA: ~75m 17s remaining
+[260/1092] parallel task done | Elapsed: 23m 27s | ETA: ~75m 02s remaining
+[261/1092] parallel task done | Elapsed: 23m 27s | ETA: ~74m 41s remaining
+[262/1092] parallel task done | Elapsed: 23m 29s | ETA: ~74m 24s remaining
+[263/1092] parallel task done | Elapsed: 23m 30s | ETA: ~74m 04s remaining
+[264/1092] parallel task done | Elapsed: 23m 30s | ETA: ~73m 44s remaining
+[265/1092] parallel task done | Elapsed: 23m 31s | ETA: ~73m 24s remaining
+[266/1092] parallel task done | Elapsed: 23m 31s | ETA: ~73m 03s remaining
+[267/1092] parallel task done | Elapsed: 23m 32s | ETA: ~72m 45s remaining
+[268/1092] parallel task done | Elapsed: 23m 33s | ETA: ~72m 26s remaining
+[269/1092] parallel task done | Elapsed: 23m 33s | ETA: ~72m 05s remaining
+[270/1092] parallel task done | Elapsed: 23m 34s | ETA: ~71m 45s remaining
+[271/1092] parallel task done | Elapsed: 23m 34s | ETA: ~71m 24s remaining
+[272/1092] parallel task done | Elapsed: 23m 34s | ETA: ~71m 04s remaining
+[273/1092] parallel task done | Elapsed: 23m 34s | ETA: ~70m 43s remaining
+[274/1092] parallel task done | Elapsed: 23m 34s | ETA: ~70m 23s remaining
+[275/1092] parallel task done | Elapsed: 23m 34s | ETA: ~70m 03s remaining
+[276/1092] parallel task done | Elapsed: 23m 34s | ETA: ~69m 43s remaining
+[277/1092] parallel task done | Elapsed: 23m 35s | ETA: ~69m 23s remaining
+[278/1092] parallel task done | Elapsed: 23m 39s | ETA: ~69m 17s remaining
+[279/1092] parallel task done | Elapsed: 23m 41s | ETA: ~69m 00s remaining
+[280/1092] parallel task done | Elapsed: 24m 21s | ETA: ~70m 39s remaining
+[281/1092] parallel task done | Elapsed: 24m 29s | ETA: ~70m 41s remaining
+[282/1092] parallel task done | Elapsed: 24m 30s | ETA: ~70m 25s remaining
+[283/1092] parallel task done | Elapsed: 24m 31s | ETA: ~70m 06s remaining
+[284/1092] parallel task done | Elapsed: 24m 34s | ETA: ~69m 54s remaining
+[285/1092] parallel task done | Elapsed: 24m 39s | ETA: ~69m 48s remaining
+[286/1092] parallel task done | Elapsed: 24m 39s | ETA: ~69m 30s remaining
+[287/1092] parallel task done | Elapsed: 24m 42s | ETA: ~69m 19s remaining
+[288/1092] parallel task done | Elapsed: 24m 47s | ETA: ~69m 13s remaining
+[289/1092] parallel task done | Elapsed: 24m 49s | ETA: ~68m 59s remaining
+[290/1092] parallel task done | Elapsed: 24m 52s | ETA: ~68m 48s remaining
+[291/1092] parallel task done | Elapsed: 25m 03s | ETA: ~68m 58s remaining
+[292/1092] parallel task done | Elapsed: 25m 05s | ETA: ~68m 43s remaining
+[293/1092] parallel task done | Elapsed: 25m 11s | ETA: ~68m 40s remaining
+[294/1092] parallel task done | Elapsed: 25m 12s | ETA: ~68m 25s remaining
+[295/1092] parallel task done | Elapsed: 25m 18s | ETA: ~68m 22s remaining
+[296/1092] parallel task done | Elapsed: 25m 22s | ETA: ~68m 15s remaining
+[297/1092] parallel task done | Elapsed: 25m 28s | ETA: ~68m 11s remaining
+[298/1092] parallel task done | Elapsed: 25m 32s | ETA: ~68m 03s remaining
+[299/1092] parallel task done | Elapsed: 25m 34s | ETA: ~67m 49s remaining
+[300/1092] parallel task done | Elapsed: 25m 38s | ETA: ~67m 40s remaining
+[301/1092] parallel task done | Elapsed: 25m 48s | ETA: ~67m 49s remaining
+[302/1092] parallel task done | Elapsed: 25m 54s | ETA: ~67m 45s remaining
+[303/1092] parallel task done | Elapsed: 25m 56s | ETA: ~67m 33s remaining
+[304/1092] parallel task done | Elapsed: 26m 06s | ETA: ~67m 40s remaining

@@ -1,0 +1,1268 @@
+Single due date records:   10377
+Multiple due date records: 289
+             count  percentage
+dtp_bracket                   
+on_time       3877       39.44
+30_days       2996       30.48
+90_days       1887       19.20
+60_days       1070       10.89
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ███████████████████████████████           79.5%
+  LD2: ███████                                   19.3%
+  LD3:                                           1.2%
+=======================================================
+
+                feature   before    after  improvement_%
+   opening_balance_flag 1.192663 1.192663       0.000000
+        opening_balance 0.363706 1.305319     258.894041
+           prev_bracket 0.300249 0.300249       0.000000
+               dtp_wavg 0.291680 0.291680       0.000000
+                dtp_avg 0.284761 0.284761       0.000000
+                dtp_max 0.246985 0.246985       0.000000
+          payment_ratio 0.237275 0.237275       0.000000
+                  dtp_1 0.213074 0.213074       0.000000
+                  dtp_2 0.205780 0.205780       0.000000
+                  dtp_3 0.175111 0.175111       0.000000
+                  dtp_4 0.150397 0.150397       0.000000
+         on_time_streak 0.124560 0.124560       0.000000
+       early_payer_flag 0.120615 0.120615       0.000000
+        dtp_rolling_std 0.114262 0.114262       0.000000
+   plan_type_risk_score 0.064020 0.064020       0.000000
+     plan_type_Plan - D 0.057423 0.057423       0.000000
+     amount_paid_cumsum 0.040008 0.047804      19.484763
+days_since_last_payment 0.039856 0.039856       0.000000
+      amount_due_cumsum 0.018570 0.018145      -2.290201
+     credit_sale_amount 0.016820 0.023806      41.532142
+     plan_type_Plan - B 0.013814 0.013814       0.000000
+     plan_type_Plan - E 0.009390 0.009390       0.000000
+     plan_type_Plan - C 0.003810 0.003810       0.000000
+            due_quarter 0.003792 0.003792       0.000000
+              due_month 0.003376 0.003376       0.000000
+     plan_type_Plan - A 0.001399 0.001399       0.000000
+            dtp_3_trend 0.000899 0.000899       0.000000
+            dtp_2_trend 0.000497 0.000497       0.000000
+          plan_type_nan 0.000379 0.000379       0.000000
+
+Saved → lda_before_after.png
+
+=======================================================
+  LDA — Explained separation variance
+=======================================================
+  LD1: ██████████████████████████████████████    95.9%
+  LD2: █                                         4.1%
+=======================================================
+
+           feature   before    after  improvement_%
+          dtp_wavg 0.226306 0.226306       0.000000
+           dtp_avg 0.222605 0.222605       0.000000
+             dtp_2 0.167918 0.167918       0.000000
+             dtp_1 0.165470 0.165470       0.000000
+             dtp_3 0.139237 0.139237       0.000000
+             dtp_4 0.128412 0.128412       0.000000
+   opening_balance 0.121562 0.000534     -99.561020
+     payment_ratio 0.073670 0.073670       0.000000
+amount_paid_cumsum 0.025726 0.024540      -4.610788
+ amount_due_cumsum 0.016005 0.012960     -19.028934
+credit_sale_amount 0.002423 0.004119      69.979449
+
+Saved → lda_before_after.png
+Single due date records:   10377
+Multiple due date records: 289
+Excluded school years [2016, 2017, 2018]: removed 234 rows, 10177 remaining.
+Dropped 3650 invoices with missing DTP values. Remaining: 6527
+Partitioning datasets based on due_date (cut-off: 2025-03-07 — train: due_date < cut-off, test: due_date >= cut-off)...
+Applying smote_tomek...
+Accuracy: 0.7063697566027964
+Precission: 0.5958875266120093
+Recall: 0.5658618689474402
+F1: 0.5578475817663362
+AUC: 0.8314966995678342
+Accuracy: 0.7446918694976696
+Precission: 0.5940510825509755
+Recall: 0.5810738131220499
+F1: 0.5766581860761854
+AUC: 0.883611765869867
+[dataset] Preparing: none ...
+[dataset]   Generating survival features ...
+[dataset]   Done (6s)
+[dataset] Preparing: smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: borderline_smote ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: smote_tomek ...
+[dataset]   Generating survival features ...
+[dataset]   Done (8s)
+[dataset] Preparing: hybrid@0.5 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (7s)
+[dataset] Preparing: hybrid@0.7 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (5s)
+[dataset] Preparing: hybrid@0.9 ...
+[dataset]   Generating survival features ...
+[dataset]   Done (4s)
+[1/1092] parallel task done | Elapsed: 7s | ETA: ~129m 12s remaining
+[2/1092] parallel task done | Elapsed: 7s | ETA: ~64m 51s remaining
+[3/1092] parallel task done | Elapsed: 7s | ETA: ~43m 27s remaining
+[4/1092] parallel task done | Elapsed: 7s | ETA: ~33m 32s remaining
+[5/1092] parallel task done | Elapsed: 7s | ETA: ~26m 55s remaining
+[6/1092] parallel task done | Elapsed: 7s | ETA: ~22m 32s remaining
+[7/1092] parallel task done | Elapsed: 7s | ETA: ~19m 42s remaining
+[8/1092] parallel task done | Elapsed: 7s | ETA: ~17m 43s remaining
+[9/1092] parallel task done | Elapsed: 7s | ETA: ~15m 52s remaining
+[10/1092] parallel task done | Elapsed: 7s | ETA: ~14m 22s remaining
+[11/1092] parallel task done | Elapsed: 8s | ETA: ~13m 07s remaining
+[12/1092] parallel task done | Elapsed: 8s | ETA: ~12m 05s remaining
+[13/1092] parallel task done | Elapsed: 8s | ETA: ~11m 13s remaining
+[14/1092] parallel task done | Elapsed: 8s | ETA: ~10m 28s remaining
+[15/1092] parallel task done | Elapsed: 20s | ETA: ~24m 55s remaining
+[16/1092] parallel task done | Elapsed: 23s | ETA: ~26m 37s remaining
+[17/1092] parallel task done | Elapsed: 25s | ETA: ~26m 23s remaining
+[18/1092] parallel task done | Elapsed: 25s | ETA: ~25m 20s remaining
+[19/1092] parallel task done | Elapsed: 31s | ETA: ~29m 56s remaining
+[20/1092] parallel task done | Elapsed: 32s | ETA: ~28m 56s remaining
+[21/1092] parallel task done | Elapsed: 38s | ETA: ~32m 26s remaining
+[22/1092] parallel task done | Elapsed: 53s | ETA: ~43m 06s remaining
+[23/1092] parallel task done | Elapsed: 53s | ETA: ~41m 21s remaining
+[24/1092] parallel task done | Elapsed: 53s | ETA: ~39m 58s remaining
+[25/1092] parallel task done | Elapsed: 57s | ETA: ~41m 08s remaining
+[26/1092] parallel task done | Elapsed: 1m 02s | ETA: ~42m 25s remaining
+[27/1092] parallel task done | Elapsed: 1m 05s | ETA: ~43m 09s remaining
+[28/1092] parallel task done | Elapsed: 1m 05s | ETA: ~41m 47s remaining
+[29/1092] parallel task done | Elapsed: 1m 07s | ETA: ~41m 04s remaining
+[30/1092] parallel task done | Elapsed: 1m 09s | ETA: ~41m 08s remaining
+[31/1092] parallel task done | Elapsed: 1m 14s | ETA: ~42m 15s remaining
+[32/1092] parallel task done | Elapsed: 1m 23s | ETA: ~46m 00s remaining
+[33/1092] parallel task done | Elapsed: 1m 23s | ETA: ~44m 41s remaining
+[34/1092] parallel task done | Elapsed: 1m 28s | ETA: ~46m 03s remaining
+[35/1092] parallel task done | Elapsed: 1m 31s | ETA: ~45m 58s remaining
+[36/1092] parallel task done | Elapsed: 1m 40s | ETA: ~49m 00s remaining
+[37/1092] parallel task done | Elapsed: 1m 40s | ETA: ~47m 44s remaining
+[38/1092] parallel task done | Elapsed: 1m 40s | ETA: ~46m 32s remaining
+[39/1092] parallel task done | Elapsed: 3m 18s | ETA: ~89m 16s remaining
+[40/1092] parallel task done | Elapsed: 3m 23s | ETA: ~89m 07s remaining
+[41/1092] parallel task done | Elapsed: 3m 30s | ETA: ~90m 08s remaining
+[42/1092] parallel task done | Elapsed: 3m 31s | ETA: ~88m 11s remaining
+[43/1092] parallel task done | Elapsed: 3m 32s | ETA: ~86m 21s remaining
+[44/1092] parallel task done | Elapsed: 3m 39s | ETA: ~87m 10s remaining
+[45/1092] parallel task done | Elapsed: 3m 43s | ETA: ~86m 47s remaining
+[46/1092] parallel task done | Elapsed: 3m 55s | ETA: ~89m 14s remaining
+[47/1092] parallel task done | Elapsed: 3m 57s | ETA: ~87m 53s remaining
+[48/1092] parallel task done | Elapsed: 3m 57s | ETA: ~86m 03s remaining
+[49/1092] parallel task done | Elapsed: 3m 57s | ETA: ~84m 20s remaining
+[50/1092] parallel task done | Elapsed: 3m 57s | ETA: ~82m 39s remaining
+[51/1092] parallel task done | Elapsed: 4m 00s | ETA: ~81m 51s remaining
+[52/1092] parallel task done | Elapsed: 4m 02s | ETA: ~80m 40s remaining
+[53/1092] parallel task done | Elapsed: 4m 18s | ETA: ~84m 22s remaining
+[54/1092] parallel task done | Elapsed: 4m 25s | ETA: ~84m 59s remaining
+[55/1092] parallel task done | Elapsed: 4m 35s | ETA: ~86m 42s remaining
+[56/1092] parallel task done | Elapsed: 4m 44s | ETA: ~87m 49s remaining
+[57/1092] parallel task done | Elapsed: 4m 47s | ETA: ~86m 55s remaining
+[58/1092] parallel task done | Elapsed: 4m 48s | ETA: ~85m 49s remaining
+[59/1092] parallel task done | Elapsed: 4m 54s | ETA: ~85m 55s remaining
+[60/1092] parallel task done | Elapsed: 4m 56s | ETA: ~84m 56s remaining
+[61/1092] parallel task done | Elapsed: 4m 56s | ETA: ~83m 31s remaining
+[62/1092] parallel task done | Elapsed: 5m 02s | ETA: ~83m 42s remaining
+[63/1092] parallel task done | Elapsed: 5m 04s | ETA: ~82m 51s remaining
+[64/1092] parallel task done | Elapsed: 5m 05s | ETA: ~81m 45s remaining
+[65/1092] parallel task done | Elapsed: 5m 07s | ETA: ~80m 58s remaining
+[66/1092] parallel task done | Elapsed: 5m 08s | ETA: ~79m 54s remaining
+[67/1092] parallel task done | Elapsed: 5m 08s | ETA: ~78m 44s remaining
+[68/1092] parallel task done | Elapsed: 5m 09s | ETA: ~77m 40s remaining
+[69/1092] parallel task done | Elapsed: 5m 10s | ETA: ~76m 45s remaining
+[70/1092] parallel task done | Elapsed: 5m 13s | ETA: ~76m 10s remaining
+[71/1092] parallel task done | Elapsed: 5m 20s | ETA: ~76m 52s remaining
+[72/1092] parallel task done | Elapsed: 5m 27s | ETA: ~77m 13s remaining
+[73/1092] parallel task done | Elapsed: 5m 28s | ETA: ~76m 22s remaining
+[74/1092] parallel task done | Elapsed: 5m 29s | ETA: ~75m 31s remaining
+[75/1092] parallel task done | Elapsed: 5m 31s | ETA: ~74m 57s remaining
+[76/1092] parallel task done | Elapsed: 5m 32s | ETA: ~74m 02s remaining
+[77/1092] parallel task done | Elapsed: 5m 33s | ETA: ~73m 14s remaining
+[78/1092] parallel task done | Elapsed: 5m 34s | ETA: ~72m 24s remaining
+[79/1092] parallel task done | Elapsed: 5m 40s | ETA: ~72m 42s remaining
+[80/1092] parallel task done | Elapsed: 5m 44s | ETA: ~72m 43s remaining
+[81/1092] parallel task done | Elapsed: 5m 46s | ETA: ~72m 03s remaining
+[82/1092] parallel task done | Elapsed: 5m 47s | ETA: ~71m 20s remaining
+[83/1092] parallel task done | Elapsed: 5m 47s | ETA: ~70m 29s remaining
+[84/1092] parallel task done | Elapsed: 5m 49s | ETA: ~69m 52s remaining
+[85/1092] parallel task done | Elapsed: 5m 49s | ETA: ~69m 03s remaining
+[86/1092] parallel task done | Elapsed: 5m 50s | ETA: ~68m 23s remaining
+[87/1092] parallel task done | Elapsed: 5m 51s | ETA: ~67m 38s remaining
+[88/1092] parallel task done | Elapsed: 5m 52s | ETA: ~67m 00s remaining
+[89/1092] parallel task done | Elapsed: 5m 52s | ETA: ~66m 14s remaining
+[90/1092] parallel task done | Elapsed: 5m 52s | ETA: ~65m 29s remaining
+[91/1092] parallel task done | Elapsed: 5m 53s | ETA: ~64m 46s remaining
+[92/1092] parallel task done | Elapsed: 5m 54s | ETA: ~64m 09s remaining
+[93/1092] parallel task done | Elapsed: 5m 54s | ETA: ~63m 26s remaining
+[94/1092] parallel task done | Elapsed: 5m 55s | ETA: ~62m 55s remaining
+[95/1092] parallel task done | Elapsed: 5m 55s | ETA: ~62m 14s remaining
+[96/1092] parallel task done | Elapsed: 5m 56s | ETA: ~61m 38s remaining
+[97/1092] parallel task done | Elapsed: 5m 56s | ETA: ~60m 59s remaining
+[98/1092] parallel task done | Elapsed: 5m 57s | ETA: ~60m 21s remaining
+[99/1092] parallel task done | Elapsed: 5m 57s | ETA: ~59m 44s remaining
+[100/1092] parallel task done | Elapsed: 5m 57s | ETA: ~59m 07s remaining
+[101/1092] parallel task done | Elapsed: 5m 58s | ETA: ~58m 32s remaining
+[102/1092] parallel task done | Elapsed: 5m 58s | ETA: ~57m 57s remaining
+[103/1092] parallel task done | Elapsed: 5m 58s | ETA: ~57m 24s remaining
+[104/1092] parallel task done | Elapsed: 5m 59s | ETA: ~56m 51s remaining
+[105/1092] parallel task done | Elapsed: 5m 59s | ETA: ~56m 18s remaining
+[106/1092] parallel task done | Elapsed: 6m 00s | ETA: ~55m 53s remaining
+[107/1092] parallel task done | Elapsed: 6m 04s | ETA: ~55m 53s remaining
+[108/1092] parallel task done | Elapsed: 6m 08s | ETA: ~55m 56s remaining
+[109/1092] parallel task done | Elapsed: 6m 12s | ETA: ~55m 56s remaining
+[110/1092] parallel task done | Elapsed: 6m 27s | ETA: ~57m 43s remaining
+[111/1092] parallel task done | Elapsed: 6m 32s | ETA: ~57m 52s remaining
+[112/1092] parallel task done | Elapsed: 7m 21s | ETA: ~64m 19s remaining
+[113/1092] parallel task done | Elapsed: 7m 27s | ETA: ~64m 39s remaining
+[114/1092] parallel task done | Elapsed: 7m 38s | ETA: ~65m 30s remaining
+[115/1092] parallel task done | Elapsed: 7m 43s | ETA: ~65m 39s remaining
+[116/1092] parallel task done | Elapsed: 7m 45s | ETA: ~65m 17s remaining
+[117/1092] parallel task done | Elapsed: 7m 49s | ETA: ~65m 10s remaining
+[118/1092] parallel task done | Elapsed: 7m 51s | ETA: ~64m 54s remaining
+[119/1092] parallel task done | Elapsed: 7m 58s | ETA: ~65m 09s remaining
+[120/1092] parallel task done | Elapsed: 7m 59s | ETA: ~64m 46s remaining
+[121/1092] parallel task done | Elapsed: 8m 13s | ETA: ~66m 01s remaining
+[122/1092] parallel task done | Elapsed: 8m 15s | ETA: ~65m 36s remaining
+[123/1092] parallel task done | Elapsed: 8m 27s | ETA: ~66m 38s remaining
+[124/1092] parallel task done | Elapsed: 8m 29s | ETA: ~66m 17s remaining
+[125/1092] parallel task done | Elapsed: 8m 37s | ETA: ~66m 44s remaining
+[126/1092] parallel task done | Elapsed: 8m 50s | ETA: ~67m 47s remaining
+[127/1092] parallel task done | Elapsed: 8m 52s | ETA: ~67m 23s remaining
+[128/1092] parallel task done | Elapsed: 8m 59s | ETA: ~67m 41s remaining
+[129/1092] parallel task done | Elapsed: 10m 55s | ETA: ~81m 31s remaining
+[130/1092] parallel task done | Elapsed: 11m 04s | ETA: ~81m 53s remaining
+[131/1092] parallel task done | Elapsed: 11m 17s | ETA: ~82m 49s remaining
+[132/1092] parallel task done | Elapsed: 11m 20s | ETA: ~82m 31s remaining
+[133/1092] parallel task done | Elapsed: 11m 26s | ETA: ~82m 29s remaining
+[134/1092] parallel task done | Elapsed: 11m 29s | ETA: ~82m 08s remaining
+[135/1092] parallel task done | Elapsed: 11m 31s | ETA: ~81m 40s remaining
+[136/1092] parallel task done | Elapsed: 11m 34s | ETA: ~81m 18s remaining
+[137/1092] parallel task done | Elapsed: 11m 35s | ETA: ~80m 47s remaining
+[138/1092] parallel task done | Elapsed: 11m 36s | ETA: ~80m 17s remaining
+[139/1092] parallel task done | Elapsed: 11m 39s | ETA: ~79m 57s remaining
+[140/1092] parallel task done | Elapsed: 11m 44s | ETA: ~79m 49s remaining
+[141/1092] parallel task done | Elapsed: 11m 46s | ETA: ~79m 27s remaining
+[142/1092] parallel task done | Elapsed: 11m 53s | ETA: ~79m 35s remaining
+[143/1092] parallel task done | Elapsed: 11m 58s | ETA: ~79m 25s remaining
+[144/1092] parallel task done | Elapsed: 12m 06s | ETA: ~79m 39s remaining
+[145/1092] parallel task done | Elapsed: 12m 20s | ETA: ~80m 33s remaining
+[146/1092] parallel task done | Elapsed: 12m 36s | ETA: ~81m 44s remaining
+[147/1092] parallel task done | Elapsed: 12m 38s | ETA: ~81m 19s remaining
+[148/1092] parallel task done | Elapsed: 12m 42s | ETA: ~81m 05s remaining
+[149/1092] parallel task done | Elapsed: 12m 44s | ETA: ~80m 40s remaining
+[150/1092] parallel task done | Elapsed: 12m 46s | ETA: ~80m 13s remaining
+[151/1092] parallel task done | Elapsed: 12m 47s | ETA: ~79m 43s remaining
+[152/1092] parallel task done | Elapsed: 12m 48s | ETA: ~79m 13s remaining
+[153/1092] parallel task done | Elapsed: 12m 51s | ETA: ~78m 55s remaining
+[154/1092] parallel task done | Elapsed: 12m 55s | ETA: ~78m 43s remaining
+[155/1092] parallel task done | Elapsed: 13m 10s | ETA: ~79m 40s remaining
+[156/1092] parallel task done | Elapsed: 13m 14s | ETA: ~79m 28s remaining
+[157/1092] parallel task done | Elapsed: 13m 16s | ETA: ~79m 01s remaining
+[158/1092] parallel task done | Elapsed: 13m 19s | ETA: ~78m 44s remaining
+[159/1092] parallel task done | Elapsed: 13m 21s | ETA: ~78m 21s remaining
+[160/1092] parallel task done | Elapsed: 13m 25s | ETA: ~78m 10s remaining
+[161/1092] parallel task done | Elapsed: 13m 26s | ETA: ~77m 41s remaining
+[162/1092] parallel task done | Elapsed: 13m 28s | ETA: ~77m 22s remaining
+[163/1092] parallel task done | Elapsed: 13m 32s | ETA: ~77m 10s remaining
+[164/1092] parallel task done | Elapsed: 13m 41s | ETA: ~77m 26s remaining
+[165/1092] parallel task done | Elapsed: 13m 44s | ETA: ~77m 11s remaining
+[166/1092] parallel task done | Elapsed: 13m 44s | ETA: ~76m 42s remaining
+[167/1092] parallel task done | Elapsed: 13m 54s | ETA: ~77m 04s remaining
+[168/1092] parallel task done | Elapsed: 13m 55s | ETA: ~76m 37s remaining
+[169/1092] parallel task done | Elapsed: 13m 57s | ETA: ~76m 15s remaining
+[170/1092] parallel task done | Elapsed: 14m 04s | ETA: ~76m 17s remaining
+[171/1092] parallel task done | Elapsed: 14m 05s | ETA: ~75m 56s remaining
+[172/1092] parallel task done | Elapsed: 14m 08s | ETA: ~75m 37s remaining
+[173/1092] parallel task done | Elapsed: 14m 11s | ETA: ~75m 22s remaining
+[174/1092] parallel task done | Elapsed: 14m 15s | ETA: ~75m 13s remaining
+[175/1092] parallel task done | Elapsed: 14m 16s | ETA: ~74m 46s remaining
+[176/1092] parallel task done | Elapsed: 14m 16s | ETA: ~74m 19s remaining
+[177/1092] parallel task done | Elapsed: 14m 17s | ETA: ~73m 53s remaining
+[178/1092] parallel task done | Elapsed: 14m 18s | ETA: ~73m 26s remaining
+[179/1092] parallel task done | Elapsed: 14m 18s | ETA: ~73m 01s remaining
+[180/1092] parallel task done | Elapsed: 14m 19s | ETA: ~72m 35s remaining
+[181/1092] parallel task done | Elapsed: 14m 20s | ETA: ~72m 11s remaining
+[182/1092] parallel task done | Elapsed: 14m 21s | ETA: ~71m 46s remaining
+[183/1092] parallel task done | Elapsed: 14m 21s | ETA: ~71m 21s remaining
+[184/1092] parallel task done | Elapsed: 14m 22s | ETA: ~70m 57s remaining
+[185/1092] parallel task done | Elapsed: 14m 23s | ETA: ~70m 34s remaining
+[186/1092] parallel task done | Elapsed: 14m 25s | ETA: ~70m 13s remaining
+[187/1092] parallel task done | Elapsed: 14m 26s | ETA: ~69m 53s remaining
+[188/1092] parallel task done | Elapsed: 14m 27s | ETA: ~69m 33s remaining
+[189/1092] parallel task done | Elapsed: 14m 29s | ETA: ~69m 13s remaining
+[190/1092] parallel task done | Elapsed: 14m 31s | ETA: ~68m 55s remaining
+[191/1092] parallel task done | Elapsed: 14m 32s | ETA: ~68m 37s remaining
+[192/1092] parallel task done | Elapsed: 14m 34s | ETA: ~68m 20s remaining
+[193/1092] parallel task done | Elapsed: 14m 36s | ETA: ~68m 02s remaining
+[194/1092] parallel task done | Elapsed: 14m 38s | ETA: ~67m 44s remaining
+[195/1092] parallel task done | Elapsed: 14m 39s | ETA: ~67m 27s remaining
+[196/1092] parallel task done | Elapsed: 14m 41s | ETA: ~67m 11s remaining
+[197/1092] parallel task done | Elapsed: 14m 43s | ETA: ~66m 55s remaining
+[198/1092] parallel task done | Elapsed: 14m 45s | ETA: ~66m 39s remaining
+[199/1092] parallel task done | Elapsed: 14m 48s | ETA: ~66m 25s remaining
+[200/1092] parallel task done | Elapsed: 14m 50s | ETA: ~66m 11s remaining
+[201/1092] parallel task done | Elapsed: 15m 08s | ETA: ~67m 09s remaining
+[202/1092] parallel task done | Elapsed: 15m 17s | ETA: ~67m 21s remaining
+[203/1092] parallel task done | Elapsed: 15m 19s | ETA: ~67m 07s remaining
+[204/1092] parallel task done | Elapsed: 15m 30s | ETA: ~67m 30s remaining
+[205/1092] parallel task done | Elapsed: 15m 48s | ETA: ~68m 21s remaining
+[206/1092] parallel task done | Elapsed: 15m 49s | ETA: ~68m 05s remaining
+[207/1092] parallel task done | Elapsed: 16m 09s | ETA: ~69m 05s remaining
+[208/1092] parallel task done | Elapsed: 16m 14s | ETA: ~69m 02s remaining
+[209/1092] parallel task done | Elapsed: 16m 30s | ETA: ~69m 43s remaining
+[210/1092] parallel task done | Elapsed: 16m 32s | ETA: ~69m 29s remaining
+[211/1092] parallel task done | Elapsed: 16m 34s | ETA: ~69m 13s remaining
+[212/1092] parallel task done | Elapsed: 16m 37s | ETA: ~68m 59s remaining
+[213/1092] parallel task done | Elapsed: 16m 39s | ETA: ~68m 45s remaining
+[214/1092] parallel task done | Elapsed: 16m 46s | ETA: ~68m 49s remaining
+[215/1092] parallel task done | Elapsed: 17m 20s | ETA: ~70m 45s remaining
+[216/1092] parallel task done | Elapsed: 17m 30s | ETA: ~70m 59s remaining
+[217/1092] parallel task done | Elapsed: 17m 33s | ETA: ~70m 47s remaining
+[218/1092] parallel task done | Elapsed: 17m 37s | ETA: ~70m 41s remaining
+[219/1092] parallel task done | Elapsed: 19m 35s | ETA: ~78m 05s remaining
+[220/1092] parallel task done | Elapsed: 19m 37s | ETA: ~77m 45s remaining
+[221/1092] parallel task done | Elapsed: 19m 38s | ETA: ~77m 25s remaining
+[222/1092] parallel task done | Elapsed: 19m 41s | ETA: ~77m 11s remaining
+[223/1092] parallel task done | Elapsed: 19m 46s | ETA: ~77m 02s remaining
+[224/1092] parallel task done | Elapsed: 19m 53s | ETA: ~77m 05s remaining
+[225/1092] parallel task done | Elapsed: 19m 55s | ETA: ~76m 46s remaining
+[226/1092] parallel task done | Elapsed: 19m 59s | ETA: ~76m 36s remaining
+[227/1092] parallel task done | Elapsed: 20m 01s | ETA: ~76m 17s remaining
+[228/1092] parallel task done | Elapsed: 20m 04s | ETA: ~76m 05s remaining
+[229/1092] parallel task done | Elapsed: 20m 06s | ETA: ~75m 45s remaining
+[230/1092] parallel task done | Elapsed: 20m 09s | ETA: ~75m 32s remaining
+[231/1092] parallel task done | Elapsed: 20m 13s | ETA: ~75m 23s remaining
+[232/1092] parallel task done | Elapsed: 20m 15s | ETA: ~75m 04s remaining
+[233/1092] parallel task done | Elapsed: 20m 21s | ETA: ~75m 02s remaining
+[234/1092] parallel task done | Elapsed: 20m 43s | ETA: ~75m 58s remaining
+[235/1092] parallel task done | Elapsed: 20m 46s | ETA: ~75m 45s remaining
+[236/1092] parallel task done | Elapsed: 20m 49s | ETA: ~75m 32s remaining
+[237/1092] parallel task done | Elapsed: 20m 52s | ETA: ~75m 19s remaining
+[238/1092] parallel task done | Elapsed: 21m 03s | ETA: ~75m 34s remaining
+[239/1092] parallel task done | Elapsed: 21m 05s | ETA: ~75m 15s remaining
+[240/1092] parallel task done | Elapsed: 21m 07s | ETA: ~74m 59s remaining
+[241/1092] parallel task done | Elapsed: 21m 10s | ETA: ~74m 46s remaining
+[242/1092] parallel task done | Elapsed: 21m 12s | ETA: ~74m 27s remaining
+[243/1092] parallel task done | Elapsed: 21m 13s | ETA: ~74m 09s remaining
+[244/1092] parallel task done | Elapsed: 21m 15s | ETA: ~73m 51s remaining
+[245/1092] parallel task done | Elapsed: 21m 16s | ETA: ~73m 34s remaining
+[246/1092] parallel task done | Elapsed: 21m 20s | ETA: ~73m 25s remaining
+[247/1092] parallel task done | Elapsed: 21m 22s | ETA: ~73m 08s remaining
+[248/1092] parallel task done | Elapsed: 21m 33s | ETA: ~73m 22s remaining
+[249/1092] parallel task done | Elapsed: 21m 35s | ETA: ~73m 04s remaining
+[250/1092] parallel task done | Elapsed: 21m 37s | ETA: ~72m 48s remaining
+[251/1092] parallel task done | Elapsed: 21m 41s | ETA: ~72m 42s remaining
+[252/1092] parallel task done | Elapsed: 21m 44s | ETA: ~72m 27s remaining
+[253/1092] parallel task done | Elapsed: 21m 48s | ETA: ~72m 20s remaining
+[254/1092] parallel task done | Elapsed: 21m 59s | ETA: ~72m 33s remaining
+[255/1092] parallel task done | Elapsed: 22m 00s | ETA: ~72m 14s remaining
+[256/1092] parallel task done | Elapsed: 22m 01s | ETA: ~71m 56s remaining
+[257/1092] parallel task done | Elapsed: 22m 10s | ETA: ~72m 02s remaining
+[258/1092] parallel task done | Elapsed: 22m 13s | ETA: ~71m 50s remaining
+[259/1092] parallel task done | Elapsed: 22m 16s | ETA: ~71m 39s remaining
+[260/1092] parallel task done | Elapsed: 22m 21s | ETA: ~71m 33s remaining
+[261/1092] parallel task done | Elapsed: 22m 23s | ETA: ~71m 17s remaining
+[262/1092] parallel task done | Elapsed: 22m 25s | ETA: ~71m 03s remaining
+[263/1092] parallel task done | Elapsed: 22m 26s | ETA: ~70m 45s remaining
+[264/1092] parallel task done | Elapsed: 22m 31s | ETA: ~70m 37s remaining
+[265/1092] parallel task done | Elapsed: 22m 32s | ETA: ~70m 21s remaining
+[266/1092] parallel task done | Elapsed: 22m 33s | ETA: ~70m 02s remaining
+[267/1092] parallel task done | Elapsed: 22m 34s | ETA: ~69m 43s remaining
+[268/1092] parallel task done | Elapsed: 22m 34s | ETA: ~69m 25s remaining
+[269/1092] parallel task done | Elapsed: 22m 35s | ETA: ~69m 07s remaining
+[270/1092] parallel task done | Elapsed: 22m 36s | ETA: ~68m 50s remaining
+[271/1092] parallel task done | Elapsed: 22m 38s | ETA: ~68m 36s remaining
+[272/1092] parallel task done | Elapsed: 22m 40s | ETA: ~68m 20s remaining
+[273/1092] parallel task done | Elapsed: 22m 41s | ETA: ~68m 05s remaining
+[274/1092] parallel task done | Elapsed: 22m 44s | ETA: ~67m 52s remaining
+[275/1092] parallel task done | Elapsed: 22m 46s | ETA: ~67m 40s remaining
+[276/1092] parallel task done | Elapsed: 22m 49s | ETA: ~67m 29s remaining
+[277/1092] parallel task done | Elapsed: 22m 52s | ETA: ~67m 18s remaining
+[278/1092] parallel task done | Elapsed: 22m 55s | ETA: ~67m 07s remaining
+[279/1092] parallel task done | Elapsed: 22m 58s | ETA: ~66m 56s remaining
+[280/1092] parallel task done | Elapsed: 23m 01s | ETA: ~66m 45s remaining
+[281/1092] parallel task done | Elapsed: 23m 04s | ETA: ~66m 35s remaining
+[282/1092] parallel task done | Elapsed: 23m 07s | ETA: ~66m 24s remaining
+[283/1092] parallel task done | Elapsed: 23m 10s | ETA: ~66m 14s remaining
+[284/1092] parallel task done | Elapsed: 23m 13s | ETA: ~66m 04s remaining
+[285/1092] parallel task done | Elapsed: 23m 16s | ETA: ~65m 54s remaining
+[286/1092] parallel task done | Elapsed: 23m 20s | ETA: ~65m 45s remaining
+[287/1092] parallel task done | Elapsed: 23m 23s | ETA: ~65m 35s remaining
+[288/1092] parallel task done | Elapsed: 23m 26s | ETA: ~65m 26s remaining
+[289/1092] parallel task done | Elapsed: 23m 34s | ETA: ~65m 29s remaining
+[290/1092] parallel task done | Elapsed: 23m 39s | ETA: ~65m 25s remaining
+[291/1092] parallel task done | Elapsed: 23m 43s | ETA: ~65m 19s remaining
+[292/1092] parallel task done | Elapsed: 23m 48s | ETA: ~65m 13s remaining
+[293/1092] parallel task done | Elapsed: 23m 52s | ETA: ~65m 05s remaining
+[294/1092] parallel task done | Elapsed: 23m 55s | ETA: ~64m 57s remaining
+[295/1092] parallel task done | Elapsed: 23m 59s | ETA: ~64m 50s remaining
+[296/1092] parallel task done | Elapsed: 24m 17s | ETA: ~65m 19s remaining
+[297/1092] parallel task done | Elapsed: 24m 19s | ETA: ~65m 07s remaining
+[298/1092] parallel task done | Elapsed: 24m 22s | ETA: ~64m 56s remaining
+[299/1092] parallel task done | Elapsed: 24m 29s | ETA: ~64m 58s remaining
+[300/1092] parallel task done | Elapsed: 24m 36s | ETA: ~64m 56s remaining
+[301/1092] parallel task done | Elapsed: 24m 41s | ETA: ~64m 53s remaining
+[302/1092] parallel task done | Elapsed: 24m 43s | ETA: ~64m 41s remaining
+[303/1092] parallel task done | Elapsed: 24m 51s | ETA: ~64m 42s remaining
+[304/1092] parallel task done | Elapsed: 24m 58s | ETA: ~64m 43s remaining
+[305/1092] parallel task done | Elapsed: 25m 16s | ETA: ~65m 14s remaining
+[306/1092] parallel task done | Elapsed: 25m 33s | ETA: ~65m 39s remaining
+[307/1092] parallel task done | Elapsed: 25m 35s | ETA: ~65m 27s remaining
+[308/1092] parallel task done | Elapsed: 25m 38s | ETA: ~65m 16s remaining
+[309/1092] parallel task done | Elapsed: 27m 30s | ETA: ~69m 43s remaining
+[310/1092] parallel task done | Elapsed: 27m 34s | ETA: ~69m 32s remaining
+[311/1092] parallel task done | Elapsed: 27m 36s | ETA: ~69m 19s remaining
+[312/1092] parallel task done | Elapsed: 27m 38s | ETA: ~69m 05s remaining
+[313/1092] parallel task done | Elapsed: 27m 41s | ETA: ~68m 53s remaining
+[314/1092] parallel task done | Elapsed: 27m 43s | ETA: ~68m 41s remaining
+[315/1092] parallel task done | Elapsed: 27m 45s | ETA: ~68m 28s remaining
+[316/1092] parallel task done | Elapsed: 27m 48s | ETA: ~68m 17s remaining
+[317/1092] parallel task done | Elapsed: 27m 50s | ETA: ~68m 04s remaining
+[318/1092] parallel task done | Elapsed: 27m 53s | ETA: ~67m 52s remaining
+[319/1092] parallel task done | Elapsed: 27m 56s | ETA: ~67m 41s remaining
+[320/1092] parallel task done | Elapsed: 27m 58s | ETA: ~67m 28s remaining
+[321/1092] parallel task done | Elapsed: 28m 05s | ETA: ~67m 29s remaining
+[322/1092] parallel task done | Elapsed: 28m 08s | ETA: ~67m 17s remaining
+[323/1092] parallel task done | Elapsed: 28m 17s | ETA: ~67m 22s remaining
+[324/1092] parallel task done | Elapsed: 28m 32s | ETA: ~67m 38s remaining
+[325/1092] parallel task done | Elapsed: 28m 33s | ETA: ~67m 24s remaining
+[326/1092] parallel task done | Elapsed: 28m 35s | ETA: ~67m 11s remaining
+[327/1092] parallel task done | Elapsed: 28m 43s | ETA: ~67m 11s remaining
+[328/1092] parallel task done | Elapsed: 28m 47s | ETA: ~67m 03s remaining
+[329/1092] parallel task done | Elapsed: 28m 52s | ETA: ~66m 57s remaining
+[330/1092] parallel task done | Elapsed: 28m 54s | ETA: ~66m 45s remaining
+[331/1092] parallel task done | Elapsed: 28m 57s | ETA: ~66m 33s remaining
+[332/1092] parallel task done | Elapsed: 29m 00s | ETA: ~66m 23s remaining
+[333/1092] parallel task done | Elapsed: 29m 02s | ETA: ~66m 11s remaining
+[334/1092] parallel task done | Elapsed: 29m 05s | ETA: ~66m 00s remaining
+[335/1092] parallel task done | Elapsed: 29m 07s | ETA: ~65m 48s remaining
+[336/1092] parallel task done | Elapsed: 29m 09s | ETA: ~65m 37s remaining
+[337/1092] parallel task done | Elapsed: 29m 12s | ETA: ~65m 25s remaining
+[338/1092] parallel task done | Elapsed: 29m 14s | ETA: ~65m 14s remaining
+[339/1092] parallel task done | Elapsed: 29m 17s | ETA: ~65m 03s remaining
+[340/1092] parallel task done | Elapsed: 29m 19s | ETA: ~64m 51s remaining
+[341/1092] parallel task done | Elapsed: 29m 26s | ETA: ~64m 50s remaining
+[342/1092] parallel task done | Elapsed: 29m 28s | ETA: ~64m 38s remaining
+[343/1092] parallel task done | Elapsed: 29m 29s | ETA: ~64m 24s remaining
+[344/1092] parallel task done | Elapsed: 29m 31s | ETA: ~64m 12s remaining
+[345/1092] parallel task done | Elapsed: 29m 33s | ETA: ~63m 59s remaining
+[346/1092] parallel task done | Elapsed: 29m 34s | ETA: ~63m 46s remaining
+[347/1092] parallel task done | Elapsed: 29m 37s | ETA: ~63m 36s remaining
+[348/1092] parallel task done | Elapsed: 29m 39s | ETA: ~63m 24s remaining
+[349/1092] parallel task done | Elapsed: 29m 45s | ETA: ~63m 21s remaining
+[350/1092] parallel task done | Elapsed: 29m 52s | ETA: ~63m 19s remaining
+[351/1092] parallel task done | Elapsed: 29m 53s | ETA: ~63m 07s remaining
+[352/1092] parallel task done | Elapsed: 29m 55s | ETA: ~62m 54s remaining
+[353/1092] parallel task done | Elapsed: 29m 59s | ETA: ~62m 46s remaining
+[354/1092] parallel task done | Elapsed: 30m 00s | ETA: ~62m 33s remaining
+[355/1092] parallel task done | Elapsed: 30m 01s | ETA: ~62m 19s remaining
+[356/1092] parallel task done | Elapsed: 30m 02s | ETA: ~62m 06s remaining
+[357/1092] parallel task done | Elapsed: 30m 03s | ETA: ~61m 53s remaining
+[358/1092] parallel task done | Elapsed: 30m 04s | ETA: ~61m 39s remaining
+[359/1092] parallel task done | Elapsed: 30m 05s | ETA: ~61m 27s remaining
+[360/1092] parallel task done | Elapsed: 30m 06s | ETA: ~61m 13s remaining
+[361/1092] parallel task done | Elapsed: 30m 07s | ETA: ~61m 00s remaining
+[362/1092] parallel task done | Elapsed: 30m 08s | ETA: ~60m 46s remaining
+[363/1092] parallel task done | Elapsed: 30m 09s | ETA: ~60m 33s remaining
+[364/1092] parallel task done | Elapsed: 30m 10s | ETA: ~60m 21s remaining
+[365/1092] parallel task done | Elapsed: 30m 12s | ETA: ~60m 10s remaining
+[366/1092] parallel task done | Elapsed: 30m 14s | ETA: ~59m 58s remaining
+[367/1092] parallel task done | Elapsed: 30m 16s | ETA: ~59m 48s remaining
+[368/1092] parallel task done | Elapsed: 30m 18s | ETA: ~59m 38s remaining
+[369/1092] parallel task done | Elapsed: 30m 21s | ETA: ~59m 28s remaining
+[370/1092] parallel task done | Elapsed: 30m 23s | ETA: ~59m 18s remaining
+[371/1092] parallel task done | Elapsed: 30m 26s | ETA: ~59m 08s remaining
+[372/1092] parallel task done | Elapsed: 30m 28s | ETA: ~58m 59s remaining
+[373/1092] parallel task done | Elapsed: 30m 31s | ETA: ~58m 49s remaining
+[374/1092] parallel task done | Elapsed: 30m 33s | ETA: ~58m 39s remaining
+[375/1092] parallel task done | Elapsed: 30m 35s | ETA: ~58m 30s remaining
+[376/1092] parallel task done | Elapsed: 30m 38s | ETA: ~58m 20s remaining
+[377/1092] parallel task done | Elapsed: 30m 40s | ETA: ~58m 10s remaining
+[378/1092] parallel task done | Elapsed: 30m 43s | ETA: ~58m 01s remaining
+[379/1092] parallel task done | Elapsed: 30m 45s | ETA: ~57m 52s remaining
+[380/1092] parallel task done | Elapsed: 30m 48s | ETA: ~57m 42s remaining
+[381/1092] parallel task done | Elapsed: 30m 50s | ETA: ~57m 33s remaining
+[382/1092] parallel task done | Elapsed: 30m 53s | ETA: ~57m 24s remaining
+[383/1092] parallel task done | Elapsed: 31m 04s | ETA: ~57m 32s remaining
+[384/1092] parallel task done | Elapsed: 31m 07s | ETA: ~57m 22s remaining
+[385/1092] parallel task done | Elapsed: 31m 12s | ETA: ~57m 18s remaining
+[386/1092] parallel task done | Elapsed: 31m 15s | ETA: ~57m 10s remaining
+[387/1092] parallel task done | Elapsed: 31m 19s | ETA: ~57m 04s remaining
+[388/1092] parallel task done | Elapsed: 31m 21s | ETA: ~56m 54s remaining
+[389/1092] parallel task done | Elapsed: 31m 30s | ETA: ~56m 55s remaining
+[390/1092] parallel task done | Elapsed: 31m 32s | ETA: ~56m 46s remaining
+[391/1092] parallel task done | Elapsed: 31m 34s | ETA: ~56m 36s remaining
+[392/1092] parallel task done | Elapsed: 31m 36s | ETA: ~56m 27s remaining
+[393/1092] parallel task done | Elapsed: 31m 39s | ETA: ~56m 17s remaining
+[394/1092] parallel task done | Elapsed: 31m 41s | ETA: ~56m 08s remaining
+[395/1092] parallel task done | Elapsed: 31m 43s | ETA: ~55m 59s remaining
+[396/1092] parallel task done | Elapsed: 31m 46s | ETA: ~55m 50s remaining
+[397/1092] parallel task done | Elapsed: 31m 59s | ETA: ~55m 59s remaining
+[398/1092] parallel task done | Elapsed: 32m 03s | ETA: ~55m 54s remaining
+[399/1092] parallel task done | Elapsed: 33m 53s | ETA: ~58m 51s remaining
+[400/1092] parallel task done | Elapsed: 33m 55s | ETA: ~58m 42s remaining
+[401/1092] parallel task done | Elapsed: 33m 58s | ETA: ~58m 32s remaining
+[402/1092] parallel task done | Elapsed: 34m 01s | ETA: ~58m 24s remaining
+[403/1092] parallel task done | Elapsed: 34m 05s | ETA: ~58m 16s remaining
+[404/1092] parallel task done | Elapsed: 34m 08s | ETA: ~58m 07s remaining
+[405/1092] parallel task done | Elapsed: 34m 10s | ETA: ~57m 57s remaining
+[406/1092] parallel task done | Elapsed: 34m 12s | ETA: ~57m 47s remaining
+[407/1092] parallel task done | Elapsed: 34m 14s | ETA: ~57m 37s remaining
+[408/1092] parallel task done | Elapsed: 34m 15s | ETA: ~57m 26s remaining
+[409/1092] parallel task done | Elapsed: 34m 18s | ETA: ~57m 17s remaining
+[410/1092] parallel task done | Elapsed: 34m 20s | ETA: ~57m 07s remaining
+[411/1092] parallel task done | Elapsed: 34m 22s | ETA: ~56m 56s remaining
+[412/1092] parallel task done | Elapsed: 34m 23s | ETA: ~56m 46s remaining
+[413/1092] parallel task done | Elapsed: 34m 26s | ETA: ~56m 37s remaining
+[414/1092] parallel task done | Elapsed: 34m 38s | ETA: ~56m 44s remaining
+[415/1092] parallel task done | Elapsed: 34m 41s | ETA: ~56m 35s remaining
+[416/1092] parallel task done | Elapsed: 34m 46s | ETA: ~56m 30s remaining
+[417/1092] parallel task done | Elapsed: 34m 51s | ETA: ~56m 25s remaining
+[418/1092] parallel task done | Elapsed: 34m 53s | ETA: ~56m 15s remaining
+[419/1092] parallel task done | Elapsed: 34m 55s | ETA: ~56m 05s remaining
+[420/1092] parallel task done | Elapsed: 34m 57s | ETA: ~55m 55s remaining
+[421/1092] parallel task done | Elapsed: 34m 59s | ETA: ~55m 46s remaining
+[422/1092] parallel task done | Elapsed: 35m 02s | ETA: ~55m 37s remaining
+[423/1092] parallel task done | Elapsed: 35m 05s | ETA: ~55m 29s remaining
+[424/1092] parallel task done | Elapsed: 35m 07s | ETA: ~55m 20s remaining
+[425/1092] parallel task done | Elapsed: 35m 10s | ETA: ~55m 11s remaining
+[426/1092] parallel task done | Elapsed: 35m 12s | ETA: ~55m 02s remaining
+[427/1092] parallel task done | Elapsed: 35m 15s | ETA: ~54m 55s remaining
+[428/1092] parallel task done | Elapsed: 35m 18s | ETA: ~54m 47s remaining
+[429/1092] parallel task done | Elapsed: 35m 21s | ETA: ~54m 38s remaining
+[430/1092] parallel task done | Elapsed: 35m 23s | ETA: ~54m 29s remaining
+[431/1092] parallel task done | Elapsed: 35m 26s | ETA: ~54m 20s remaining
+[432/1092] parallel task done | Elapsed: 35m 28s | ETA: ~54m 12s remaining
+[433/1092] parallel task done | Elapsed: 35m 33s | ETA: ~54m 07s remaining
+[434/1092] parallel task done | Elapsed: 35m 35s | ETA: ~53m 58s remaining
+[435/1092] parallel task done | Elapsed: 35m 38s | ETA: ~53m 49s remaining
+[436/1092] parallel task done | Elapsed: 35m 40s | ETA: ~53m 40s remaining
+[437/1092] parallel task done | Elapsed: 35m 42s | ETA: ~53m 31s remaining
+[438/1092] parallel task done | Elapsed: 35m 44s | ETA: ~53m 21s remaining
+[439/1092] parallel task done | Elapsed: 35m 45s | ETA: ~53m 11s remaining
+[440/1092] parallel task done | Elapsed: 35m 49s | ETA: ~53m 05s remaining
+[441/1092] parallel task done | Elapsed: 35m 51s | ETA: ~52m 55s remaining
+[442/1092] parallel task done | Elapsed: 35m 52s | ETA: ~52m 45s remaining
+[443/1092] parallel task done | Elapsed: 35m 54s | ETA: ~52m 35s remaining
+[444/1092] parallel task done | Elapsed: 35m 55s | ETA: ~52m 26s remaining
+[445/1092] parallel task done | Elapsed: 35m 57s | ETA: ~52m 16s remaining
+[446/1092] parallel task done | Elapsed: 35m 58s | ETA: ~52m 06s remaining
+[447/1092] parallel task done | Elapsed: 35m 59s | ETA: ~51m 56s remaining
+[448/1092] parallel task done | Elapsed: 36m 01s | ETA: ~51m 47s remaining
+[449/1092] parallel task done | Elapsed: 36m 03s | ETA: ~51m 37s remaining
+[450/1092] parallel task done | Elapsed: 36m 05s | ETA: ~51m 29s remaining
+[451/1092] parallel task done | Elapsed: 36m 07s | ETA: ~51m 20s remaining
+[452/1092] parallel task done | Elapsed: 36m 09s | ETA: ~51m 12s remaining
+[453/1092] parallel task done | Elapsed: 36m 11s | ETA: ~51m 03s remaining
+[454/1092] parallel task done | Elapsed: 36m 14s | ETA: ~50m 55s remaining
+[455/1092] parallel task done | Elapsed: 36m 17s | ETA: ~50m 47s remaining
+[456/1092] parallel task done | Elapsed: 36m 19s | ETA: ~50m 39s remaining
+[457/1092] parallel task done | Elapsed: 36m 22s | ETA: ~50m 32s remaining
+[458/1092] parallel task done | Elapsed: 36m 24s | ETA: ~50m 24s remaining
+[459/1092] parallel task done | Elapsed: 36m 27s | ETA: ~50m 16s remaining
+[460/1092] parallel task done | Elapsed: 36m 29s | ETA: ~50m 08s remaining
+[461/1092] parallel task done | Elapsed: 36m 32s | ETA: ~50m 01s remaining
+[462/1092] parallel task done | Elapsed: 36m 35s | ETA: ~49m 53s remaining
+[463/1092] parallel task done | Elapsed: 36m 38s | ETA: ~49m 46s remaining
+[464/1092] parallel task done | Elapsed: 36m 40s | ETA: ~49m 38s remaining
+[465/1092] parallel task done | Elapsed: 36m 43s | ETA: ~49m 30s remaining
+[466/1092] parallel task done | Elapsed: 36m 45s | ETA: ~49m 23s remaining
+[467/1092] parallel task done | Elapsed: 36m 48s | ETA: ~49m 16s remaining
+[468/1092] parallel task done | Elapsed: 36m 51s | ETA: ~49m 08s remaining
+[469/1092] parallel task done | Elapsed: 36m 54s | ETA: ~49m 01s remaining
+[470/1092] parallel task done | Elapsed: 36m 57s | ETA: ~48m 54s remaining
+[471/1092] parallel task done | Elapsed: 37m 00s | ETA: ~48m 47s remaining
+[472/1092] parallel task done | Elapsed: 37m 04s | ETA: ~48m 41s remaining
+[473/1092] parallel task done | Elapsed: 37m 07s | ETA: ~48m 35s remaining
+[474/1092] parallel task done | Elapsed: 37m 10s | ETA: ~48m 28s remaining
+[475/1092] parallel task done | Elapsed: 37m 13s | ETA: ~48m 20s remaining
+[476/1092] parallel task done | Elapsed: 37m 16s | ETA: ~48m 14s remaining
+[477/1092] parallel task done | Elapsed: 37m 19s | ETA: ~48m 06s remaining
+[478/1092] parallel task done | Elapsed: 37m 21s | ETA: ~47m 59s remaining
+[479/1092] parallel task done | Elapsed: 37m 23s | ETA: ~47m 51s remaining
+[480/1092] parallel task done | Elapsed: 37m 26s | ETA: ~47m 44s remaining
+[481/1092] parallel task done | Elapsed: 37m 30s | ETA: ~47m 38s remaining
+[482/1092] parallel task done | Elapsed: 37m 33s | ETA: ~47m 32s remaining
+[483/1092] parallel task done | Elapsed: 37m 37s | ETA: ~47m 26s remaining
+[484/1092] parallel task done | Elapsed: 37m 41s | ETA: ~47m 20s remaining
+[485/1092] parallel task done | Elapsed: 37m 44s | ETA: ~47m 13s remaining
+[486/1092] parallel task done | Elapsed: 37m 46s | ETA: ~47m 06s remaining
+[487/1092] parallel task done | Elapsed: 37m 49s | ETA: ~46m 59s remaining
+[488/1092] parallel task done | Elapsed: 37m 52s | ETA: ~46m 52s remaining
+[489/1092] parallel task done | Elapsed: 37m 55s | ETA: ~46m 45s remaining
+[490/1092] parallel task done | Elapsed: 37m 58s | ETA: ~46m 39s remaining
+[491/1092] parallel task done | Elapsed: 38m 03s | ETA: ~46m 35s remaining
+[492/1092] parallel task done | Elapsed: 38m 06s | ETA: ~46m 29s remaining
+[493/1092] parallel task done | Elapsed: 38m 10s | ETA: ~46m 23s remaining
+[494/1092] parallel task done | Elapsed: 38m 13s | ETA: ~46m 16s remaining
+[495/1092] parallel task done | Elapsed: 38m 21s | ETA: ~46m 15s remaining
+[496/1092] parallel task done | Elapsed: 38m 30s | ETA: ~46m 16s remaining
+[497/1092] parallel task done | Elapsed: 38m 38s | ETA: ~46m 16s remaining
+[498/1092] parallel task done | Elapsed: 38m 47s | ETA: ~46m 16s remaining
+[499/1092] parallel task done | Elapsed: 38m 53s | ETA: ~46m 12s remaining
+[500/1092] parallel task done | Elapsed: 39m 02s | ETA: ~46m 13s remaining
+[501/1092] parallel task done | Elapsed: 39m 04s | ETA: ~46m 06s remaining
+[502/1092] parallel task done | Elapsed: 39m 07s | ETA: ~45m 59s remaining
+[503/1092] parallel task done | Elapsed: 39m 18s | ETA: ~46m 01s remaining
+[504/1092] parallel task done | Elapsed: 39m 34s | ETA: ~46m 10s remaining
+[505/1092] parallel task done | Elapsed: 39m 38s | ETA: ~46m 04s remaining
+[506/1092] parallel task done | Elapsed: 39m 42s | ETA: ~45m 58s remaining
+[507/1092] parallel task done | Elapsed: 39m 45s | ETA: ~45m 52s remaining
+[508/1092] parallel task done | Elapsed: 39m 49s | ETA: ~45m 46s remaining
+[509/1092] parallel task done | Elapsed: 40m 01s | ETA: ~45m 50s remaining
+[510/1092] parallel task done | Elapsed: 40m 05s | ETA: ~45m 45s remaining
+[511/1092] parallel task done | Elapsed: 40m 08s | ETA: ~45m 38s remaining
+[512/1092] parallel task done | Elapsed: 40m 29s | ETA: ~45m 52s remaining
+[513/1092] parallel task done | Elapsed: 40m 35s | ETA: ~45m 49s remaining
+[514/1092] parallel task done | Elapsed: 40m 52s | ETA: ~45m 57s remaining
+[515/1092] parallel task done | Elapsed: 40m 57s | ETA: ~45m 53s remaining
+[516/1092] parallel task done | Elapsed: 41m 02s | ETA: ~45m 48s remaining
+[517/1092] parallel task done | Elapsed: 41m 05s | ETA: ~45m 42s remaining
+[518/1092] parallel task done | Elapsed: 41m 08s | ETA: ~45m 35s remaining
+[519/1092] parallel task done | Elapsed: 41m 18s | ETA: ~45m 36s remaining
+[520/1092] parallel task done | Elapsed: 41m 27s | ETA: ~45m 36s remaining
+[521/1092] parallel task done | Elapsed: 41m 31s | ETA: ~45m 30s remaining
+[522/1092] parallel task done | Elapsed: 41m 34s | ETA: ~45m 24s remaining
+[523/1092] parallel task done | Elapsed: 41m 40s | ETA: ~45m 20s remaining
+[524/1092] parallel task done | Elapsed: 41m 46s | ETA: ~45m 16s remaining
+[525/1092] parallel task done | Elapsed: 41m 50s | ETA: ~45m 10s remaining
+[526/1092] parallel task done | Elapsed: 41m 54s | ETA: ~45m 05s remaining
+[527/1092] parallel task done | Elapsed: 42m 10s | ETA: ~45m 12s remaining
+[528/1092] parallel task done | Elapsed: 42m 13s | ETA: ~45m 06s remaining
+[529/1092] parallel task done | Elapsed: 42m 17s | ETA: ~45m 00s remaining
+[530/1092] parallel task done | Elapsed: 42m 29s | ETA: ~45m 03s remaining
+[531/1092] parallel task done | Elapsed: 42m 33s | ETA: ~44m 57s remaining
+[532/1092] parallel task done | Elapsed: 42m 37s | ETA: ~44m 52s remaining
+[533/1092] parallel task done | Elapsed: 42m 42s | ETA: ~44m 47s remaining
+[534/1092] parallel task done | Elapsed: 42m 49s | ETA: ~44m 45s remaining
+[535/1092] parallel task done | Elapsed: 43m 01s | ETA: ~44m 47s remaining
+[536/1092] parallel task done | Elapsed: 43m 05s | ETA: ~44m 41s remaining
+[537/1092] parallel task done | Elapsed: 43m 08s | ETA: ~44m 35s remaining
+[538/1092] parallel task done | Elapsed: 43m 12s | ETA: ~44m 29s remaining
+[539/1092] parallel task done | Elapsed: 43m 14s | ETA: ~44m 22s remaining
+[540/1092] parallel task done | Elapsed: 43m 17s | ETA: ~44m 15s remaining
+[541/1092] parallel task done | Elapsed: 43m 20s | ETA: ~44m 08s remaining
+[542/1092] parallel task done | Elapsed: 43m 23s | ETA: ~44m 02s remaining
+[543/1092] parallel task done | Elapsed: 43m 26s | ETA: ~43m 55s remaining
+[544/1092] parallel task done | Elapsed: 43m 30s | ETA: ~43m 49s remaining
+[545/1092] parallel task done | Elapsed: 43m 32s | ETA: ~43m 42s remaining
+[546/1092] parallel task done | Elapsed: 43m 35s | ETA: ~43m 35s remaining
+[547/1092] parallel task done | Elapsed: 43m 38s | ETA: ~43m 29s remaining
+[548/1092] parallel task done | Elapsed: 43m 41s | ETA: ~43m 22s remaining
+[549/1092] parallel task done | Elapsed: 43m 44s | ETA: ~43m 15s remaining
+[550/1092] parallel task done | Elapsed: 43m 47s | ETA: ~43m 08s remaining
+[551/1092] parallel task done | Elapsed: 43m 50s | ETA: ~43m 02s remaining
+[552/1092] parallel task done | Elapsed: 43m 52s | ETA: ~42m 55s remaining
+[553/1092] parallel task done | Elapsed: 43m 55s | ETA: ~42m 48s remaining
+[554/1092] parallel task done | Elapsed: 43m 57s | ETA: ~42m 41s remaining
+[555/1092] parallel task done | Elapsed: 44m 00s | ETA: ~42m 34s remaining
+[556/1092] parallel task done | Elapsed: 44m 02s | ETA: ~42m 27s remaining
+[557/1092] parallel task done | Elapsed: 44m 04s | ETA: ~42m 20s remaining
+[558/1092] parallel task done | Elapsed: 44m 08s | ETA: ~42m 14s remaining
+[559/1092] parallel task done | Elapsed: 44m 11s | ETA: ~42m 07s remaining
+[560/1092] parallel task done | Elapsed: 44m 14s | ETA: ~42m 01s remaining
+[561/1092] parallel task done | Elapsed: 44m 18s | ETA: ~41m 56s remaining
+[562/1092] parallel task done | Elapsed: 44m 21s | ETA: ~41m 50s remaining
+[563/1092] parallel task done | Elapsed: 44m 25s | ETA: ~41m 44s remaining
+[564/1092] parallel task done | Elapsed: 44m 29s | ETA: ~41m 38s remaining
+[565/1092] parallel task done | Elapsed: 44m 32s | ETA: ~41m 32s remaining
+[566/1092] parallel task done | Elapsed: 44m 36s | ETA: ~41m 26s remaining
+[567/1092] parallel task done | Elapsed: 44m 39s | ETA: ~41m 20s remaining
+[568/1092] parallel task done | Elapsed: 44m 42s | ETA: ~41m 15s remaining
+[569/1092] parallel task done | Elapsed: 44m 46s | ETA: ~41m 08s remaining
+[570/1092] parallel task done | Elapsed: 44m 49s | ETA: ~41m 02s remaining
+[571/1092] parallel task done | Elapsed: 44m 52s | ETA: ~40m 56s remaining
+[572/1092] parallel task done | Elapsed: 44m 55s | ETA: ~40m 50s remaining
+[573/1092] parallel task done | Elapsed: 44m 58s | ETA: ~40m 44s remaining
+[574/1092] parallel task done | Elapsed: 45m 02s | ETA: ~40m 38s remaining
+[575/1092] parallel task done | Elapsed: 45m 05s | ETA: ~40m 32s remaining
+[576/1092] parallel task done | Elapsed: 45m 09s | ETA: ~40m 26s remaining
+[577/1092] parallel task done | Elapsed: 45m 12s | ETA: ~40m 21s remaining
+[578/1092] parallel task done | Elapsed: 45m 16s | ETA: ~40m 15s remaining
+[579/1092] parallel task done | Elapsed: 45m 23s | ETA: ~40m 12s remaining
+[580/1092] parallel task done | Elapsed: 45m 29s | ETA: ~40m 09s remaining
+[581/1092] parallel task done | Elapsed: 45m 33s | ETA: ~40m 04s remaining
+[582/1092] parallel task done | Elapsed: 45m 37s | ETA: ~39m 59s remaining
+[583/1092] parallel task done | Elapsed: 45m 41s | ETA: ~39m 53s remaining
+[584/1092] parallel task done | Elapsed: 45m 47s | ETA: ~39m 49s remaining
+[585/1092] parallel task done | Elapsed: 45m 50s | ETA: ~39m 43s remaining
+[586/1092] parallel task done | Elapsed: 46m 01s | ETA: ~39m 44s remaining
+[587/1092] parallel task done | Elapsed: 46m 04s | ETA: ~39m 38s remaining
+[588/1092] parallel task done | Elapsed: 46m 12s | ETA: ~39m 36s remaining
+[589/1092] parallel task done | Elapsed: 46m 18s | ETA: ~39m 32s remaining
+[590/1092] parallel task done | Elapsed: 46m 25s | ETA: ~39m 29s remaining
+[591/1092] parallel task done | Elapsed: 46m 40s | ETA: ~39m 34s remaining
+[592/1092] parallel task done | Elapsed: 46m 52s | ETA: ~39m 35s remaining
+[593/1092] parallel task done | Elapsed: 46m 56s | ETA: ~39m 30s remaining
+[594/1092] parallel task done | Elapsed: 47m 05s | ETA: ~39m 28s remaining
+[595/1092] parallel task done | Elapsed: 47m 17s | ETA: ~39m 30s remaining
+[596/1092] parallel task done | Elapsed: 47m 32s | ETA: ~39m 34s remaining
+[597/1092] parallel task done | Elapsed: 47m 38s | ETA: ~39m 30s remaining
+[598/1092] parallel task done | Elapsed: 47m 47s | ETA: ~39m 28s remaining
+[599/1092] parallel task done | Elapsed: 47m 51s | ETA: ~39m 23s remaining
+[600/1092] parallel task done | Elapsed: 48m 03s | ETA: ~39m 24s remaining
+[601/1092] parallel task done | Elapsed: 48m 08s | ETA: ~39m 19s remaining
+[602/1092] parallel task done | Elapsed: 48m 12s | ETA: ~39m 14s remaining
+[603/1092] parallel task done | Elapsed: 48m 16s | ETA: ~39m 09s remaining
+[604/1092] parallel task done | Elapsed: 48m 24s | ETA: ~39m 06s remaining
+[605/1092] parallel task done | Elapsed: 48m 32s | ETA: ~39m 04s remaining
+[606/1092] parallel task done | Elapsed: 48m 37s | ETA: ~38m 59s remaining
+[607/1092] parallel task done | Elapsed: 48m 41s | ETA: ~38m 54s remaining
+[608/1092] parallel task done | Elapsed: 48m 45s | ETA: ~38m 49s remaining
+[609/1092] parallel task done | Elapsed: 48m 50s | ETA: ~38m 43s remaining
+[610/1092] parallel task done | Elapsed: 48m 54s | ETA: ~38m 38s remaining
+[611/1092] parallel task done | Elapsed: 48m 58s | ETA: ~38m 32s remaining
+[612/1092] parallel task done | Elapsed: 49m 02s | ETA: ~38m 27s remaining
+[613/1092] parallel task done | Elapsed: 49m 05s | ETA: ~38m 21s remaining
+[614/1092] parallel task done | Elapsed: 49m 09s | ETA: ~38m 16s remaining
+[615/1092] parallel task done | Elapsed: 49m 13s | ETA: ~38m 10s remaining
+[616/1092] parallel task done | Elapsed: 49m 17s | ETA: ~38m 05s remaining
+[617/1092] parallel task done | Elapsed: 49m 21s | ETA: ~37m 59s remaining
+[618/1092] parallel task done | Elapsed: 49m 24s | ETA: ~37m 53s remaining
+[619/1092] parallel task done | Elapsed: 49m 27s | ETA: ~37m 47s remaining
+[620/1092] parallel task done | Elapsed: 49m 30s | ETA: ~37m 41s remaining
+[621/1092] parallel task done | Elapsed: 49m 32s | ETA: ~37m 34s remaining
+[622/1092] parallel task done | Elapsed: 49m 34s | ETA: ~37m 27s remaining
+[623/1092] parallel task done | Elapsed: 49m 36s | ETA: ~37m 20s remaining
+[624/1092] parallel task done | Elapsed: 49m 37s | ETA: ~37m 12s remaining
+[625/1092] parallel task done | Elapsed: 49m 38s | ETA: ~37m 05s remaining
+[626/1092] parallel task done | Elapsed: 49m 39s | ETA: ~36m 57s remaining
+[627/1092] parallel task done | Elapsed: 49m 40s | ETA: ~36m 50s remaining
+[628/1092] parallel task done | Elapsed: 49m 40s | ETA: ~36m 42s remaining
+[629/1092] parallel task done | Elapsed: 49m 41s | ETA: ~36m 34s remaining
+[630/1092] parallel task done | Elapsed: 49m 42s | ETA: ~36m 27s remaining
+[631/1092] xgboost | Elapsed: 49m 54s | ETA: ~36m 27s remaining
+[632/1092] xgboost | Elapsed: 50m 12s | ETA: ~36m 32s remaining
+[633/1092] xgboost | Elapsed: 50m 31s | ETA: ~36m 37s remaining
+[634/1092] xgboost | Elapsed: 50m 45s | ETA: ~36m 39s remaining
+[635/1092] xgboost | Elapsed: 51m 04s | ETA: ~36m 45s remaining
+[636/1092] xgboost | Elapsed: 51m 32s | ETA: ~36m 57s remaining
+[637/1092] xgboost | Elapsed: 51m 50s | ETA: ~37m 01s remaining
+[638/1092] xgboost | Elapsed: 52m 18s | ETA: ~37m 13s remaining
+[639/1092] xgboost | Elapsed: 52m 54s | ETA: ~37m 30s remaining
+[640/1092] xgboost | Elapsed: 53m 14s | ETA: ~37m 36s remaining
+[641/1092] xgboost | Elapsed: 53m 47s | ETA: ~37m 50s remaining
+[642/1092] ordinal_xgboost | Elapsed: 53m 57s | ETA: ~37m 49s remaining
+[643/1092] ordinal_xgboost | Elapsed: 54m 14s | ETA: ~37m 52s remaining
+[644/1092] ordinal_xgboost | Elapsed: 54m 30s | ETA: ~37m 55s remaining
+[645/1092] ordinal_xgboost | Elapsed: 54m 41s | ETA: ~37m 53s remaining
+[646/1092] ordinal_xgboost | Elapsed: 54m 57s | ETA: ~37m 56s remaining
+[647/1092] ordinal_xgboost | Elapsed: 55m 22s | ETA: ~38m 05s remaining
+[648/1092] ordinal_xgboost | Elapsed: 55m 36s | ETA: ~38m 06s remaining
+[649/1092] ordinal_xgboost | Elapsed: 55m 59s | ETA: ~38m 13s remaining
+[650/1092] ordinal_xgboost | Elapsed: 56m 26s | ETA: ~38m 22s remaining
+[651/1092] ordinal_xgboost | Elapsed: 56m 42s | ETA: ~38m 25s remaining
+[652/1092] ordinal_xgboost | Elapsed: 57m 08s | ETA: ~38m 34s remaining
+[653/1092] two_stage_xgb_xgb | Elapsed: 57m 21s | ETA: ~38m 33s remaining
+[654/1092] two_stage_xgb_xgb | Elapsed: 57m 38s | ETA: ~38m 36s remaining
+[655/1092] two_stage_xgb_xgb | Elapsed: 58m 03s | ETA: ~38m 44s remaining
+[656/1092] two_stage_xgb_xgb | Elapsed: 58m 19s | ETA: ~38m 45s remaining
+[657/1092] two_stage_xgb_xgb | Elapsed: 58m 33s | ETA: ~38m 46s remaining
+[658/1092] two_stage_xgb_xgb | Elapsed: 58m 53s | ETA: ~38m 50s remaining
+[659/1092] two_stage_xgb_xgb | Elapsed: 59m 20s | ETA: ~38m 59s remaining
+[660/1092] two_stage_xgb_xgb | Elapsed: 59m 38s | ETA: ~39m 02s remaining
+[661/1092] two_stage_xgb_xgb | Elapsed: 59m 50s | ETA: ~39m 01s remaining
+[662/1092] two_stage_xgb_xgb | Elapsed: 60m 08s | ETA: ~39m 03s remaining
+[663/1092] two_stage_xgb_xgb | Elapsed: 60m 33s | ETA: ~39m 11s remaining
+[664/1092] two_stage_xgb_xgb | Elapsed: 60m 49s | ETA: ~39m 12s remaining
+[665/1092] two_stage_xgb_rf | Elapsed: 60m 57s | ETA: ~39m 08s remaining
+[666/1092] two_stage_xgb_rf | Elapsed: 61m 04s | ETA: ~39m 04s remaining
+[667/1092] two_stage_xgb_rf | Elapsed: 61m 13s | ETA: ~39m 00s remaining
+[668/1092] two_stage_xgb_rf | Elapsed: 61m 22s | ETA: ~38m 57s remaining
+[669/1092] two_stage_xgb_rf | Elapsed: 61m 32s | ETA: ~38m 55s remaining
+[670/1092] two_stage_xgb_rf | Elapsed: 61m 42s | ETA: ~38m 52s remaining
+[671/1092] two_stage_xgb_rf | Elapsed: 61m 52s | ETA: ~38m 49s remaining
+[672/1092] two_stage_xgb_rf | Elapsed: 62m 04s | ETA: ~38m 47s remaining
+[673/1092] two_stage_xgb_rf | Elapsed: 62m 12s | ETA: ~38m 43s remaining
+[674/1092] two_stage_xgb_rf | Elapsed: 62m 20s | ETA: ~38m 39s remaining
+[675/1092] two_stage_xgb_rf | Elapsed: 62m 28s | ETA: ~38m 35s remaining
+[676/1092] two_stage_xgb_rf | Elapsed: 62m 37s | ETA: ~38m 32s remaining
+[677/1092] two_stage_xgb_ada | Elapsed: 62m 45s | ETA: ~38m 28s remaining
+[678/1092] two_stage_xgb_ada | Elapsed: 63m 00s | ETA: ~38m 28s remaining
+[679/1092] two_stage_xgb_ada | Elapsed: 63m 07s | ETA: ~38m 23s remaining
+[680/1092] two_stage_xgb_ada | Elapsed: 63m 21s | ETA: ~38m 23s remaining
+[681/1092] two_stage_xgb_ada | Elapsed: 63m 38s | ETA: ~38m 24s remaining
+[682/1092] two_stage_xgb_ada | Elapsed: 63m 54s | ETA: ~38m 25s remaining
+[683/1092] two_stage_xgb_ada | Elapsed: 64m 02s | ETA: ~38m 20s remaining
+[684/1092] two_stage_xgb_ada | Elapsed: 64m 16s | ETA: ~38m 20s remaining
+[685/1092] two_stage_xgb_ada | Elapsed: 64m 27s | ETA: ~38m 18s remaining
+[686/1092] two_stage_xgb_ada | Elapsed: 64m 43s | ETA: ~38m 18s remaining
+[687/1092] two_stage_ada_xgb | Elapsed: 64m 57s | ETA: ~38m 17s remaining
+[688/1092] two_stage_ada_xgb | Elapsed: 65m 22s | ETA: ~38m 23s remaining
+[689/1092] two_stage_ada_xgb | Elapsed: 65m 51s | ETA: ~38m 31s remaining
+[690/1092] two_stage_ada_xgb | Elapsed: 66m 28s | ETA: ~38m 43s remaining
+[691/1092] two_stage_ada_xgb | Elapsed: 66m 42s | ETA: ~38m 42s remaining
+[692/1092] two_stage_ada_xgb | Elapsed: 66m 56s | ETA: ~38m 41s remaining
+[693/1092] two_stage_ada_xgb | Elapsed: 67m 26s | ETA: ~38m 49s remaining
+[694/1092] two_stage_ada_xgb | Elapsed: 67m 50s | ETA: ~38m 54s remaining
+[695/1092] two_stage_ada_xgb | Elapsed: 68m 18s | ETA: ~39m 01s remaining
+[696/1092] two_stage_ada_xgb | Elapsed: 68m 32s | ETA: ~39m 00s remaining
+[697/1092] xgboost | Elapsed: 68m 44s | ETA: ~38m 57s remaining
+[698/1092] xgboost | Elapsed: 69m 03s | ETA: ~38m 58s remaining
+[699/1092] xgboost | Elapsed: 69m 21s | ETA: ~38m 59s remaining
+[700/1092] xgboost | Elapsed: 69m 33s | ETA: ~38m 57s remaining
+[701/1092] xgboost | Elapsed: 69m 52s | ETA: ~38m 58s remaining
+[702/1092] xgboost | Elapsed: 70m 20s | ETA: ~39m 04s remaining
+[703/1092] xgboost | Elapsed: 70m 37s | ETA: ~39m 04s remaining
+[704/1092] xgboost | Elapsed: 71m 05s | ETA: ~39m 10s remaining
+[705/1092] xgboost | Elapsed: 71m 39s | ETA: ~39m 20s remaining
+[706/1092] xgboost | Elapsed: 71m 59s | ETA: ~39m 21s remaining
+[707/1092] xgboost | Elapsed: 72m 32s | ETA: ~39m 30s remaining
+[708/1092] ordinal_xgboost | Elapsed: 72m 42s | ETA: ~39m 26s remaining
+[709/1092] ordinal_xgboost | Elapsed: 72m 59s | ETA: ~39m 25s remaining
+[710/1092] ordinal_xgboost | Elapsed: 73m 15s | ETA: ~39m 24s remaining
+[711/1092] ordinal_xgboost | Elapsed: 73m 25s | ETA: ~39m 20s remaining
+[712/1092] ordinal_xgboost | Elapsed: 73m 41s | ETA: ~39m 19s remaining
+[713/1092] ordinal_xgboost | Elapsed: 74m 04s | ETA: ~39m 22s remaining
+[714/1092] ordinal_xgboost | Elapsed: 74m 18s | ETA: ~39m 20s remaining
+[715/1092] ordinal_xgboost | Elapsed: 74m 40s | ETA: ~39m 22s remaining
+[716/1092] ordinal_xgboost | Elapsed: 75m 08s | ETA: ~39m 27s remaining
+[717/1092] ordinal_xgboost | Elapsed: 75m 24s | ETA: ~39m 26s remaining
+[718/1092] ordinal_xgboost | Elapsed: 75m 50s | ETA: ~39m 30s remaining
+[719/1092] two_stage_xgb_xgb | Elapsed: 76m 02s | ETA: ~39m 26s remaining
+[720/1092] two_stage_xgb_xgb | Elapsed: 76m 20s | ETA: ~39m 26s remaining
+[721/1092] two_stage_xgb_xgb | Elapsed: 76m 44s | ETA: ~39m 29s remaining
+[722/1092] two_stage_xgb_xgb | Elapsed: 77m 00s | ETA: ~39m 27s remaining
+[723/1092] two_stage_xgb_xgb | Elapsed: 77m 14s | ETA: ~39m 25s remaining
+[724/1092] two_stage_xgb_xgb | Elapsed: 77m 34s | ETA: ~39m 25s remaining
+[725/1092] two_stage_xgb_xgb | Elapsed: 78m 01s | ETA: ~39m 29s remaining
+[726/1092] two_stage_xgb_xgb | Elapsed: 78m 20s | ETA: ~39m 29s remaining
+[727/1092] two_stage_xgb_xgb | Elapsed: 78m 32s | ETA: ~39m 25s remaining
+[728/1092] two_stage_xgb_xgb | Elapsed: 78m 50s | ETA: ~39m 25s remaining
+[729/1092] two_stage_xgb_xgb | Elapsed: 79m 14s | ETA: ~39m 27s remaining
+[730/1092] two_stage_xgb_xgb | Elapsed: 79m 30s | ETA: ~39m 25s remaining
+[731/1092] two_stage_xgb_rf | Elapsed: 79m 39s | ETA: ~39m 20s remaining
+[732/1092] two_stage_xgb_rf | Elapsed: 79m 47s | ETA: ~39m 14s remaining
+[733/1092] two_stage_xgb_rf | Elapsed: 79m 56s | ETA: ~39m 09s remaining
+[734/1092] two_stage_xgb_rf | Elapsed: 80m 07s | ETA: ~39m 04s remaining
+[735/1092] two_stage_xgb_rf | Elapsed: 80m 16s | ETA: ~38m 59s remaining
+[736/1092] two_stage_xgb_rf | Elapsed: 80m 26s | ETA: ~38m 54s remaining
+[737/1092] two_stage_xgb_rf | Elapsed: 80m 37s | ETA: ~38m 50s remaining
+[738/1092] two_stage_xgb_rf | Elapsed: 80m 49s | ETA: ~38m 46s remaining
+[739/1092] two_stage_xgb_rf | Elapsed: 80m 58s | ETA: ~38m 40s remaining
+[740/1092] two_stage_xgb_rf | Elapsed: 81m 06s | ETA: ~38m 34s remaining
+[741/1092] two_stage_xgb_rf | Elapsed: 81m 15s | ETA: ~38m 29s remaining
+[742/1092] two_stage_xgb_rf | Elapsed: 81m 25s | ETA: ~38m 24s remaining
+[743/1092] two_stage_xgb_ada | Elapsed: 81m 35s | ETA: ~38m 19s remaining
+[744/1092] two_stage_xgb_ada | Elapsed: 81m 57s | ETA: ~38m 20s remaining
+[745/1092] two_stage_xgb_ada | Elapsed: 82m 07s | ETA: ~38m 15s remaining
+[746/1092] two_stage_xgb_ada | Elapsed: 82m 28s | ETA: ~38m 15s remaining
+[747/1092] two_stage_xgb_ada | Elapsed: 82m 52s | ETA: ~38m 16s remaining
+[748/1092] two_stage_xgb_ada | Elapsed: 83m 15s | ETA: ~38m 17s remaining
+[749/1092] two_stage_xgb_ada | Elapsed: 83m 25s | ETA: ~38m 12s remaining
+[750/1092] two_stage_xgb_ada | Elapsed: 83m 46s | ETA: ~38m 12s remaining
+[751/1092] two_stage_xgb_ada | Elapsed: 84m 01s | ETA: ~38m 09s remaining
+[752/1092] two_stage_xgb_ada | Elapsed: 84m 24s | ETA: ~38m 09s remaining
+[753/1092] two_stage_ada_xgb | Elapsed: 84m 41s | ETA: ~38m 07s remaining
+[754/1092] two_stage_ada_xgb | Elapsed: 85m 12s | ETA: ~38m 11s remaining
+[755/1092] two_stage_ada_xgb | Elapsed: 85m 49s | ETA: ~38m 18s remaining
+[756/1092] two_stage_ada_xgb | Elapsed: 86m 32s | ETA: ~38m 27s remaining
+[757/1092] two_stage_ada_xgb | Elapsed: 86m 49s | ETA: ~38m 25s remaining
+[758/1092] two_stage_ada_xgb | Elapsed: 87m 05s | ETA: ~38m 22s remaining
+[759/1092] two_stage_ada_xgb | Elapsed: 87m 42s | ETA: ~38m 28s remaining
+[760/1092] two_stage_ada_xgb | Elapsed: 88m 13s | ETA: ~38m 32s remaining
+[761/1092] two_stage_ada_xgb | Elapsed: 88m 48s | ETA: ~38m 37s remaining
+[762/1092] two_stage_ada_xgb | Elapsed: 89m 04s | ETA: ~38m 34s remaining
+[763/1092] xgboost | Elapsed: 89m 16s | ETA: ~38m 29s remaining
+[764/1092] xgboost | Elapsed: 89m 34s | ETA: ~38m 27s remaining
+[765/1092] xgboost | Elapsed: 89m 53s | ETA: ~38m 25s remaining
+[766/1092] xgboost | Elapsed: 90m 05s | ETA: ~38m 20s remaining
+[767/1092] xgboost | Elapsed: 90m 23s | ETA: ~38m 18s remaining
+[768/1092] xgboost | Elapsed: 90m 50s | ETA: ~38m 19s remaining
+[769/1092] xgboost | Elapsed: 91m 07s | ETA: ~38m 16s remaining
+[770/1092] xgboost | Elapsed: 91m 34s | ETA: ~38m 17s remaining
+[771/1092] xgboost | Elapsed: 92m 07s | ETA: ~38m 21s remaining
+[772/1092] xgboost | Elapsed: 92m 27s | ETA: ~38m 19s remaining
+[773/1092] xgboost | Elapsed: 92m 59s | ETA: ~38m 22s remaining
+[774/1092] ordinal_xgboost | Elapsed: 93m 09s | ETA: ~38m 16s remaining
+[775/1092] ordinal_xgboost | Elapsed: 93m 25s | ETA: ~38m 12s remaining
+[776/1092] ordinal_xgboost | Elapsed: 93m 41s | ETA: ~38m 09s remaining
+[777/1092] ordinal_xgboost | Elapsed: 93m 51s | ETA: ~38m 03s remaining
+[778/1092] ordinal_xgboost | Elapsed: 94m 07s | ETA: ~37m 59s remaining
+[779/1092] ordinal_xgboost | Elapsed: 94m 30s | ETA: ~37m 58s remaining
+[780/1092] ordinal_xgboost | Elapsed: 94m 44s | ETA: ~37m 53s remaining
+[781/1092] ordinal_xgboost | Elapsed: 95m 06s | ETA: ~37m 52s remaining
+[782/1092] ordinal_xgboost | Elapsed: 95m 34s | ETA: ~37m 53s remaining
+[783/1092] ordinal_xgboost | Elapsed: 95m 50s | ETA: ~37m 49s remaining
+[784/1092] ordinal_xgboost | Elapsed: 96m 15s | ETA: ~37m 49s remaining
+[785/1092] two_stage_xgb_xgb | Elapsed: 96m 28s | ETA: ~37m 43s remaining
+[786/1092] two_stage_xgb_xgb | Elapsed: 96m 45s | ETA: ~37m 40s remaining
+[787/1092] two_stage_xgb_xgb | Elapsed: 97m 10s | ETA: ~37m 39s remaining
+[788/1092] two_stage_xgb_xgb | Elapsed: 97m 26s | ETA: ~37m 35s remaining
+[789/1092] two_stage_xgb_xgb | Elapsed: 97m 40s | ETA: ~37m 30s remaining
+[790/1092] two_stage_xgb_xgb | Elapsed: 98m 00s | ETA: ~37m 27s remaining
+[791/1092] two_stage_xgb_xgb | Elapsed: 98m 26s | ETA: ~37m 27s remaining
+[792/1092] two_stage_xgb_xgb | Elapsed: 98m 44s | ETA: ~37m 24s remaining
+[793/1092] two_stage_xgb_xgb | Elapsed: 98m 56s | ETA: ~37m 18s remaining
+[794/1092] two_stage_xgb_xgb | Elapsed: 99m 14s | ETA: ~37m 14s remaining
+[795/1092] two_stage_xgb_xgb | Elapsed: 99m 39s | ETA: ~37m 13s remaining
+[796/1092] two_stage_xgb_xgb | Elapsed: 99m 55s | ETA: ~37m 09s remaining
+[797/1092] two_stage_xgb_rf | Elapsed: 100m 03s | ETA: ~37m 02s remaining
+[798/1092] two_stage_xgb_rf | Elapsed: 100m 11s | ETA: ~36m 54s remaining
+[799/1092] two_stage_xgb_rf | Elapsed: 100m 20s | ETA: ~36m 47s remaining
+[800/1092] two_stage_xgb_rf | Elapsed: 100m 31s | ETA: ~36m 41s remaining
+[801/1092] two_stage_xgb_rf | Elapsed: 100m 41s | ETA: ~36m 34s remaining
+[802/1092] two_stage_xgb_rf | Elapsed: 100m 51s | ETA: ~36m 28s remaining
+[803/1092] two_stage_xgb_rf | Elapsed: 101m 02s | ETA: ~36m 21s remaining
+[804/1092] two_stage_xgb_rf | Elapsed: 101m 15s | ETA: ~36m 16s remaining
+[805/1092] two_stage_xgb_rf | Elapsed: 101m 23s | ETA: ~36m 08s remaining
+[806/1092] two_stage_xgb_rf | Elapsed: 101m 31s | ETA: ~36m 01s remaining
+[807/1092] two_stage_xgb_rf | Elapsed: 101m 40s | ETA: ~35m 54s remaining
+[808/1092] two_stage_xgb_rf | Elapsed: 101m 51s | ETA: ~35m 48s remaining
+[809/1092] two_stage_xgb_ada | Elapsed: 102m 01s | ETA: ~35m 41s remaining
+[810/1092] two_stage_xgb_ada | Elapsed: 102m 22s | ETA: ~35m 38s remaining
+[811/1092] two_stage_xgb_ada | Elapsed: 102m 33s | ETA: ~35m 31s remaining
+[812/1092] two_stage_xgb_ada | Elapsed: 102m 54s | ETA: ~35m 29s remaining
+[813/1092] two_stage_xgb_ada | Elapsed: 103m 18s | ETA: ~35m 27s remaining
+[814/1092] two_stage_xgb_ada | Elapsed: 103m 42s | ETA: ~35m 24s remaining
+[815/1092] two_stage_xgb_ada | Elapsed: 103m 52s | ETA: ~35m 18s remaining
+[816/1092] two_stage_xgb_ada | Elapsed: 104m 13s | ETA: ~35m 15s remaining
+[817/1092] two_stage_xgb_ada | Elapsed: 104m 27s | ETA: ~35m 09s remaining
+[818/1092] two_stage_xgb_ada | Elapsed: 104m 51s | ETA: ~35m 07s remaining
+[819/1092] two_stage_ada_xgb | Elapsed: 105m 08s | ETA: ~35m 02s remaining
+[820/1092] two_stage_ada_xgb | Elapsed: 105m 39s | ETA: ~35m 02s remaining
+[821/1092] two_stage_ada_xgb | Elapsed: 106m 16s | ETA: ~35m 04s remaining
+[822/1092] two_stage_ada_xgb | Elapsed: 107m 00s | ETA: ~35m 08s remaining
+[823/1092] two_stage_ada_xgb | Elapsed: 107m 17s | ETA: ~35m 04s remaining
+[824/1092] two_stage_ada_xgb | Elapsed: 107m 34s | ETA: ~34m 59s remaining
+[825/1092] two_stage_ada_xgb | Elapsed: 108m 11s | ETA: ~35m 00s remaining
+[826/1092] two_stage_ada_xgb | Elapsed: 108m 42s | ETA: ~35m 00s remaining
+[827/1092] two_stage_ada_xgb | Elapsed: 109m 18s | ETA: ~35m 01s remaining
+[828/1092] two_stage_ada_xgb | Elapsed: 109m 35s | ETA: ~34m 56s remaining
+[829/1092] xgboost | Elapsed: 109m 46s | ETA: ~34m 49s remaining
+[830/1092] xgboost | Elapsed: 110m 05s | ETA: ~34m 44s remaining
+[831/1092] xgboost | Elapsed: 110m 23s | ETA: ~34m 40s remaining
+[832/1092] xgboost | Elapsed: 110m 35s | ETA: ~34m 33s remaining
+[833/1092] xgboost | Elapsed: 110m 53s | ETA: ~34m 28s remaining
+[834/1092] xgboost | Elapsed: 111m 21s | ETA: ~34m 26s remaining
+[835/1092] xgboost | Elapsed: 111m 37s | ETA: ~34m 21s remaining
+[836/1092] xgboost | Elapsed: 112m 04s | ETA: ~34m 19s remaining
+[837/1092] xgboost | Elapsed: 112m 39s | ETA: ~34m 19s remaining
+[838/1092] xgboost | Elapsed: 112m 58s | ETA: ~34m 14s remaining
+[839/1092] xgboost | Elapsed: 113m 30s | ETA: ~34m 13s remaining
+[840/1092] ordinal_xgboost | Elapsed: 113m 44s | ETA: ~34m 07s remaining
+[841/1092] ordinal_xgboost | Elapsed: 114m 04s | ETA: ~34m 02s remaining
+[842/1092] ordinal_xgboost | Elapsed: 114m 21s | ETA: ~33m 57s remaining
+[843/1092] ordinal_xgboost | Elapsed: 114m 31s | ETA: ~33m 49s remaining
+[844/1092] ordinal_xgboost | Elapsed: 114m 47s | ETA: ~33m 43s remaining
+[845/1092] ordinal_xgboost | Elapsed: 115m 09s | ETA: ~33m 39s remaining
+[846/1092] ordinal_xgboost | Elapsed: 115m 23s | ETA: ~33m 33s remaining
+[847/1092] ordinal_xgboost | Elapsed: 115m 45s | ETA: ~33m 29s remaining
+[848/1092] ordinal_xgboost | Elapsed: 116m 12s | ETA: ~33m 26s remaining
+[849/1092] ordinal_xgboost | Elapsed: 116m 28s | ETA: ~33m 20s remaining
+[850/1092] ordinal_xgboost | Elapsed: 116m 53s | ETA: ~33m 16s remaining
+[851/1092] two_stage_xgb_xgb | Elapsed: 117m 05s | ETA: ~33m 09s remaining
+[852/1092] two_stage_xgb_xgb | Elapsed: 117m 22s | ETA: ~33m 03s remaining
+[853/1092] two_stage_xgb_xgb | Elapsed: 117m 46s | ETA: ~32m 59s remaining
+[854/1092] two_stage_xgb_xgb | Elapsed: 118m 01s | ETA: ~32m 53s remaining
+[855/1092] two_stage_xgb_xgb | Elapsed: 118m 15s | ETA: ~32m 46s remaining
+[856/1092] two_stage_xgb_xgb | Elapsed: 118m 34s | ETA: ~32m 41s remaining
+[857/1092] two_stage_xgb_xgb | Elapsed: 119m 01s | ETA: ~32m 38s remaining
+[858/1092] two_stage_xgb_xgb | Elapsed: 119m 19s | ETA: ~32m 32s remaining
+[859/1092] two_stage_xgb_xgb | Elapsed: 119m 31s | ETA: ~32m 25s remaining
+[860/1092] two_stage_xgb_xgb | Elapsed: 119m 48s | ETA: ~32m 19s remaining
+[861/1092] two_stage_xgb_xgb | Elapsed: 120m 12s | ETA: ~32m 15s remaining
+[862/1092] two_stage_xgb_xgb | Elapsed: 120m 28s | ETA: ~32m 08s remaining
+[863/1092] two_stage_xgb_rf | Elapsed: 120m 37s | ETA: ~32m 00s remaining
+[864/1092] two_stage_xgb_rf | Elapsed: 120m 48s | ETA: ~31m 52s remaining
+[865/1092] two_stage_xgb_rf | Elapsed: 121m 00s | ETA: ~31m 45s remaining
+[866/1092] two_stage_xgb_rf | Elapsed: 121m 11s | ETA: ~31m 37s remaining
+[867/1092] two_stage_xgb_rf | Elapsed: 121m 22s | ETA: ~31m 30s remaining
+[868/1092] two_stage_xgb_rf | Elapsed: 121m 33s | ETA: ~31m 22s remaining
+[869/1092] two_stage_xgb_rf | Elapsed: 121m 44s | ETA: ~31m 14s remaining
+[870/1092] two_stage_xgb_rf | Elapsed: 121m 57s | ETA: ~31m 07s remaining
+[871/1092] two_stage_xgb_rf | Elapsed: 122m 06s | ETA: ~30m 59s remaining
+[872/1092] two_stage_xgb_rf | Elapsed: 122m 15s | ETA: ~30m 50s remaining
+[873/1092] two_stage_xgb_rf | Elapsed: 122m 24s | ETA: ~30m 42s remaining
+[874/1092] two_stage_xgb_rf | Elapsed: 122m 36s | ETA: ~30m 34s remaining
+[875/1092] two_stage_xgb_ada | Elapsed: 122m 46s | ETA: ~30m 26s remaining
+[876/1092] two_stage_xgb_ada | Elapsed: 123m 05s | ETA: ~30m 21s remaining
+[877/1092] two_stage_xgb_ada | Elapsed: 123m 15s | ETA: ~30m 12s remaining
+[878/1092] two_stage_xgb_ada | Elapsed: 123m 35s | ETA: ~30m 07s remaining
+[879/1092] two_stage_xgb_ada | Elapsed: 123m 57s | ETA: ~30m 02s remaining
+[880/1092] two_stage_xgb_ada | Elapsed: 124m 19s | ETA: ~29m 57s remaining
+[881/1092] two_stage_xgb_ada | Elapsed: 124m 29s | ETA: ~29m 48s remaining
+[882/1092] two_stage_xgb_ada | Elapsed: 124m 49s | ETA: ~29m 43s remaining
+[883/1092] two_stage_xgb_ada | Elapsed: 125m 03s | ETA: ~29m 36s remaining
+[884/1092] two_stage_xgb_ada | Elapsed: 125m 25s | ETA: ~29m 30s remaining
+[885/1092] two_stage_ada_xgb | Elapsed: 125m 41s | ETA: ~29m 24s remaining
+[886/1092] two_stage_ada_xgb | Elapsed: 126m 11s | ETA: ~29m 20s remaining
+[887/1092] two_stage_ada_xgb | Elapsed: 126m 46s | ETA: ~29m 18s remaining
+[888/1092] two_stage_ada_xgb | Elapsed: 127m 29s | ETA: ~29m 17s remaining
+[889/1092] two_stage_ada_xgb | Elapsed: 127m 46s | ETA: ~29m 10s remaining
+[890/1092] two_stage_ada_xgb | Elapsed: 128m 03s | ETA: ~29m 03s remaining
+[891/1092] two_stage_ada_xgb | Elapsed: 128m 38s | ETA: ~29m 01s remaining
+[892/1092] two_stage_ada_xgb | Elapsed: 129m 07s | ETA: ~28m 57s remaining
+[893/1092] two_stage_ada_xgb | Elapsed: 129m 39s | ETA: ~28m 53s remaining
+[894/1092] two_stage_ada_xgb | Elapsed: 129m 55s | ETA: ~28m 46s remaining
+[895/1092] xgboost | Elapsed: 130m 06s | ETA: ~28m 38s remaining
+[896/1092] xgboost | Elapsed: 130m 24s | ETA: ~28m 31s remaining
+[897/1092] xgboost | Elapsed: 130m 42s | ETA: ~28m 24s remaining
+[898/1092] xgboost | Elapsed: 130m 54s | ETA: ~28m 16s remaining
+[899/1092] xgboost | Elapsed: 131m 12s | ETA: ~28m 10s remaining
+[900/1092] xgboost | Elapsed: 131m 39s | ETA: ~28m 05s remaining
+[901/1092] xgboost | Elapsed: 131m 55s | ETA: ~27m 58s remaining
+[902/1092] xgboost | Elapsed: 132m 22s | ETA: ~27m 53s remaining
+[903/1092] xgboost | Elapsed: 132m 55s | ETA: ~27m 49s remaining
+[904/1092] xgboost | Elapsed: 133m 15s | ETA: ~27m 42s remaining
+[905/1092] xgboost | Elapsed: 133m 46s | ETA: ~27m 38s remaining
+[906/1092] ordinal_xgboost | Elapsed: 133m 56s | ETA: ~27m 29s remaining
+[907/1092] ordinal_xgboost | Elapsed: 134m 12s | ETA: ~27m 22s remaining
+[908/1092] ordinal_xgboost | Elapsed: 134m 27s | ETA: ~27m 14s remaining
+[909/1092] ordinal_xgboost | Elapsed: 134m 37s | ETA: ~27m 06s remaining
+[910/1092] ordinal_xgboost | Elapsed: 134m 53s | ETA: ~26m 58s remaining
+[911/1092] ordinal_xgboost | Elapsed: 135m 16s | ETA: ~26m 52s remaining
+[912/1092] ordinal_xgboost | Elapsed: 135m 30s | ETA: ~26m 44s remaining
+[913/1092] ordinal_xgboost | Elapsed: 135m 52s | ETA: ~26m 38s remaining
+[914/1092] ordinal_xgboost | Elapsed: 136m 19s | ETA: ~26m 32s remaining
+[915/1092] ordinal_xgboost | Elapsed: 136m 35s | ETA: ~26m 25s remaining
+[916/1092] ordinal_xgboost | Elapsed: 137m 01s | ETA: ~26m 19s remaining
+[917/1092] two_stage_xgb_xgb | Elapsed: 137m 13s | ETA: ~26m 11s remaining
+[918/1092] two_stage_xgb_xgb | Elapsed: 137m 30s | ETA: ~26m 03s remaining
+[919/1092] two_stage_xgb_xgb | Elapsed: 137m 54s | ETA: ~25m 57s remaining
+[920/1092] two_stage_xgb_xgb | Elapsed: 138m 10s | ETA: ~25m 49s remaining
+[921/1092] two_stage_xgb_xgb | Elapsed: 138m 24s | ETA: ~25m 41s remaining
+[922/1092] two_stage_xgb_xgb | Elapsed: 138m 43s | ETA: ~25m 34s remaining
+[923/1092] two_stage_xgb_xgb | Elapsed: 139m 09s | ETA: ~25m 28s remaining
+[924/1092] two_stage_xgb_xgb | Elapsed: 139m 27s | ETA: ~25m 21s remaining
+[925/1092] two_stage_xgb_xgb | Elapsed: 139m 39s | ETA: ~25m 12s remaining
+[926/1092] two_stage_xgb_xgb | Elapsed: 139m 57s | ETA: ~25m 05s remaining
+[927/1092] two_stage_xgb_xgb | Elapsed: 140m 21s | ETA: ~24m 58s remaining
+[928/1092] two_stage_xgb_xgb | Elapsed: 140m 37s | ETA: ~24m 51s remaining
+[929/1092] two_stage_xgb_rf | Elapsed: 140m 45s | ETA: ~24m 41s remaining
+[930/1092] two_stage_xgb_rf | Elapsed: 140m 53s | ETA: ~24m 32s remaining
+[931/1092] two_stage_xgb_rf | Elapsed: 141m 01s | ETA: ~24m 23s remaining
+[932/1092] two_stage_xgb_rf | Elapsed: 141m 11s | ETA: ~24m 14s remaining
+[933/1092] two_stage_xgb_rf | Elapsed: 141m 20s | ETA: ~24m 05s remaining
+[934/1092] two_stage_xgb_rf | Elapsed: 141m 30s | ETA: ~23m 56s remaining
+[935/1092] two_stage_xgb_rf | Elapsed: 141m 41s | ETA: ~23m 47s remaining
+[936/1092] two_stage_xgb_rf | Elapsed: 141m 52s | ETA: ~23m 38s remaining
+[937/1092] two_stage_xgb_rf | Elapsed: 142m 00s | ETA: ~23m 29s remaining
+[938/1092] two_stage_xgb_rf | Elapsed: 142m 08s | ETA: ~23m 20s remaining
+[939/1092] two_stage_xgb_rf | Elapsed: 142m 16s | ETA: ~23m 10s remaining
+[940/1092] two_stage_xgb_rf | Elapsed: 142m 25s | ETA: ~23m 01s remaining
+[941/1092] two_stage_xgb_ada | Elapsed: 142m 33s | ETA: ~22m 52s remaining
+[942/1092] two_stage_xgb_ada | Elapsed: 142m 49s | ETA: ~22m 44s remaining
+[943/1092] two_stage_xgb_ada | Elapsed: 142m 57s | ETA: ~22m 35s remaining
+[944/1092] two_stage_xgb_ada | Elapsed: 143m 13s | ETA: ~22m 27s remaining
+[945/1092] two_stage_xgb_ada | Elapsed: 143m 30s | ETA: ~22m 19s remaining
+[946/1092] two_stage_xgb_ada | Elapsed: 143m 48s | ETA: ~22m 11s remaining
+[947/1092] two_stage_xgb_ada | Elapsed: 143m 56s | ETA: ~22m 02s remaining
+[948/1092] two_stage_xgb_ada | Elapsed: 144m 12s | ETA: ~21m 54s remaining
+[949/1092] two_stage_xgb_ada | Elapsed: 144m 24s | ETA: ~21m 45s remaining
+[950/1092] two_stage_xgb_ada | Elapsed: 144m 41s | ETA: ~21m 37s remaining
+[951/1092] two_stage_ada_xgb | Elapsed: 144m 55s | ETA: ~21m 29s remaining
+[952/1092] two_stage_ada_xgb | Elapsed: 145m 19s | ETA: ~21m 22s remaining
+[953/1092] two_stage_ada_xgb | Elapsed: 145m 49s | ETA: ~21m 16s remaining
+[954/1092] two_stage_ada_xgb | Elapsed: 146m 25s | ETA: ~21m 10s remaining
+[955/1092] two_stage_ada_xgb | Elapsed: 146m 40s | ETA: ~21m 02s remaining
+[956/1092] two_stage_ada_xgb | Elapsed: 146m 54s | ETA: ~20m 53s remaining
+[957/1092] two_stage_ada_xgb | Elapsed: 147m 23s | ETA: ~20m 47s remaining
+[958/1092] two_stage_ada_xgb | Elapsed: 147m 48s | ETA: ~20m 40s remaining
+[959/1092] two_stage_ada_xgb | Elapsed: 148m 16s | ETA: ~20m 33s remaining
+[960/1092] two_stage_ada_xgb | Elapsed: 148m 30s | ETA: ~20m 25s remaining
+[961/1092] xgboost | Elapsed: 148m 42s | ETA: ~20m 16s remaining
+[962/1092] xgboost | Elapsed: 149m 00s | ETA: ~20m 08s remaining
+[963/1092] xgboost | Elapsed: 149m 19s | ETA: ~20m 00s remaining
+[964/1092] xgboost | Elapsed: 149m 31s | ETA: ~19m 51s remaining
+[965/1092] xgboost | Elapsed: 149m 49s | ETA: ~19m 43s remaining
+[966/1092] xgboost | Elapsed: 150m 17s | ETA: ~19m 36s remaining
+[967/1092] xgboost | Elapsed: 150m 33s | ETA: ~19m 27s remaining
+[968/1092] xgboost | Elapsed: 151m 06s | ETA: ~19m 21s remaining
+[969/1092] xgboost | Elapsed: 151m 42s | ETA: ~19m 15s remaining
+[970/1092] xgboost | Elapsed: 152m 03s | ETA: ~19m 07s remaining
+[971/1092] xgboost | Elapsed: 152m 40s | ETA: ~19m 01s remaining
+[972/1092] ordinal_xgboost | Elapsed: 152m 52s | ETA: ~18m 52s remaining
+[973/1092] ordinal_xgboost | Elapsed: 153m 10s | ETA: ~18m 44s remaining
+[974/1092] ordinal_xgboost | Elapsed: 153m 28s | ETA: ~18m 35s remaining
+[975/1092] ordinal_xgboost | Elapsed: 153m 40s | ETA: ~18m 26s remaining
+[976/1092] ordinal_xgboost | Elapsed: 153m 59s | ETA: ~18m 18s remaining
+[977/1092] ordinal_xgboost | Elapsed: 154m 27s | ETA: ~18m 10s remaining
+[978/1092] ordinal_xgboost | Elapsed: 154m 44s | ETA: ~18m 02s remaining
+[979/1092] ordinal_xgboost | Elapsed: 155m 11s | ETA: ~17m 54s remaining
+[980/1092] ordinal_xgboost | Elapsed: 155m 43s | ETA: ~17m 47s remaining
+[981/1092] ordinal_xgboost | Elapsed: 156m 02s | ETA: ~17m 39s remaining
+[982/1092] ordinal_xgboost | Elapsed: 156m 32s | ETA: ~17m 32s remaining
+[983/1092] two_stage_xgb_xgb | Elapsed: 156m 45s | ETA: ~17m 22s remaining
+[984/1092] two_stage_xgb_xgb | Elapsed: 157m 03s | ETA: ~17m 14s remaining
+[985/1092] two_stage_xgb_xgb | Elapsed: 157m 27s | ETA: ~17m 06s remaining
+[986/1092] two_stage_xgb_xgb | Elapsed: 157m 43s | ETA: ~16m 57s remaining
+[987/1092] two_stage_xgb_xgb | Elapsed: 157m 57s | ETA: ~16m 48s remaining
+[988/1092] two_stage_xgb_xgb | Elapsed: 158m 17s | ETA: ~16m 39s remaining
+[989/1092] two_stage_xgb_xgb | Elapsed: 158m 44s | ETA: ~16m 31s remaining
+[990/1092] two_stage_xgb_xgb | Elapsed: 159m 02s | ETA: ~16m 23s remaining
+[991/1092] two_stage_xgb_xgb | Elapsed: 159m 14s | ETA: ~16m 13s remaining
+[992/1092] two_stage_xgb_xgb | Elapsed: 159m 31s | ETA: ~16m 04s remaining
+[993/1092] two_stage_xgb_xgb | Elapsed: 159m 56s | ETA: ~15m 56s remaining
+[994/1092] two_stage_xgb_xgb | Elapsed: 160m 12s | ETA: ~15m 47s remaining
+[995/1092] two_stage_xgb_rf | Elapsed: 160m 20s | ETA: ~15m 37s remaining
+[996/1092] two_stage_xgb_rf | Elapsed: 160m 28s | ETA: ~15m 28s remaining
+[997/1092] two_stage_xgb_rf | Elapsed: 160m 36s | ETA: ~15m 18s remaining
+[998/1092] two_stage_xgb_rf | Elapsed: 160m 46s | ETA: ~15m 08s remaining
+[999/1092] two_stage_xgb_rf | Elapsed: 160m 56s | ETA: ~14m 58s remaining
+[1000/1092] two_stage_xgb_rf | Elapsed: 161m 05s | ETA: ~14m 49s remaining
+[1001/1092] two_stage_xgb_rf | Elapsed: 161m 16s | ETA: ~14m 39s remaining
+[1002/1092] two_stage_xgb_rf | Elapsed: 161m 27s | ETA: ~14m 30s remaining
+[1003/1092] two_stage_xgb_rf | Elapsed: 161m 35s | ETA: ~14m 20s remaining
+[1004/1092] two_stage_xgb_rf | Elapsed: 161m 43s | ETA: ~14m 10s remaining
+[1005/1092] two_stage_xgb_rf | Elapsed: 161m 51s | ETA: ~14m 00s remaining
+[1006/1092] two_stage_xgb_rf | Elapsed: 162m 01s | ETA: ~13m 51s remaining
+[1007/1092] two_stage_xgb_ada | Elapsed: 162m 09s | ETA: ~13m 41s remaining
+[1008/1092] two_stage_xgb_ada | Elapsed: 162m 22s | ETA: ~13m 31s remaining
+[1009/1092] two_stage_xgb_ada | Elapsed: 162m 30s | ETA: ~13m 22s remaining
+[1010/1092] two_stage_xgb_ada | Elapsed: 162m 43s | ETA: ~13m 12s remaining
+[1011/1092] two_stage_xgb_ada | Elapsed: 162m 59s | ETA: ~13m 03s remaining
+[1012/1092] two_stage_xgb_ada | Elapsed: 163m 14s | ETA: ~12m 54s remaining
+[1013/1092] two_stage_xgb_ada | Elapsed: 163m 21s | ETA: ~12m 44s remaining
+[1014/1092] two_stage_xgb_ada | Elapsed: 163m 35s | ETA: ~12m 35s remaining
+[1015/1092] two_stage_xgb_ada | Elapsed: 163m 46s | ETA: ~12m 25s remaining
+[1016/1092] two_stage_xgb_ada | Elapsed: 164m 01s | ETA: ~12m 16s remaining
+[1017/1092] two_stage_ada_xgb | Elapsed: 164m 15s | ETA: ~12m 06s remaining
+[1018/1092] two_stage_ada_xgb | Elapsed: 164m 36s | ETA: ~11m 57s remaining
+[1019/1092] two_stage_ada_xgb | Elapsed: 165m 03s | ETA: ~11m 49s remaining
+[1020/1092] two_stage_ada_xgb | Elapsed: 165m 37s | ETA: ~11m 41s remaining
+[1021/1092] two_stage_ada_xgb | Elapsed: 165m 50s | ETA: ~11m 31s remaining
+[1022/1092] two_stage_ada_xgb | Elapsed: 166m 03s | ETA: ~11m 22s remaining
+[1023/1092] two_stage_ada_xgb | Elapsed: 166m 29s | ETA: ~11m 13s remaining
+[1024/1092] two_stage_ada_xgb | Elapsed: 166m 50s | ETA: ~11m 04s remaining
+[1025/1092] two_stage_ada_xgb | Elapsed: 167m 15s | ETA: ~10m 55s remaining
+[1026/1092] two_stage_ada_xgb | Elapsed: 167m 28s | ETA: ~10m 46s remaining
+[1027/1092] xgboost | Elapsed: 167m 40s | ETA: ~10m 36s remaining
+[1028/1092] xgboost | Elapsed: 167m 59s | ETA: ~10m 27s remaining
+[1029/1092] xgboost | Elapsed: 168m 18s | ETA: ~10m 18s remaining
+[1030/1092] xgboost | Elapsed: 168m 29s | ETA: ~10m 08s remaining
+[1031/1092] xgboost | Elapsed: 168m 48s | ETA: ~9m 59s remaining
+[1032/1092] xgboost | Elapsed: 169m 17s | ETA: ~9m 50s remaining
+[1033/1092] xgboost | Elapsed: 169m 34s | ETA: ~9m 41s remaining
+[1034/1092] xgboost | Elapsed: 170m 02s | ETA: ~9m 32s remaining
+[1035/1092] xgboost | Elapsed: 170m 36s | ETA: ~9m 23s remaining
+[1036/1092] xgboost | Elapsed: 170m 56s | ETA: ~9m 14s remaining
+[1037/1092] xgboost | Elapsed: 171m 29s | ETA: ~9m 05s remaining
+[1038/1092] ordinal_xgboost | Elapsed: 171m 40s | ETA: ~8m 55s remaining
+[1039/1092] ordinal_xgboost | Elapsed: 171m 56s | ETA: ~8m 46s remaining
+[1040/1092] ordinal_xgboost | Elapsed: 172m 12s | ETA: ~8m 36s remaining
+[1041/1092] ordinal_xgboost | Elapsed: 172m 22s | ETA: ~8m 26s remaining
+[1042/1092] ordinal_xgboost | Elapsed: 172m 38s | ETA: ~8m 17s remaining
+[1043/1092] ordinal_xgboost | Elapsed: 173m 01s | ETA: ~8m 07s remaining
+[1044/1092] ordinal_xgboost | Elapsed: 173m 15s | ETA: ~7m 57s remaining
+[1045/1092] ordinal_xgboost | Elapsed: 173m 38s | ETA: ~7m 48s remaining
+[1046/1092] ordinal_xgboost | Elapsed: 174m 05s | ETA: ~7m 39s remaining
+[1047/1092] ordinal_xgboost | Elapsed: 174m 21s | ETA: ~7m 29s remaining
+[1048/1092] ordinal_xgboost | Elapsed: 174m 47s | ETA: ~7m 20s remaining
+[1049/1092] two_stage_xgb_xgb | Elapsed: 174m 59s | ETA: ~7m 10s remaining
+[1050/1092] two_stage_xgb_xgb | Elapsed: 175m 17s | ETA: ~7m 00s remaining
+[1051/1092] two_stage_xgb_xgb | Elapsed: 175m 42s | ETA: ~6m 51s remaining
+[1052/1092] two_stage_xgb_xgb | Elapsed: 176m 00s | ETA: ~6m 41s remaining
+[1053/1092] two_stage_xgb_xgb | Elapsed: 176m 16s | ETA: ~6m 31s remaining
+[1054/1092] two_stage_xgb_xgb | Elapsed: 176m 39s | ETA: ~6m 22s remaining
+[1055/1092] two_stage_xgb_xgb | Elapsed: 177m 08s | ETA: ~6m 12s remaining
+[1056/1092] two_stage_xgb_xgb | Elapsed: 177m 28s | ETA: ~6m 03s remaining
+[1057/1092] two_stage_xgb_xgb | Elapsed: 177m 41s | ETA: ~5m 53s remaining
+[1058/1092] two_stage_xgb_xgb | Elapsed: 177m 59s | ETA: ~5m 43s remaining
+[1059/1092] two_stage_xgb_xgb | Elapsed: 178m 25s | ETA: ~5m 33s remaining
+[1060/1092] two_stage_xgb_xgb | Elapsed: 178m 42s | ETA: ~5m 23s remaining
+[1061/1092] two_stage_xgb_rf | Elapsed: 178m 50s | ETA: ~5m 13s remaining
+[1062/1092] two_stage_xgb_rf | Elapsed: 178m 59s | ETA: ~5m 03s remaining
+[1063/1092] two_stage_xgb_rf | Elapsed: 179m 08s | ETA: ~4m 53s remaining
+[1064/1092] two_stage_xgb_rf | Elapsed: 179m 18s | ETA: ~4m 43s remaining
+[1065/1092] two_stage_xgb_rf | Elapsed: 179m 29s | ETA: ~4m 33s remaining
+[1066/1092] two_stage_xgb_rf | Elapsed: 179m 40s | ETA: ~4m 22s remaining
+[1067/1092] two_stage_xgb_rf | Elapsed: 179m 50s | ETA: ~4m 12s remaining
+[1068/1092] two_stage_xgb_rf | Elapsed: 180m 03s | ETA: ~4m 02s remaining
+[1069/1092] two_stage_xgb_rf | Elapsed: 180m 12s | ETA: ~3m 52s remaining
+[1070/1092] two_stage_xgb_rf | Elapsed: 180m 21s | ETA: ~3m 42s remaining
+[1071/1092] two_stage_xgb_rf | Elapsed: 180m 29s | ETA: ~3m 32s remaining
+[1072/1092] two_stage_xgb_rf | Elapsed: 180m 40s | ETA: ~3m 22s remaining
+[1073/1092] two_stage_xgb_ada | Elapsed: 180m 47s | ETA: ~3m 12s remaining
+[1074/1092] two_stage_xgb_ada | Elapsed: 181m 00s | ETA: ~3m 02s remaining
+[1075/1092] two_stage_xgb_ada | Elapsed: 181m 07s | ETA: ~2m 51s remaining
+[1076/1092] two_stage_xgb_ada | Elapsed: 181m 20s | ETA: ~2m 41s remaining
+[1077/1092] two_stage_xgb_ada | Elapsed: 181m 34s | ETA: ~2m 31s remaining
+[1078/1092] two_stage_xgb_ada | Elapsed: 181m 49s | ETA: ~2m 21s remaining
+[1079/1092] two_stage_xgb_ada | Elapsed: 181m 56s | ETA: ~2m 11s remaining
+[1080/1092] two_stage_xgb_ada | Elapsed: 182m 09s | ETA: ~2m 01s remaining
+[1081/1092] two_stage_xgb_ada | Elapsed: 182m 20s | ETA: ~1m 51s remaining
+[1082/1092] two_stage_xgb_ada | Elapsed: 182m 34s | ETA: ~1m 41s remaining
+[1083/1092] two_stage_ada_xgb | Elapsed: 182m 48s | ETA: ~1m 31s remaining
+[1084/1092] two_stage_ada_xgb | Elapsed: 183m 08s | ETA: ~1m 21s remaining
+[1085/1092] two_stage_ada_xgb | Elapsed: 183m 33s | ETA: ~1m 11s remaining
+[1086/1092] two_stage_ada_xgb | Elapsed: 184m 06s | ETA: ~1m 01s remaining
+[1087/1092] two_stage_ada_xgb | Elapsed: 184m 19s | ETA: ~50s remaining
+[1088/1092] two_stage_ada_xgb | Elapsed: 184m 32s | ETA: ~40s remaining
+[1089/1092] two_stage_ada_xgb | Elapsed: 184m 57s | ETA: ~30s remaining
+[1090/1092] two_stage_ada_xgb | Elapsed: 185m 17s | ETA: ~20s remaining
+[1091/1092] two_stage_ada_xgb | Elapsed: 185m 41s | ETA: ~10s remaining
+[1092/1092] two_stage_ada_xgb | Elapsed: 185m 54s | ETA: ~0s remaining
+[checkpoint] Run complete — checkpoint removed.
+
+Total training time: 3h 6m 44s
+Results saved as sqlite to Results\2026_04_18_01
+Results saved → Results\2026_04_18_01
+
+Experiment failed: 
+---------------------------------------------------------------------------
+Exception encountered at "In [43]":
+---------------------------------------------------------------------------
+FileNotFoundError                         Traceback (most recent call last)
+Cell In[43], line 7
+      4 file_path = r"C:\Users\rjbel\Python\Notebooks\Mapua\Thesis\MachineLearning\Results\06 model_results - no feature selection.xlsx"
+      6 # Read the Excel file
+----> 7 df = pd.read_excel(file_path)
+      9 # Choose which score column to use
+     10 score_column = "enhanced_roc_auc_macro"   # <-- change this to the metric you want (e.g., "f1", "roc_auc", etc.)
+
+File D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\pandas\io\excel\_base.py:495, in read_excel(io, sheet_name, header, names, index_col, usecols, dtype, engine, converters, true_values, false_values, skiprows, nrows, na_values, keep_default_na, na_filter, verbose, parse_dates, date_parser, date_format, thousands, decimal, comment, skipfooter, storage_options, dtype_backend, engine_kwargs)
+    493 if not isinstance(io, ExcelFile):
+    494     should_close = True
+--> 495     io = ExcelFile(
+    496         io,
+    497         storage_options=storage_options,
+    498         engine=engine,
+    499         engine_kwargs=engine_kwargs,
+    500     )
+    501 elif engine and engine != io.engine:
+    502     raise ValueError(
+    503         "Engine should not be specified when passing "
+    504         "an ExcelFile - ExcelFile already has the engine set"
+    505     )
+
+File D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\pandas\io\excel\_base.py:1550, in ExcelFile.__init__(self, path_or_buffer, engine, storage_options, engine_kwargs)
+   1548     ext = "xls"
+   1549 else:
+-> 1550     ext = inspect_excel_format(
+   1551         content_or_path=path_or_buffer, storage_options=storage_options
+   1552     )
+   1553     if ext is None:
+   1554         raise ValueError(
+   1555             "Excel file format cannot be determined, you must specify "
+   1556             "an engine manually."
+   1557         )
+
+File D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\pandas\io\excel\_base.py:1402, in inspect_excel_format(content_or_path, storage_options)
+   1399 if isinstance(content_or_path, bytes):
+   1400     content_or_path = BytesIO(content_or_path)
+-> 1402 with get_handle(
+   1403     content_or_path, "rb", storage_options=storage_options, is_text=False
+   1404 ) as handle:
+   1405     stream = handle.handle
+   1406     stream.seek(0)
+
+File D:\Developer\Projects\THESIS-Utilizing-ML-to-Solve-the-IPPP\.venv\Lib\site-packages\pandas\io\common.py:882, in get_handle(path_or_buf, mode, encoding, compression, memory_map, is_text, errors, storage_options)
+    873         handle = open(
+    874             handle,
+    875             ioargs.mode,
+   (...)    878             newline="",
+    879         )
+    880     else:
+    881         # Binary mode
+--> 882         handle = open(handle, ioargs.mode)
+    883     handles.append(handle)
+    885 # Convert BytesIO or file objects passed with an encoding
+
+FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\rjbel\\Python\\Notebooks\\Mapua\\Thesis\\MachineLearning\\Results\\06 model_results - no feature selection.xlsx'
+

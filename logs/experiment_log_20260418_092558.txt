@@ -1,0 +1,10 @@
+Single due date records:   10377
+Multiple due date records: 289
+             count  percentage
+dtp_bracket                   
+on_time       3877       39.44
+30_days       2996       30.48
+90_days       1887       19.20
+60_days       1070       10.89
+
+Experiment failed: 'charmap' codec can't encode characters in position 162-192: character maps to <undefined>
