@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from typing import Union
 from sklearn.base import BaseEstimator, ClassifierMixin, clone
 from sklearn.feature_selection import SelectFromModel
 
@@ -542,7 +543,7 @@ class TwoStagePipeline(BasePipeline):
         feature_names=None,
         stage1_estimator=None,
         stage2_estimator=None,
-        use_lda=False,
+        use_lda: Union[bool, list] = False,
         lda_mode: str = "append",
     ):
         super().__init__(X_train, X_test, y_train, y_test, args, parameters, feature_names)
