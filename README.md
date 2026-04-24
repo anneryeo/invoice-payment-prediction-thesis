@@ -250,6 +250,16 @@ A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
 
 ## Setup & Reproduction
 
+### Prepare Required Folders
+
+Before running the pipeline, make sure the following folders exist in your local project root:
+
+- `results/`
+- `docs/`
+- `database/`
+
+These paths are used by the notebooks, experiment runner, and exports. The `database/` folder should contain your private local data exports and must remain excluded from version control.
+
 ### Requirements
 
 - Python 3.10+
@@ -268,6 +278,10 @@ pip install -r requirements.txt
 ```
 
 ### Running Experiments
+
+Before executing experiments, review `settings.json` carefully. This file controls core run boundaries and behavior (including date cutoffs).
+
+Important: update `observation_end` to match the last available entry in your dataset so that feature engineering, labeling, and experiment windows align with your most recent data.
 
 ```bash
 # Headless full pipeline run (logs to logs/experiment_log_*.txt)
