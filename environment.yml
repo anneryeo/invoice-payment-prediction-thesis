@@ -208,4 +208,3 @@ dependencies:
       - torch==2.10.0+cu126
       - torchaudio==2.10.0
       - torchvision==0.25.0+cu126
-prefix: C:\Users\rjbel\anaconda3\envs\Thesis_IPPP
