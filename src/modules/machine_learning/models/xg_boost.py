@@ -1,19 +1,18 @@
-import numpy as np
 from xgboost import XGBClassifier
 from sklearn.feature_selection import SelectFromModel
 from .base_pipeline import BasePipeline
+import warnings
 
 
 class XGBoostPipeline(BasePipeline):
     def initialize_model(self):
         """Initialize XGBoost with provided parameters, using GPU if available."""
-        
+
         def xgboost_can_use_gpu():
             """Directly test if XGBoost can actually use the GPU."""
             try:
                 import xgboost as xgb
                 import numpy as np
-                # Small test train to confirm GPU works end-to-end
                 data = xgb.DMatrix(np.random.rand(10, 3), label=np.random.randint(0, 2, 10))
                 params = {"device": "cuda", "tree_method": "hist", "verbosity": 0}
                 xgb.train(params, data, num_boost_round=1)
@@ -21,8 +20,22 @@ class XGBoostPipeline(BasePipeline):
             except Exception:
                 return False
 
-        if "device" not in self.parameters:
+        requested_device = self.parameters.get("device")
+
+        if requested_device == "cuda":
+            # User explicitly requested GPU — validate it actually works
+            if not xgboost_can_use_gpu():
+                warnings.warn(
+                    "device='cuda' was requested but GPU is unavailable. Falling back to CPU.",
+                    RuntimeWarning
+                )
+                self.parameters["device"] = "cpu"
+
+        elif requested_device is None:
+            # Auto-detect: use GPU if available, otherwise CPU
             self.parameters["device"] = "cuda" if xgboost_can_use_gpu() else "cpu"
+
+        # If requested_device is "cpu" or any other value, respect it as-is
 
         self.parameters.setdefault("tree_method", "hist")
         self.model = XGBClassifier(**self.parameters)
