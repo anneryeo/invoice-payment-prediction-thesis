@@ -12,9 +12,9 @@
 #
 # CLI usage
 # ─────────
-#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "results/"
-#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "results/" --keep-db
-#   python -m machine_learning.utils.io.migrate_db_schema results/2025_03_05_01/results.db
+#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "Results/"
+#   python -m machine_learning.utils.io.migrate_db_schema "Results - Backup/" "Results/" --keep-db
+#   python -m machine_learning.utils.io.migrate_db_schema Results/2025_03_05_01/results.db
 #
 # Programmatic usage
 # ──────────────────
@@ -219,7 +219,7 @@ class SchemaV1Migrator:
     --------
     Migrate one file in-place::
 
-        m = SchemaV1Migrator("results/2025_03_05_01/results.db")
+        m = SchemaV1Migrator("Results/2025_03_05_01/results.db")
         result = m.run()
         print(result)
 
@@ -626,7 +626,7 @@ def _cli() -> None:
         default=None,
         help=(
             'Path to the destination results folder where migrated databases '
-            'will be written (e.g. "results/"). Session sub-folders are mirrored '
+            'will be written (e.g. "Results/"). Session sub-folders are mirrored '
             "from source and created if they do not exist. Required when source "
             "is a folder; omit only when source is a single .db file."
         ),
@@ -657,7 +657,7 @@ def _cli() -> None:
     if args.dest is None:
         parser.error(
             "A destination folder is required when source is a results root.\n"
-            '  Example: migrate_db_schema "Results - Backup/" "results/"'
+            '  Example: migrate_db_schema "Results - Backup/" "Results/"'
         )
 
     outcomes = SchemaV1Migrator.migrate_all(
