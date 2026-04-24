@@ -5,7 +5,6 @@ from typing import Optional, Tuple, Union
 from sklearn.preprocessing import StandardScaler
 from sksurv.linear_model import CoxnetSurvivalAnalysis
 from sksurv.util import Surv
-from scipy.integrate import trapezoid
 
 from machine_learning.utils.data.clean_survival_inputs import clean_survival_inputs
 
@@ -61,7 +60,7 @@ def _expected_survival_time(sf) -> float:
     if t[0] > 0:
         t = np.concatenate([[0.0], t])
         s = np.concatenate([[1.0], s])
-    return float(trapezoid(s, t))
+    return float(np.trapz(s, t))
 
 
 def _compute_survival_features(
@@ -126,7 +125,7 @@ def generate_survival_features(
     X_surv,
     T,
     E,
-    X_train: Optional[pd.DataFrame],
+    X_train: pd.DataFrame,
     X_test: Optional[pd.DataFrame] = None,
     best_params: dict = None,
     time_points: list = None,

@@ -679,11 +679,8 @@ class FeatureEngineer:
 
         df = self._merge_due_date_prev(df, 2)
 
-        # Time-normalized trends: signed values are intentional.
-        # A negative trend means the student is paying faster over time
-        # (elapsed days are decreasing), which is a valid and informative
-        # signal for tree-based classifiers. Do NOT take absolute value.
-        df['dtp_2_trend'] = self._calculate_dtp_trend(df, lag=1)
+        # Time-normalized trends
+        df['dtp_2_trend'] = self._calculate_dtp_trend(df, lag=1) #HIGHLIGHT -ANNE
         df['dtp_3_trend'] = self._calculate_dtp_trend(df, lag=2)
 
         df = self._merge_last_payment_date(df, self.df_payments_to_all)

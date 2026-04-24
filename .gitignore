@@ -1,24 +1,22 @@
-#ANNE
-annesnotes/
-docs/
-.github/
-.geminiignore
-
 # Jupyter Notebooks
 .ipynb_checkpoints
 Pseudonymizer.ipynb
 Test - Credit Sales Refactor.ipynb
 
+
+
 # Data files
 Database/
+
+
 
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
-results/
+Results/
 Excel Files/
 temp_cache/
-/!Documents
+
 
 
 # Python
