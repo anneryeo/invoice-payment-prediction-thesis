@@ -1,5 +1,6 @@
 import base64
 import io
+import logging
 import os
 import pickle
 import pandas as pd
@@ -33,12 +34,11 @@ from machine_learning.utils.training.tune_cox_hyperparameters import CoxHyperpar
 from machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
 from machine_learning.utils.io.save_results_to_folder import save_training_results
 
-
-import os
 # Prevent loky (joblib's process backend) from spawning a wmic/powershell
 # subprocess to count physical cores, which fails under Dash's restricted
 # stdout environment. Must be set before any sklearn/sksurv/joblib import.
 os.environ["LOKY_MAX_CPU_COUNT"] = str(os.cpu_count())
+logger = logging.getLogger(__name__)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -275,7 +275,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
     _t_total = time()
 
     if debug_mode and os.path.exists(cache_path):
-        print(f"[DEBUG] Loading cached data from {cache_path} ...")
+        logger.debug("Loading cached data from %s ...", cache_path)
         with open(cache_path, "rb") as f:
             cache = pickle.load(f)
         df_credit_sales       = cache["df_credit_sales"]
@@ -290,7 +290,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
         print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
         progress_state["extraction_done"] = True
         progress_state["survival_done"]   = True
-        print("[DEBUG] Cache loaded successfully — skipping extraction and Cox tuning.")
+        logger.debug("Cache loaded successfully; skipping extraction and Cox tuning.")
         print(f"[TIMING] cache_load: {time() - _t_total:.1f}s")
     else:
         print("Running training...")
@@ -311,7 +311,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
 
         if debug_mode:
             os.makedirs(temp_cache, exist_ok=True)
-            print(f"[DEBUG] Saving data to cache at {cache_path} ...")
+            logger.debug("Saving data to cache at %s ...", cache_path)
             with open(cache_path, "wb") as f:
                 pickle.dump({
                     "df_credit_sales":       df_credit_sales,
@@ -319,7 +319,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
                     "df_data_surv":          df_data_surv,
                     "survival_results_dict": survival_results_dict,
                 }, f)
-            print("[DEBUG] Cache saved successfully.")
+            logger.debug("Cache saved successfully.")
 
     best_surv_params = survival_results_dict['best_surv_parameters']
     best_time_points = survival_results_dict['best_time_points']
@@ -502,3 +502,4 @@ def update_progress(n, step):
             return percent, True, "primary", f"{completed}/{total} models trained ({percent}%) — {eta_str}", True
 
     return 0, True, "primary", "Waiting for experiments to start...", True
+
