@@ -103,9 +103,9 @@ Seven balance strategies are tested per model:
 | `smote`            | Standard SMOTE                        |
 | `borderline_smote` | Borderline-SMOTE                      |
 | `smote_tomek`      | SMOTE + Tomek Links                   |
-| `hybrid_0.3`       | Undersampling + SMOTE (threshold 0.3) |
-| `hybrid_0.5`       | Undersampling + SMOTE (threshold 0.5) |
-| `hybrid_0.7`       | Undersampling + SMOTE (threshold 0.7) |
+| `hybrid@0.5`       | Undersampling + SMOTE (threshold 0.5) |
+| `hybrid@0.7`       | Undersampling + SMOTE (threshold 0.7) |
+| `hybrid@0.9`       | Undersampling + SMOTE (threshold 0.9) |
 
 ### 4. Classification Models (15 Types)
 
@@ -214,7 +214,8 @@ A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
 │
 ├── docs/
 │   ├── IEEE-PaperDraft-1.ipynb
-│   └── 202619APRIL-RESULTSGRAPHS/ # Result figures (heatmaps, ROC, F1, importance)
+│   ├── 202616APRIL-RESULTSGRAPHS/ # Current ML_Results_Analysis output target
+│   └── 202619APRIL-RESULTSGRAPHS/ # Existing April figures from prior run
 │
 ├── logs/                           # Papermill execution logs + executed notebooks
 ├── analysis/                       # Enrollment statistics script
@@ -249,6 +250,16 @@ A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
 
 ## Setup & Reproduction
 
+### Prepare Required Folders
+
+Before running the pipeline, make sure the following folders exist in your local project root:
+
+- `results/`
+- `docs/`
+- `database/`
+
+These paths are used by the notebooks, experiment runner, and exports. The `database/` folder should contain your private local data exports and must remain excluded from version control.
+
 ### Requirements
 
 - Python 3.10+
@@ -267,6 +278,10 @@ pip install -r requirements.txt
 ```
 
 ### Running Experiments
+
+Before executing experiments, review `settings.json` carefully. This file controls core run boundaries and behavior (including date cutoffs).
+
+Important: update `observation_end` to match the last available entry in your dataset so that feature engineering, labeling, and experiment windows align with your most recent data.
 
 ```bash
 # Headless full pipeline run (logs to logs/experiment_log_*.txt)
@@ -298,7 +313,8 @@ results/2026_04_18_02/results.db
 - **Two-stage classifiers** (notably XGB → AdaBoost) show the strongest overall performance
 - **Cox PH C-index:** 0.7817 — survival features provide meaningful additional signal
 - **Top separating features** (from LDA): `opening_balance_flag`, `opening_balance`, `prev_bracket`, `dtp_wavg`
-- Result figures stored in [docs/202619APRIL-RESULTSGRAPHS/](docs/202619APRIL-RESULTSGRAPHS/)
+- Result figures are currently generated to [docs/202616APRIL-RESULTSGRAPHS/](docs/202616APRIL-RESULTSGRAPHS/) by the analysis notebook
+- Existing April figure exports from prior runs are in [docs/202619APRIL-RESULTSGRAPHS/](docs/202619APRIL-RESULTSGRAPHS/)
 
 ---
 
