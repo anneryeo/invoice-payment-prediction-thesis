@@ -130,7 +130,7 @@ class SessionStore:
     --------
     ::
 
-        store = SessionStore("results/")
+        store = SessionStore("Results/")
 
         # Enumerate sessions
         store.list()

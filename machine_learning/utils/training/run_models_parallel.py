@@ -1,62 +1,8 @@
-import os
-import pickle
 import pandas as pd
-import time
-import joblib
-import warnings
-from multiprocessing import Pool, cpu_count
+from multiprocessing.pool import ThreadPool
+from multiprocessing import cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
 from xgboost import XGBClassifier
-
-# Suppress sklearn joblib warnings in all processes
-warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
-warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
-
-
-def _worker_init():
-    """Pool initializer: suppresses noisy warnings inside each worker process."""
-    import warnings as _w
-    _w.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
-    _w.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
-
-
-def _make_task_key(model_name, param, balance_strategy, threshold, fs_baseline, fs_enhanced):
-    """Deterministic string key uniquely identifying one experiment task."""
-    if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
-        param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
-    else:
-        param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
-    return f"{model_name}|{balance_strategy}|{threshold}|{param_str}|{int(fs_baseline)}|{int(fs_enhanced)}"
-
-
-def _load_checkpoint(path):
-    """Load checkpoint from disk. Returns (completed_keys: set, results: list)."""
-    if path is None or not os.path.exists(path):
-        return set(), []
-    try:
-        with open(path, "rb") as f:
-            data = pickle.load(f)
-        completed_keys = set(data.get("completed_keys", []))
-        results = data.get("results", [])
-        print(f"[checkpoint] Loaded {len(results)} prior results from: {path}", flush=True)
-        return completed_keys, results
-    except Exception as e:
-        print(f"[checkpoint] Could not load checkpoint ({e}); starting fresh.", flush=True)
-        return set(), []
-
-
-def _save_checkpoint(path, completed_keys, results):
-    """Atomically save checkpoint to disk using write-then-rename."""
-    if path is None:
-        return
-    tmp_path = path + ".tmp"
-    try:
-        with open(tmp_path, "wb") as f:
-            pickle.dump({"completed_keys": list(completed_keys), "results": results}, f)
-        os.replace(tmp_path, path)
-    except Exception as e:
-        print(f"[checkpoint] Warning: could not save checkpoint ({e})", flush=True)
-
 
 from machine_learning.utils.training.load_parameters import ParameterLoader
 from machine_learning.utils.data.data_preparation import DataPreparer
@@ -85,119 +31,7 @@ _TWO_STAGE_ESTIMATOR_PAIRS = {
 }
 
 # Used for the progress bar in Dash
-progress_state = {"completed": 0, "total": 0, "start_time": None}
-
-
-def _format_duration(seconds: float) -> str:
-    """Format a duration in seconds as 'Xm Ys'."""
-    minutes, secs = divmod(int(seconds), 60)
-    return f"{minutes}m {secs:02d}s" if minutes else f"{secs}s"
-
-
-def _build_pipelines_fn(
-    model_name, pipeline_class, param,
-    X_train, X_test, X_surv_train, X_surv_test,
-    y_train, y_test,
-    args, use_lda, lda_mode,
-):
-    """Module-level pipeline builder — picklable, shared by worker processes and instance methods."""
-    if model_name in _ORDINAL_ESTIMATOR_MAP:
-        estimator_cls = _ORDINAL_ESTIMATOR_MAP[model_name]
-        scale_pos_weight = param.get("scale_pos_weight", True)
-        estimator_params = {k: v for k, v in param.items() if k != "scale_pos_weight"}
-
-        pipeline_baseline = OrdinalPipeline(
-            X_train, X_test, y_train, y_test, args,
-            parameters={"scale_pos_weight": scale_pos_weight},
-            base_estimator=estimator_cls(**estimator_params),
-        )
-        pipeline_enhanced = OrdinalPipeline(
-            X_surv_train, X_surv_test, y_train, y_test, args,
-            parameters={"scale_pos_weight": scale_pos_weight},
-            base_estimator=estimator_cls(**estimator_params),
-        )
-
-    elif model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
-        if "stage1" not in param or "stage2" not in param:
-            raise ValueError(f"{model_name} parameters must define 'stage1' and 'stage2'")
-
-        s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[model_name]
-        pipeline_baseline = TwoStagePipeline(
-            X_train, X_test, y_train, y_test, args,
-            stage1_estimator=s1_cls(**param["stage1"]),
-            stage2_estimator=s2_cls(**param["stage2"]),
-            use_lda=use_lda,
-            lda_mode=lda_mode,
-        )
-        pipeline_enhanced = TwoStagePipeline(
-            X_surv_train, X_surv_test, y_train, y_test, args,
-            stage1_estimator=s1_cls(**param["stage1"]),
-            stage2_estimator=s2_cls(**param["stage2"]),
-            use_lda=use_lda,
-            lda_mode=lda_mode,
-        )
-
-    else:
-        pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, args, param)
-        pipeline_enhanced = pipeline_class(X_surv_train, X_surv_test, y_train, y_test, args, param)
-
-    return pipeline_baseline, pipeline_enhanced
-
-
-def _run_model_experiment_fn(
-    model_name, pipeline_class, param, dataset,
-    balance_strategy, threshold,
-    args, use_lda, lda_mode,
-    fs_baseline, fs_enhanced,
-):
-    """Module-level experiment runner — picklable, called by both Pool workers and instance methods."""
-    (X_train, X_test, y_train, y_test,
-     X_survival_train, X_survival_test) = dataset
-
-    pipeline_baseline, pipeline_enhanced = _build_pipelines_fn(
-        model_name, pipeline_class, param,
-        X_train, X_test, X_survival_train, X_survival_test,
-        y_train, y_test,
-        args, use_lda, lda_mode,
-    )
-
-    # Use threading backend so nested joblib calls (e.g. permutation_importance
-    # inside KNN) don't try to spawn Loky subprocesses from within a Pool worker.
-    with joblib.parallel_backend('threading'):
-        pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
-        result_baseline = pipeline_baseline.evaluate().show_results()
-
-        pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
-        result_enhanced = pipeline_enhanced.evaluate().show_results()
-
-    if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
-        param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
-    else:
-        param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
-
-    return {
-        "model": model_name,
-        "undersample_threshold": threshold,
-        "parameters": param_str,
-        "balance_strategy": balance_strategy,
-        **{f"baseline_{k}": v for k, v in result_baseline.items()},
-        "baseline_feature_method":      pipeline_baseline.features.method_text,
-        "baseline_feature_parameters":  pipeline_baseline.features.method_parameters,
-        "baseline_feature_selected":    pipeline_baseline.features.selected,
-        "baseline_feature_weights":     pipeline_baseline.features.weights,
-        **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
-        "enhanced_feature_method":      pipeline_enhanced.features.method_text,
-        "enhanced_feature_parameters":  pipeline_enhanced.features.method_parameters,
-        "enhanced_feature_selected":    pipeline_enhanced.features.selected,
-        "enhanced_feature_weights":     pipeline_enhanced.features.weights,
-    }
-
-
-def _run_task(task_tuple):
-    """Module-level worker for multiprocessing.Pool — fully self-contained, no instance pickling."""
-    result = _run_model_experiment_fn(*task_tuple)
-    key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
-    return key, result
+progress_state = {"completed": 0, "total": 0}
 
 
 class SurvivalExperimentRunner:
@@ -253,13 +87,12 @@ class SurvivalExperimentRunner:
         args,
         best_parameters,
         thresholds=None,
-        n_jobs=4,
+        n_jobs=-1,
         do_not_parallel_compute=None,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
         use_lda: bool = False,
         lda_mode: str = "append",
-        checkpoint_path=None,
     ):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
@@ -269,12 +102,11 @@ class SurvivalExperimentRunner:
         self.best_parameters = best_parameters
         self.thresholds = thresholds
         self.n_jobs = n_jobs
-        self.do_not_parallel_compute = list(do_not_parallel_compute or [])
+        self.do_not_parallel_compute = do_not_parallel_compute or []
         self.feature_selection_baseline = feature_selection_baseline
         self.feature_selection_enhanced = feature_selection_enhanced
         self.use_lda  = use_lda
         self.lda_mode = lda_mode
-        self.checkpoint_path = checkpoint_path
 
         # Initialize parameter loader
         self.loader = ParameterLoader(args.parameters_dir)
@@ -291,13 +123,6 @@ class SurvivalExperimentRunner:
             else:
                 self.models[model_name] = pipeline_class
 
-        # Auto-route any expanded model that uses XGBClassifier to sequential
-        # execution to avoid CUDA context conflicts in the thread pool.
-        # This covers: xgboost, ordinal_xgboost, two_stage_xgb_*, two_stage_ada_xgb.
-        for expanded_name in self.models:
-            if "xgb" in expanded_name and expanded_name not in self.do_not_parallel_compute:
-                self.do_not_parallel_compute.append(expanded_name)
-
         self.parameters_by_model = {m: self.loader.get_parameters(m) for m in self.models}
 
         self.preparer = DataPreparer(
@@ -308,16 +133,6 @@ class SurvivalExperimentRunner:
         ).encode_labels().train_test_split()
 
         self.class_mappings = self.preparer.class_mapping
-
-        # Bug fix: snapshot the original train/test split so that prepare_dataset()
-        # can reset before each balance strategy instead of resampling cumulatively.
-        self._X_train_orig = self.preparer.X_train.copy()
-        self._X_test_orig  = self.preparer.X_test.copy()
-        self._y_train_orig = self.preparer.y_train.copy()
-        self._y_test_orig  = self.preparer.y_test.copy()
-        # Train-partition indices (before resampling resets them) — used to
-        # restrict Cox fitting to train rows only, preventing test-set leakage.
-        self._train_indices = self.preparer.X_train.index
 
     # -----------------------------
     # Dataset preparation helper
@@ -330,15 +145,6 @@ class SurvivalExperimentRunner:
         Runs data preparation, splits train/test sets, and generates survival features.
         Results are cached and reused across models and parameters.
         """
-        label = f"{balance_strategy}" + (f"@{threshold}" if threshold is not None else "")
-        print(f"[dataset] Preparing: {label} ...", flush=True)
-        _ds_start = time.time()
-
-        # Bug fix: reset to the original split before each balance strategy so
-        # strategies don't stack on top of each other's resampled output.
-        self.preparer.X_train = self._X_train_orig.copy()
-        self.preparer.y_train = self._y_train_orig.copy()
-
         self.preparer.resample(balance_strategy=balance_strategy, undersample_threshold=threshold)
 
         # Snapshot BEFORE LDA — Cox scaler was fitted on original features
@@ -347,26 +153,15 @@ class SurvivalExperimentRunner:
         X_test_raw  = self.preparer.X_test.copy()
         y_train, y_test = self.preparer.y_train.copy(), self.preparer.y_test.copy()
 
-        # Bug fix: restrict Cox fitting to train-partition rows (plus all censored
-        # rows, which don't belong to either classifier partition). Fitting Cox on
-        # the full dataset — including test-partition rows' survival outcomes — is
-        # data leakage that inflates test-set survival feature quality.
-        _train_mask = (
-            self.df_data_surv.index.isin(self._train_indices)
-            | (self.df_data_surv["censor"] == 0)
-        )
-        _df_surv_train = self.df_data_surv[_train_mask]
-        X_surv = _df_surv_train.drop(columns=["days_elapsed_until_fully_paid", "censor"])
-        T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
-        E = _df_surv_train["censor"]
+        X_surv = self.df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+        T = adjust_payment_period(self.df_data_surv["days_elapsed_until_fully_paid"])
+        E = self.df_data_surv["censor"]
 
         # Pass original features to Cox — survival features generated first
-        print(f"[dataset]   Generating survival features ...", flush=True)
         X_surv_train, X_surv_test = generate_survival_features(
             X_surv, T, E, X_train_raw, X_test_raw,
             best_params=self.best_parameters, time_points=self.args.time_points
         )
-        print(f"[dataset]   Done ({_format_duration(time.time() - _ds_start)})", flush=True)
 
         # Apply LDA AFTER survival feature generation.
         # Two separate transformers: one for the enhanced (survival) set,
@@ -393,30 +188,163 @@ class SurvivalExperimentRunner:
 
     def _build_pipelines(
         self,
-        model_name, pipeline_class, param,
-        X_train, X_test, X_surv_train, X_surv_test,
+        model_name,
+        pipeline_class,
+        param,
+        X_train, X_test,
+        X_surv_train, X_surv_test,
         y_train, y_test,
     ):
-        """Thin wrapper — delegates to the module-level _build_pipelines_fn."""
-        return _build_pipelines_fn(
-            model_name, pipeline_class, param,
-            X_train, X_test, X_surv_train, X_surv_test,
-            y_train, y_test,
-            self.args, self.use_lda, self.lda_mode,
-        )
+        """
+        Construct baseline and enhanced pipeline instances for a single experiment.
+
+        When ``self.use_lda=True`` and the model is a ``TwoStagePipeline``,
+        ``use_lda`` and ``lda_mode`` are forwarded so ``TwoStageClassifier``
+        fits a dedicated delinquent-only LDA inside Stage 2.  This is separate
+        from the upstream 4-class LDA applied in ``prepare_dataset``:
+
+        - **Upstream LDA** (``prepare_dataset``) — fitted on the full 4-class
+          training population.  Both baseline and enhanced X arrays already
+          contain the LD1/LD2/LD3 columns when they reach this method.
+        - **Stage 2 LDA** (inside ``TwoStageClassifier``) — fitted only on the
+          late-invoice rows (y > 0), producing 2 components (LD1/LD2) optimised
+          for separating 30 / 60 / 90-day classes without on_time noise.
+
+        For non-two-stage models the ``use_lda`` flag has no effect here because
+        the upstream LDA in ``prepare_dataset`` already handled projection.
+        """
+
+        if model_name in _ORDINAL_ESTIMATOR_MAP:
+            estimator_cls = _ORDINAL_ESTIMATOR_MAP[model_name]
+            scale_pos_weight = param.get("scale_pos_weight", True)
+            estimator_params = {k: v for k, v in param.items() if k != "scale_pos_weight"}
+
+            pipeline_baseline = OrdinalPipeline(
+                X_train, X_test, y_train, y_test, self.args,
+                parameters={"scale_pos_weight": scale_pos_weight},
+                base_estimator=estimator_cls(**estimator_params),
+            )
+
+            pipeline_enhanced = OrdinalPipeline(
+                X_surv_train, X_surv_test, y_train, y_test, self.args,
+                parameters={"scale_pos_weight": scale_pos_weight},
+                base_estimator=estimator_cls(**estimator_params),
+            )
+
+        elif model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+            if "stage1" not in param or "stage2" not in param:
+                raise ValueError(f"{model_name} parameters must define 'stage1' and 'stage2'")
+
+            s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[model_name]
+            stage1_params = param["stage1"]
+            stage2_params = param["stage2"]
+
+            # use_lda / lda_mode are forwarded so TwoStageClassifier can fit
+            # a dedicated delinquent-only LDA for Stage 2 when enabled.
+            # The upstream 4-class LDA (applied in prepare_dataset) is separate
+            # and independent — it operates on Stage 1's full-population input.
+            pipeline_baseline = TwoStagePipeline(
+                X_train, X_test, y_train, y_test, self.args,
+                stage1_estimator=s1_cls(**stage1_params),
+                stage2_estimator=s2_cls(**stage2_params),
+                use_lda=self.use_lda,
+                lda_mode=self.lda_mode,
+            )
+
+            pipeline_enhanced = TwoStagePipeline(
+                X_surv_train, X_surv_test, y_train, y_test, self.args,
+                stage1_estimator=s1_cls(**stage1_params),
+                stage2_estimator=s2_cls(**stage2_params),
+                use_lda=self.use_lda,
+                lda_mode=self.lda_mode,
+            )
+
+        else:
+            pipeline_baseline = pipeline_class(X_train, X_test, y_train, y_test, self.args, param)
+            pipeline_enhanced = pipeline_class(X_surv_train, X_surv_test, y_train, y_test, self.args, param)
+
+        return pipeline_baseline, pipeline_enhanced
 
     # -----------------------------
     # Single experiment runner
     # -----------------------------
 
     def run_model_experiment(self, model_name, pipeline_class, param, dataset, balance_strategy, threshold):
-        """Thin wrapper — delegates to the module-level _run_model_experiment_fn."""
-        return _run_model_experiment_fn(
-            model_name, pipeline_class, param, dataset,
-            balance_strategy, threshold,
-            self.args, self.use_lda, self.lda_mode,
-            self.feature_selection_baseline, self.feature_selection_enhanced,
+        """
+        Run a single experiment for a given model, parameter set, and dataset.
+
+        Executes both baseline and enhanced pipelines, performs training and
+        evaluation, then returns a flat result dict suitable for direct
+        concatenation into a pandas DataFrame.
+
+        Parameters
+        ----------
+        model_name : str
+            Name of the model being tested.
+        pipeline_class : class
+            Pipeline class implementing the model workflow.
+        param : dict
+            Parameter set for the model.
+        dataset : tuple
+            Prepared dataset of the form:
+            (X_train, X_test, y_train, y_test, X_survival_train, X_survival_test).
+        balance_strategy : str
+            Balancing strategy used to prepare the dataset.
+        threshold : float or None
+            Threshold for hybrid balancing strategy. None if not applicable.
+
+        Returns
+        -------
+        dict
+            Flat dictionary with the following keys:
+            - model, parameters, balance_strategy, undersample_threshold
+            - baseline_accuracy, baseline_precision_macro, baseline_recall_macro,
+            baseline_f1_macro, baseline_roc_auc_macro, baseline_confusion_matrix,
+            baseline_roc_curve, baseline_pr_curve
+            - baseline_feature_method, baseline_feature_selected, baseline_feature_weights
+            - enhanced_accuracy, enhanced_precision_macro, enhanced_recall_macro,
+            enhanced_f1_macro, enhanced_roc_auc_macro, enhanced_confusion_matrix,
+            enhanced_roc_curve, enhanced_pr_curve
+            - enhanced_feature_method, enhanced_feature_selected, enhanced_feature_weights
+        """
+        (X_train, X_test, y_train, y_test,
+        X_survival_train, X_survival_test) = dataset
+
+        pipeline_baseline, pipeline_enhanced = self._build_pipelines(
+            model_name, pipeline_class, param,
+            X_train, X_test, X_survival_train, X_survival_test,
+            y_train, y_test,
         )
+
+        pipeline_baseline.initialize_model().fit(use_feature_selection=self.feature_selection_baseline)
+        result_baseline = pipeline_baseline.evaluate().show_results()
+
+        # Enhanced pipeline
+        pipeline_enhanced.initialize_model().fit(use_feature_selection=self.feature_selection_enhanced)
+        result_enhanced = pipeline_enhanced.evaluate().show_results()
+
+        if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+            param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
+        else:
+            param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
+
+        results = {
+            "model": model_name,
+            "parameters": param_str,
+            "balance_strategy": balance_strategy,
+            **{f"baseline_{k}": v for k, v in result_baseline.items()},
+            "baseline_feature_method": pipeline_baseline.features.method_text,
+            "baseline_feature_parameters": pipeline_baseline.features.method_parameters,
+            "baseline_feature_selected": pipeline_baseline.features.selected,
+            "baseline_feature_weights": pipeline_baseline.features.weights,
+            **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
+            "enhanced_feature_method": pipeline_enhanced.features.method_text,
+            "enhanced_feature_parameters": pipeline_enhanced.features.method_parameters,
+            "enhanced_feature_selected": pipeline_enhanced.features.selected,
+            "enhanced_feature_weights": pipeline_enhanced.features.weights,
+        }
+
+        return results
 
     # -----------------------------
     # Main experiment runner
@@ -455,7 +383,6 @@ class SurvivalExperimentRunner:
         """
         parallel_tasks = []
         sequential_tasks = []
-        completed_keys, prior_results = _load_checkpoint(self.checkpoint_path)
 
         for balance_strategy in self.balance_strategies:
             # Guard against thresholds=None when hybrid is selected
@@ -466,81 +393,36 @@ class SurvivalExperimentRunner:
 
                 for model_name, pipeline_class in self.models.items():
                     for param in self.parameters_by_model[model_name]:
-                        # Full self-contained tuple — no SurvivalExperimentRunner instance needed
-                        task_tuple = (
-                            model_name, pipeline_class, param, dataset,
-                            balance_strategy, threshold,
-                            self.args, self.use_lda, self.lda_mode,
-                            self.feature_selection_baseline, self.feature_selection_enhanced,
-                        )
+                        task_args = (model_name, pipeline_class, param, dataset, balance_strategy, threshold)
 
                         if model_name in self.do_not_parallel_compute:
-                            sequential_tasks.append(task_tuple)
+                            sequential_tasks.append(task_args)
                         else:
-                            parallel_tasks.append(task_tuple)
-
-        parallel_tasks = [t for t in parallel_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
-        sequential_tasks = [t for t in sequential_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
-
-        if prior_results:
-            print(f"[checkpoint] Resuming: skipping {len(prior_results)} already-completed experiments.", flush=True)
+                            parallel_tasks.append(task_args)
 
         progress_state["total"] = len(parallel_tasks) + len(sequential_tasks)
         progress_state["completed"] = 0
-        progress_state["start_time"] = time.time()
 
-        all_results = list(prior_results)
+        all_results = []
 
         if parallel_tasks:
-            n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
-            with Pool(processes=n_workers, initializer=_worker_init, maxtasksperchild=4) as pool:
-                for i, (key, result) in enumerate(
-                    pool.imap_unordered(_run_task, parallel_tasks), start=1
-                ):
-                    all_results.append(result)
-                    completed_keys.add(key)
-                    _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
+            import threading
+            lock = threading.Lock()
+
+            def _run_and_track(task_args):
+                result = self.run_model_experiment(*task_args)
+                with lock:
                     progress_state["completed"] += 1
-                    completed = progress_state["completed"]
-                    total = progress_state["total"]
-                    elapsed = time.time() - progress_state["start_time"]
-                    avg_per_task = elapsed / completed
-                    remaining = total - completed
-                    eta = avg_per_task * remaining
-                    print(
-                        f"[{completed}/{total}] parallel task done | "
-                        f"Elapsed: {_format_duration(elapsed)} | "
-                        f"ETA: ~{_format_duration(eta)} remaining",
-                        flush=True,
-                    )
+                return result
 
-        for task_tuple in sequential_tasks:
-            result = _run_model_experiment_fn(*task_tuple)
-            key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
-            all_results.append(result)
-            completed_keys.add(key)
-            _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
+            n_workers = cpu_count() if self.n_jobs == -1 else self.n_jobs
+            with ThreadPool(processes=n_workers) as pool:
+                all_results.extend(pool.map(_run_and_track, parallel_tasks))
+
+        for task_args in sequential_tasks:
+            all_results.append(self.run_model_experiment(*task_args))
             progress_state["completed"] += 1
-            completed = progress_state["completed"]
-            total = progress_state["total"]
-            elapsed = time.time() - progress_state["start_time"]
-            avg_per_task = elapsed / completed
-            remaining = total - completed
-            eta = avg_per_task * remaining
-            model_label = task_tuple[0]
-            print(
-                f"[{completed}/{total}] {model_label} | "
-                f"Elapsed: {_format_duration(elapsed)} | "
-                f"ETA: ~{_format_duration(eta)} remaining",
-                flush=True,
-            )
 
-        if self.checkpoint_path and os.path.exists(self.checkpoint_path):
-            try:
-                os.remove(self.checkpoint_path)
-                print("[checkpoint] Run complete — checkpoint removed.", flush=True)
-            except Exception:
-                pass
         return pd.DataFrame(all_results), self.class_mappings
 
 # ══════════════════════════════════════════════════════════════════════════════
