@@ -1,2 +1,0 @@
-
-Experiment failed: Kernel didn't respond in 120 seconds
