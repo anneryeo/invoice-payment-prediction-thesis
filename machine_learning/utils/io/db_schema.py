@@ -19,12 +19,10 @@
 
 # ── Version ───────────────────────────────────────────────────────────────────
 
-SCHEMA_VERSION: int = 3
+SCHEMA_VERSION: int = 2
 """
 Increment this whenever a breaking DDL change is introduced so that
 ResultsRepository can detect and migrate older databases automatically.
-
-v3 — added undersample_threshold column to experiments.
 """
 
 
@@ -32,13 +30,12 @@ v3 — added undersample_threshold column to experiments.
 
 DDL_EXPERIMENTS = """
 CREATE TABLE IF NOT EXISTS experiments (
-    id                   INTEGER PRIMARY KEY AUTOINCREMENT,
-    model                TEXT    NOT NULL,
-    balance_strategy     TEXT    NOT NULL DEFAULT 'none',
-    undersample_threshold REAL,
-    parameters           TEXT,
-    param_hash           TEXT,
-    created_at           TEXT    DEFAULT (datetime('now'))
+    id               INTEGER PRIMARY KEY AUTOINCREMENT,
+    model            TEXT    NOT NULL,
+    balance_strategy TEXT    NOT NULL DEFAULT 'none',
+    parameters       TEXT,
+    param_hash       TEXT,
+    created_at       TEXT    DEFAULT (datetime('now'))
 )
 """
 

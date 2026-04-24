@@ -8,18 +8,9 @@ __all__ = [
     "StackedEnsemblePipeline",
     "OrdinalPipeline",
     "TwoStagePipeline",
+    "MultiLayerPerceptronPipeline",
+    "TransformerPipeline",
 ]
-
-# Eager imports: allow static analysis tools (Pylance) to resolve symbols
-from .ada_boost import AdaBoostPipeline
-from .decision_tree import DecisionTreePipeline
-from .gaussian_naive_bayes import GaussianNaiveBayesPipeline
-from .k_nearest_neighbor import KNearestNeighborPipeline
-from .random_forest import RandomForestPipeline
-from .xg_boost import XGBoostPipeline
-from .stacked_ensemble import StackedEnsemblePipeline
-from .ordinal_classifier import OrdinalPipeline
-from .two_stage_classifier import TwoStagePipeline
 
 # Lazy imports: only load when accessed
 import importlib
@@ -38,6 +29,8 @@ def __getattr__(name: str):
         "StackedEnsemblePipeline": "machine_learning.models.stacked_ensemble",
         "OrdinalPipeline": "machine_learning.models.ordinal_classifier",
         "TwoStagePipeline": "machine_learning.models.two_stage_classifier",
+        "MultiLayerPerceptronPipeline": "machine_learning.models.multi_layer_perceptron",
+        "TransformerPipeline": "machine_learning.models.transformer",
     }
 
     module = importlib.import_module(module_map[name])

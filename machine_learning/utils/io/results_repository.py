@@ -113,20 +113,6 @@ class ResultsRepository:
                     "INSERT INTO schema_version (id, version) VALUES (1, ?)",
                     (SCHEMA_VERSION,),
                 )
-            else:
-                db_version = row[0]
-                # v2 → v3: add undersample_threshold column if missing
-                if db_version < 3:
-                    existing = {r[1] for r in con.execute(
-                        "PRAGMA table_info(experiments)"
-                    ).fetchall()}
-                    if "undersample_threshold" not in existing:
-                        con.execute(
-                            "ALTER TABLE experiments ADD COLUMN undersample_threshold REAL"
-                        )
-                    con.execute(
-                        "UPDATE schema_version SET version=3 WHERE id=1"
-                    )
 
     # ── Serialization helpers ─────────────────────────────────────────────────
 
@@ -246,21 +232,14 @@ class ResultsRepository:
             else (raw_params if isinstance(raw_params, dict) else {})
         )
         p_hash = self._param_hash(params)
-        threshold = row.get("undersample_threshold")
-        try:
-            threshold = float(threshold) if threshold is not None else None
-        except (TypeError, ValueError):
-            threshold = None
         cur = con.execute(
             """
-            INSERT INTO experiments
-                (model, balance_strategy, undersample_threshold, parameters, param_hash)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO experiments (model, balance_strategy, parameters, param_hash)
+            VALUES (?, ?, ?, ?)
             """,
             (
                 str(row.get("model", "")),
                 str(row.get("balance_strategy", "none")),
-                threshold,
                 self._to_json(params),
                 p_hash,
             ),
@@ -370,13 +349,12 @@ class ResultsRepository:
         """
         sql = """
             SELECT
-                e.id                    AS experiment_id,
+                e.id               AS experiment_id,
                 e.model,
                 e.balance_strategy,
-                e.undersample_threshold,
                 e.parameters,
                 e.param_hash,
-                b.accuracy              AS baseline_accuracy,
+                b.accuracy         AS baseline_accuracy,
                 b.precision_macro  AS baseline_precision_macro,
                 b.recall_macro     AS baseline_recall_macro,
                 b.f1_macro         AS baseline_f1_macro,
