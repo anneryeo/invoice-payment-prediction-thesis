@@ -3,12 +3,8 @@ import string
 import json
 import os
 
-_DEFAULT_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Database", "pseudonym_cache.json")
-
 class Pseudonymizer:
-    def __init__(self, cache_file=None):
-        if cache_file is None:
-            cache_file = _DEFAULT_CACHE
+    def __init__(self, cache_file=r"Database\pseudonym_cache.json"):
         """
         Initialize the pseudonymizer with an optional cache file.
         """

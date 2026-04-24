@@ -1,4 +1,15 @@
 {
+  "Root Folders": [
+    {
+      "user": "rjbel",
+      "install_folder": "C:/Users/rjbel/Python/Notebooks/Mapua/Thesis",
+      "databases": "C:/Users/rjbel/OneDrive/Synced/Gain Christian Academy/Databases"
+    },
+    {
+      "user": "julliane",
+      "install_folder": "C:/Users/..."
+    }
+  ],
   "Config": [
     {
       "debug_mode": "False",              // stores/reads cache'd .pkl files
@@ -8,8 +19,8 @@
   "Training": {
     // Training specific directories
     "MODEL_PARAMETERS": "machine_learning/parameters.json",
-    "RESULTS_ROOT": "results",
-    "DEPLOYED_MODELS": "results/deployed_models",
+    "RESULTS_ROOT": "Results",
+    "DEPLOYED_MODELS": "Results/deployed_models",
 
     "observation_end": "2026/03/31",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",
