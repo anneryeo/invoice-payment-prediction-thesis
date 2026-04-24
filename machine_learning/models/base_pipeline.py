@@ -73,7 +73,7 @@ class BasePipeline(ABC):
         self.parameters = parameters or {}
         self.model = None
         self.selector = None
-        self.results = None
+        self.results: Optional[dict] = None
 
         # Store original feature names if provided (e.g. from DataFrame)
         if feature_names is None and hasattr(X_train, "columns"):
@@ -199,7 +199,8 @@ class BasePipeline(ABC):
         self.results = data_evaluation(y_pred, self.y_test, y_proba=y_proba)
         return self
 
-    def show_results(self):
+    def show_results(self) -> dict:
+        assert self.results is not None, "Call evaluate() before show_results()"
         return self.results
 
     def _predict_proba(self, X):
