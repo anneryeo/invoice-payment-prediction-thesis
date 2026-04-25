@@ -1,3 +1,9 @@
+# ANNE
+annesnotes/
+docs/
+.github/
+.geminiignore
+
 # Jupyter Notebooks
 .ipynb_checkpoints
 Pseudonymizer.ipynb
