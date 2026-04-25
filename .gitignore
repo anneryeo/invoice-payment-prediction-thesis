@@ -24,6 +24,7 @@ Database/pseudonym_cache.json
 data/training_input/
 data/training_logs/
 data/_training_results_archived/
+data/training_results/
 data/temp_cache/
 /!Documents
 
