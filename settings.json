@@ -1,15 +1,20 @@
 {
-  "Config": [
-    {
-      "debug_mode": "False",              // stores/reads cache'd .pkl files
-      "TEMP_CACHE": "temp_cache"         // the folder where the cache's are stored
-    } 
-  ],
+  "Config": {
+    "debug_mode": "False",              // stores/reads cache'd .pkl files
+    "TEMP_CACHE": "data/temp_cache"     // the folder where the cache's are stored
+  },
+  "TrainingInput": {
+    // Training specific directories
+    "CHART_OF_ACCOUNTS": "data/training_input/chart_of_accounts.xlsx",
+    "ENROLLEES": "data/training_input/enrollees_pseudonymized.xlsx",
+    "REVENUES": "data/training_input/revenues_pseudonymized.xlsx"
+  },
   "Training": {
     // Training specific directories
-    "MODEL_PARAMETERS": "machine_learning/parameters.json",
-    "RESULTS_ROOT": "results",
-    "DEPLOYED_MODELS": "results/deployed_models",
+    "MODEL_PARAMETERS": "src/modules/machine_learning/parameters.json",
+    "RESULTS_ROOT": "data/training_results",
+    "LOGS": "data/training_logs",
+    "DEPLOYED_MODELS": "data/training_results/deployed_models",
 
     "observation_end": "2026/04/24",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",

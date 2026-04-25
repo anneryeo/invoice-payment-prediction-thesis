@@ -4,6 +4,12 @@ docs/
 .github/
 .geminiignore
 
+#ANNE
+annesnotes/
+docs/
+.github/
+.geminiignore
+
 # Jupyter Notebooks
 .ipynb_checkpoints
 Pseudonymizer.ipynb
@@ -15,9 +21,10 @@ Database/
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
-results/
-Excel Files/
-temp_cache/
+data/training_input/
+data/training_logs/
+data/training_results/
+data/temp_cache/
 /!Documents
 
 
@@ -71,6 +78,11 @@ venv.bak/
 ehthumbs.db
 Thumbs.db
 desktop.ini
+logs/
+*.db
+*.sqlite
+*.sqlite3
+
 logs/
 *.db
 *.sqlite
