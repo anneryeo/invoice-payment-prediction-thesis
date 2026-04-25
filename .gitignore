@@ -23,7 +23,7 @@ Database/pseudonym_cache.json
 *.pkl
 data/training_input/
 data/training_logs/
-data/training_results/
+data/_training_results_archived/
 data/temp_cache/
 /!Documents
 
