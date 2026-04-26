@@ -37,7 +37,7 @@ class _Tee:
 
 
 # Create logs folder if it doesn't exist
-log_dir = Path("data/training_logs")
+log_dir = Path("data/logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 log_file = log_dir / f"experiment_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -66,4 +66,4 @@ except Exception as e:
     sys.exit(1)
 
 #to run: python run_experiment.py
-#to monitor log while its running, in another terminal: Get-Content logs/experiment_log_*.txt -Wait
+#to monitor log while its running, in another terminal: Get-Content data/logs/experiment_log_*.txt -Wait

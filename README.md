@@ -244,7 +244,7 @@ A **Dash** (Plotly) web application (`run_app.py`) provides an interactive front
 Before running the pipeline, make sure the following folders exist in your local project root:
 
 - `results/`
-- `data/training_logs/`
+- `data/logs/`
 - `data/training_input/` (or use `database/` as the source)
 
 These paths are used by the notebooks, experiment runner, and exports. Any raw database exports should be placed locally and must remain excluded from version control.
@@ -273,11 +273,11 @@ Before executing experiments, review `settings.json` carefully. This file contro
 Important: update `observation_end` to match the last available entry in your dataset so that feature engineering, labeling, and experiment windows align with your most recent data.
 
 ```bash
-# Headless full pipeline run (logs to data/training_logs/)
+# Headless full pipeline run (logs to data/logs/)
 python run_experiment.py
 
 # Monitor live output (PowerShell)
-Get-Content data/training_logs/experiment_log_*.txt -Wait
+Get-Content data/logs/experiment_log_*.txt -Wait
 ```
 
 ### Running the Web App
@@ -309,5 +309,5 @@ results/2026_04_18_02/results.db
 ## Notes for Reviewers
 
 - Neural network models (RNN, Transformer, MLP) were evaluated in an earlier phase and archived in `src/modules/machine_learning/models/_archived/` — they are not part of the final experiment results.
-- The `data/_training_results_archived/` folder contains results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `data/training_results/2026_04_18_02/` contains valid, bug-corrected results.
+- The `data/_training_results_archived/` folder contains results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `results/2026_04_18_02/` contains valid, bug-corrected results.
 - All date fields in the dataset have been shifted/pseudonymized. No real student identifiers are present in any committed file.
