@@ -1,7 +1,7 @@
 # Utilizing Machine Learning to Solve the Invoice Payment Prediction Problem (IPPP)
 
 > **Undergraduate Thesis — Bachelor of Science in Data Science**
-> R.J.T. Beley · C.J.L. Reyes
+> R.J.T. Beley · C.J.L. Reyes · J. De Goma
 
 ---
 ## Description
