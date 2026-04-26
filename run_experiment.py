@@ -37,7 +37,7 @@ class _Tee:
 
 
 # Create logs folder if it doesn't exist
-log_dir = Path("logs")
+log_dir = Path("data/training_logs")
 log_dir.mkdir(parents=True, exist_ok=True)
 
 log_file = log_dir / f"experiment_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
@@ -50,7 +50,7 @@ try:
     with open(log_file, "w", encoding="utf-8") as log_f:
         tee = _Tee(sys.stdout, log_f)
         pm.execute_notebook(
-            "Machine Learning.ipynb",
+            "notebooks/training/Machine Learning.ipynb",
             str(executed_nb),
             log_output=True,
             stdout_file=tee,
