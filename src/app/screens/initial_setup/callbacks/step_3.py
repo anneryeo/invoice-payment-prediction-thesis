@@ -152,6 +152,18 @@ def clean_datasets(revenues_content, enrollees_content):
                     winsorise_dtp=True)
     df_credit_sales = cs.show_data()
 
+    # Persist the fitted plan_risk_map so finalization (step 5) can bundle it
+    # into the InferencePipeline even when loading from the pkl cache (Tier 2).
+    try:
+        import pickle as _pkl_cs
+        _map_out = os.path.join(settings["Training"]["RESULTS_ROOT"], "plan_risk_map_cache.pkl")
+        os.makedirs(os.path.dirname(_map_out) if os.path.dirname(_map_out) else ".", exist_ok=True)
+        with open(_map_out, "wb") as _fh_cs:
+            _pkl_cs.dump(cs.plan_risk_map, _fh_cs)
+        print(f"[step3] Saved plan_risk_map_cache.pkl to {_map_out}")
+    except Exception as _e_cs:
+        print(f"[step3] Could not save plan_risk_map_cache.pkl: {_e_cs} (non-fatal)")
+
     progress_state["extraction_done"] = True
 
     survival_columns = ['days_elapsed_until_fully_paid', 'censor']

@@ -157,6 +157,7 @@ def _train_selected_model(
     fitted_cph=None,
     use_lda: bool = False,
     lda_mode: str = "append",
+    feature_metadata: dict | None = None,
 ):
     """
     Train the selected model on the full dataset for deployment.
@@ -189,6 +190,10 @@ def _train_selected_model(
     lda_mode : {"append", "replace"}, default "append"
         Passed to LDATransformer.  "append" keeps original features and
         adds LD1/LD2/LD3; "replace" uses only the LD columns.
+    feature_metadata : dict or None, default None
+        Training-set statistics to bundle into the InferencePipeline pkl.
+        Must include ``plan_risk_map`` so inference batches are scored using
+        the training distribution rather than a recomputed batch statistic.
     """
     from src.modules.machine_learning.utils.training.run_models_parallel import FinalizationRunner
 
@@ -202,6 +207,7 @@ def _train_selected_model(
         fitted_cph=fitted_cph,
         use_lda=use_lda,
         lda_mode=lda_mode,
+        feature_metadata=feature_metadata,
     )
     # runner.train() now returns (InferencePipeline, label_encoder).
     # The InferencePipeline is the fully self-contained bundle that
@@ -311,6 +317,8 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
     # Tier 2 — credit_sales_cache.pkl written to RESULTS_ROOT by step_3
     # Tier 3 — regenerate df_credit_sales from the raw uploaded file stores
     #          using the identical CreditSalesProcessor logic as step_3
+    _plan_risk_map = None   # captured from Tier 3 or loaded from disk cache
+
     if not _is_valid_dataframe_json(credit_sales_json):
         print(
             f"[finalization] stored_credit_sales missing/unparseable "
@@ -333,6 +341,17 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
             credit_sales_json = _df_cs.to_json(date_format="iso", orient="split")
             print(f"[finalization] Tier-2 OK — {len(_df_cs)} rows from {_cs_path}")
             _recovered = True
+
+            # Also try to recover the plan_risk_map saved by step_3
+            try:
+                _map_path = _os.path.join(
+                    _settings["Training"]["RESULTS_ROOT"], "plan_risk_map_cache.pkl"
+                )
+                with open(_map_path, "rb") as _mfh:
+                    _plan_risk_map = _pkl.load(_mfh)
+                print(f"[finalization] plan_risk_map loaded from {_map_path}")
+            except Exception as _em2:
+                print(f"[finalization] plan_risk_map cache not found (tier 2): {_em2} (non-fatal)")
         except Exception as _e2:
             print(f"[finalization] Tier-2 failed: {_e2}. Trying regeneration (tier 3)...")
 
@@ -376,6 +395,8 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                     winsorise_dtp=True,
                 )
                 _df_cs = _cs.show_data()
+                # Capture the fitted plan_risk_map for bundling into the pkl.
+                _plan_risk_map = _cs.plan_risk_map
                 credit_sales_json = _df_cs.to_json(date_format="iso", orient="split")
                 print(f"[finalization] Tier-3 OK — regenerated {len(_df_cs)} rows "
                       "from stored_revenue / stored_enrollees.")
@@ -383,15 +404,23 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                 # Also cache to disk so tier 2 works on the next run
                 try:
                     import os as _os2, pickle as _pkl2
-                    _cache = _os2.join(
+                    _cache = _os2.path.join(
                         _settings["Training"]["RESULTS_ROOT"], "credit_sales_cache.pkl"
                     )
                     _os2.makedirs(
-                        _os2.dirname(_cache) if _os2.dirname(_cache) else ".", exist_ok=True
+                        _os2.path.dirname(_cache) if _os2.path.dirname(_cache) else ".",
+                        exist_ok=True,
                     )
                     with open(_cache, "wb") as _fh2:
                         _pkl2.dump(_df_cs, _fh2)
                     print(f"[finalization] Cached regenerated data to {_cache}")
+                    if _plan_risk_map is not None:
+                        _map_path = _os2.path.join(
+                            _settings["Training"]["RESULTS_ROOT"], "plan_risk_map_cache.pkl"
+                        )
+                        with open(_map_path, "wb") as _mfh2:
+                            _pkl2.dump(_plan_risk_map, _mfh2)
+                        print(f"[finalization] Cached plan_risk_map to {_map_path}")
                 except Exception as _ec:
                     print(f"[finalization] Could not cache to disk: {_ec} (non-fatal)")
 
@@ -401,6 +430,22 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
 
         if not _recovered:
             return "error"
+
+    # For Tier 1 (normal path) and Tier 2, _plan_risk_map may still be None.
+    # Attempt to load the cached map written by step_3 or a previous Tier-3 run.
+    if _plan_risk_map is None:
+        try:
+            import pickle as _pkl3
+            import os as _os3
+            _settings3 = read_settings_json()
+            _map_path3 = _os3.path.join(
+                _settings3["Training"]["RESULTS_ROOT"], "plan_risk_map_cache.pkl"
+            )
+            with open(_map_path3, "rb") as _mfh3:
+                _plan_risk_map = _pkl3.load(_mfh3)
+            print(f"[finalization] plan_risk_map loaded from {_map_path3}")
+        except Exception as _em3:
+            print(f"[finalization] plan_risk_map_cache.pkl not found: {_em3} (non-fatal)")
 
     _finalization_triggered = True
     for key in ("selected_done", "survival_done", "selected_saved", "survival_saved"):
@@ -448,6 +493,10 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
             use_lda  = settings.get("Training", {}).get("use_lda", False)
             lda_mode = settings.get("Training", {}).get("lda_mode", "append")
 
+            # Bundle training-set statistics so inference batches of any size
+            # receive scores from the training distribution (Fit-Transform).
+            _feature_meta = {"plan_risk_map": _plan_risk_map} if _plan_risk_map is not None else {}
+
             pipeline, label_encoder = _train_selected_model(
                 df_data, df_data_surv,
                 model_key, balance_strategy,
@@ -455,6 +504,7 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                 fitted_cph=fitted_cph,
                 use_lda=use_lda,
                 lda_mode=lda_mode,
+                feature_metadata=_feature_meta,
             )
 
             import glob

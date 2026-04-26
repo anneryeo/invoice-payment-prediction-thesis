@@ -124,8 +124,19 @@ class ResultsRepository:
                         con.execute(
                             "ALTER TABLE experiments ADD COLUMN undersample_threshold REAL"
                         )
+                
+                # v3 → v4: add cache_key column and create cache_registry table
+                if db_version < 4:
+                    existing = {r[1] for r in con.execute(
+                        "PRAGMA table_info(experiments)"
+                    ).fetchall()}
+                    if "cache_key" not in existing:
+                        con.execute(
+                            "ALTER TABLE experiments ADD COLUMN cache_key TEXT"
+                        )
+                    
                     con.execute(
-                        "UPDATE schema_version SET version=3 WHERE id=1"
+                        "UPDATE schema_version SET version=4 WHERE id=1"
                     )
 
     # ── Serialization helpers ─────────────────────────────────────────────────
@@ -182,37 +193,7 @@ class ResultsRepository:
         metadata: dict,
     ) -> None:
         """
-        Persist a complete training session to the normalized v2 schema.
-
-        Each row of *model_results_df* is decomposed into:
-        - one ``experiments`` row  (model identity)
-        - two ``metrics`` rows     (one per phase)
-        - up to six ``charts`` rows (three chart types × two phases)
-        - two ``features`` rows    (one per phase)
-
-        The three blob tables (class_mappings, survival_results, metadata)
-        are always written as a single replace-all-rows operation.
-
-        Parameters
-        ----------
-        model_results_df : pd.DataFrame
-            Flat experiment results as produced by SurvivalExperimentRunner.run().
-            Expected column layout::
-
-                model, balance_strategy, parameters,
-                baseline_accuracy, baseline_precision_macro, baseline_recall_macro,
-                baseline_f1_macro, baseline_roc_auc_macro,
-                baseline_confusion_matrix, baseline_roc_curve, baseline_pr_curve,
-                baseline_feature_method, baseline_feature_parameters,
-                baseline_feature_selected, baseline_feature_weights,
-                enhanced_*  (same set)
-
-        class_mappings : dict
-            Original class label → encoded integer mapping.
-        survival_results : dict
-            Best survival analysis results (c_index, params, time_points).
-        metadata : dict
-            Run metadata (timestamps, model list, …).
+        Persist a complete training session to the normalized SQLite schema.
         """
         self.initialize_schema()
 
@@ -251,11 +232,12 @@ class ResultsRepository:
             threshold = float(threshold) if threshold is not None else None
         except (TypeError, ValueError):
             threshold = None
+        
         cur = con.execute(
             """
             INSERT INTO experiments
-                (model, balance_strategy, undersample_threshold, parameters, param_hash)
-            VALUES (?, ?, ?, ?, ?)
+                (model, balance_strategy, undersample_threshold, parameters, param_hash, cache_key)
+            VALUES (?, ?, ?, ?, ?, ?)
             """,
             (
                 str(row.get("model", "")),
@@ -263,6 +245,7 @@ class ResultsRepository:
                 threshold,
                 self._to_json(params),
                 p_hash,
+                row.get("cache_key"),
             ),
         )
         return cur.lastrowid
@@ -354,19 +337,6 @@ class ResultsRepository:
         """
         Return all experiments with their metric scalars but **without** any
         chart data.
-
-        The underlying SQL query joins ``experiments`` with ``metrics`` twice
-        (once for baseline, once for enhanced) and never touches the ``charts``
-        table, keeping load time in the single-digit millisecond range
-        regardless of how many experiments have been saved.
-
-        Returns
-        -------
-        pd.DataFrame
-            Columns: experiment_id, model, balance_strategy, parameters,
-            param_hash, baseline_accuracy, baseline_precision_macro,
-            baseline_recall_macro, baseline_f1_macro, baseline_roc_auc_macro,
-            enhanced_accuracy, …
         """
         sql = """
             SELECT
@@ -376,6 +346,7 @@ class ResultsRepository:
                 e.undersample_threshold,
                 e.parameters,
                 e.param_hash,
+                e.cache_key,
                 b.accuracy              AS baseline_accuracy,
                 b.precision_macro  AS baseline_precision_macro,
                 b.recall_macro     AS baseline_recall_macro,
@@ -411,24 +382,6 @@ class ResultsRepository:
     ) -> dict:
         """
         Fetch chart blobs for a single experiment on demand.
-
-        This is intentionally separated from :meth:`load_experiments_summary`
-        so the Dash dashboard never pays the cost of deserializing large roc /
-        pr / confusion JSON unless the user actually opens the model modal.
-
-        Parameters
-        ----------
-        experiment_id : int
-            Primary key from the ``experiments`` table.
-        phase : 'baseline' or 'enhanced'
-        chart_type : str or None
-            One of ``'roc_curve'``, ``'pr_curve'``, ``'confusion_matrix'``.
-            ``None`` fetches all three.
-
-        Returns
-        -------
-        dict
-            ``{chart_type: deserialized_data}`` for each chart found.
         """
         sql = """
             SELECT chart_type, data
@@ -448,12 +401,6 @@ class ResultsRepository:
     def load_features(self, experiment_id: int, phase: str) -> dict:
         """
         Fetch feature selection results for a single experiment on demand.
-
-        Returns
-        -------
-        dict
-            Keys: ``feature_method`` (str), ``feature_parameters`` (dict|None),
-            ``features`` (list), ``weights`` (list|dict|None).
         """
         sql = """
             SELECT feature_method, feature_parameters, features_json, weights_json
@@ -507,32 +454,6 @@ class ResultsRepository:
     def load_models_dict(self) -> dict:
         """
         Build the ``MODELS``-compatible dict used by the Dash dashboard.
-
-        Chart placeholders (``None``) are injected for every chart key so
-        that dashboard code can check ``if model["baseline"]["evaluation"]["charts"]["roc_curve"]``
-        without a ``KeyError``.  Actual chart data is fetched lazily via
-        :meth:`hydrate_model_charts` when the user opens a model-detail modal.
-
-        Returns
-        -------
-        dict
-            Keyed by ``"{slug}__{strategy}__{param_hash}"``.  Each value is::
-
-                {
-                    "experiment_id":    int,
-                    "model":            str,
-                    "balance_strategy": str,
-                    "parameters":       dict,
-                    "baseline": {
-                        "evaluation": {
-                            "metrics": {accuracy, precision_macro, …},
-                            "charts":  {roc_curve: None, pr_curve: None, confusion_matrix: None},
-                        },
-                        "features":       [],
-                        "feature_method": "",
-                    },
-                    "enhanced": { … },
-                }
         """
         df = self.load_experiments_summary()
         models: dict = {}
@@ -580,28 +501,6 @@ class ResultsRepository:
         """
         Fetch chart and feature data for a single model entry and inject it
         in-place.
-
-        Call this only when the user opens the model-detail modal — never
-        during the initial leaderboard load.
-
-        Parameters
-        ----------
-        model_entry : dict
-            A single value from the dict returned by :meth:`load_models_dict`.
-            **Mutated in-place.**
-
-        Returns
-        -------
-        dict
-            The same ``model_entry`` object with charts and features populated.
-
-        Example
-        -------
-        ::
-
-            models = repo.load_models_dict()
-            repo.hydrate_model_charts(models[selected_key])
-            roc = models[selected_key]["baseline"]["evaluation"]["charts"]["roc_curve"]
         """
         exp_id = model_entry["experiment_id"]
         for phase in ("baseline", "enhanced"):
@@ -623,18 +522,6 @@ class ResultsRepository:
     def load_as_flat_dataframe(self) -> pd.DataFrame:
         """
         Reconstruct a flat DataFrame in the original v1 column layout.
-
-        This method exists purely for backward compatibility with callers that
-        expect a DataFrame with ``baseline_confusion_matrix``,
-        ``baseline_roc_curve``, etc.  It is **significantly slower** than
-        :meth:`load_experiments_summary` because it fetches chart blobs.
-
-        Prefer :meth:`load_experiments_summary` + :meth:`load_charts` for new
-        code so that chart data is only fetched when actually needed.
-
-        Returns
-        -------
-        pd.DataFrame  – one row per experiment, all columns present.
         """
         df = self.load_experiments_summary()
         if df.empty:
@@ -673,3 +560,50 @@ class ResultsRepository:
             extra_rows.append(merged)
 
         return pd.DataFrame(extra_rows)
+
+    # ══════════════════════════════════════════════════════════════════════════
+    #  CACHING REGISTRY
+    # ══════════════════════════════════════════════════════════════════════════
+
+    def register_cache_item(
+        self,
+        cache_key: str,
+        cache_type: str,
+        parameters_hash: str,
+        file_path: str,
+        metadata: Optional[dict] = None,
+    ) -> None:
+        """
+        Record a cached dataset or model in the central registry.
+        """
+        sql = """
+            INSERT OR REPLACE INTO cache_registry
+                (cache_key, cache_type, parameters_hash, file_path, metadata)
+            VALUES (?, ?, ?, ?, ?)
+        """
+        with self._connect() as con:
+            con.execute(
+                sql,
+                (
+                    cache_key,
+                    cache_type,
+                    parameters_hash,
+                    file_path,
+                    self._to_json(metadata) if metadata else None,
+                ),
+            )
+
+    def get_cache_entry(self, cache_key: str) -> Optional[dict]:
+        """
+        Retrieve registration details for a specific cache key.
+        """
+        sql = "SELECT * FROM cache_registry WHERE cache_key = ?"
+        with sqlite3.connect(self.db_path) as con:
+            con.row_factory = sqlite3.Row
+            row = con.execute(sql, (cache_key,)).fetchone()
+        
+        if row:
+            d = dict(row)
+            d["metadata"] = self._from_json(d["metadata"])
+            return d
+        return None
