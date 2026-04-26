@@ -1,6 +1,7 @@
 #ANNE
-annesnotes/
-docs/
+.local/
+#annesnotes/
+#docs/
 .github/
 .geminiignore
 
