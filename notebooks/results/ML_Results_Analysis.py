@@ -31,10 +31,30 @@ warnings.filterwarnings("ignore")
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
 
-DB_PATH    = "results/2026_04_18_02/results.db"
+# Find the latest results directory dynamically
+results_base = Path("results")
+if results_base.exists():
+    result_dirs = sorted([d for d in results_base.iterdir() if d.is_dir()])
+    if result_dirs:
+        latest_results_dir = result_dirs[-1]
+        DB_PATH = str(latest_results_dir / "results.db")
+        
+        # Extract date and version from directory name (format: YYYY_MM_DD_VV)
+        dir_name = latest_results_dir.name
+        parts = dir_name.split('_')
+        if len(parts) >= 4:
+            date_str = f"{parts[0]}_{parts[1]}_{parts[2]}"  # YYYY_MM_DD
+            version_str = parts[3]  # VV
+            output_folder_name = f"RG_{date_str}_{version_str}"
+        else:
+            # Fallback if directory name doesn't match expected pattern
+            output_folder_name = f"RG_{dir_name}"
+    else:
+        raise ValueError("No results directories found in results/")
+else:
+    raise ValueError("results/ directory not found")
 
-OUTPUT_DIR = Path("docs/202616APRIL-RESULTSGRAPHS")
-
+OUTPUT_DIR = Path("data/results_graphics") / output_folder_name
 OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 
