@@ -29,9 +29,9 @@ import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sksurv.util import Surv
 
-from utils.data_loaders.read_settings_json import read_settings_json
-from machine_learning.utils.features.generate_survival_features import generate_survival_features
-from machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
+from src.utils.data_loaders.read_settings_json import read_settings_json
+from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
+from src.modules.machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
 
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -16,9 +16,10 @@ Database/
 # Other data files
 Database/pseudonym_cache.json
 *.pkl
-results/
-Excel Files/
-temp_cache/
+data/training_input/
+data/training_logs/
+data/training_results/
+data/temp_cache/
 /!Documents
 
 

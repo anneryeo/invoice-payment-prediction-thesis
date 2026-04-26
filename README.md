@@ -39,7 +39,7 @@ The dataset covers student enrollee revenue records (through March 31, 2026) fro
 
 > **The source database is private and is NOT included in this repository.**
 
-The `database/` folder references Excel exports that were manually downloaded from internal school systems. These files contain sensitive student financial records and must never be committed, pushed, or shared publicly. The `database/` folder is excluded via `.gitignore`.
+The `data/` folder references Excel exports that were manually downloaded from internal school systems. These files contain sensitive student financial records and must never be committed, pushed, or shared publicly. Raw database exports are excluded via `.gitignore`.
 
 Anyone replicating this study must supply their own institutional data that can be transformed into the expected schema via the `CreditSalesProcessor` pipeline. See [FEATURE_REFERENCE.md](FEATURE_REFERENCE.md) for the full column reference, feature descriptions, and required data types.
 
@@ -54,7 +54,7 @@ Raw data is sourced from two Excel files:
 - **Revenues** — itemized receivables, discounts, adjustments, payment dates
 - **Enrollees** — student enrollment records per school year
 
-The `CreditSalesProcessor` class (`feature_engineering/credit_sales_machine_learning.py`) merges these sources and produces the core credit sales dataset. Key engineered features include:
+The `CreditSalesProcessor` class (`src/modules/feature_engineering/credit_sales_machine_learning.py`) merges these sources and produces the core credit sales dataset. Key engineered features include:
 
 **Days-to-Payment (DTP) Features**
 
@@ -78,7 +78,7 @@ The `CreditSalesProcessor` class (`feature_engineering/credit_sales_machine_lear
 **Temporal Features**
 
 - `due_month`, `due_quarter`
-- Consecutive school-year enrollment streak (`feature_engineering/consecutive_years.py`)
+- Consecutive school-year enrollment streak (`src/modules/feature_engineering/consecutive_years.py`)
 
 **Payment Plan Features**
 
@@ -134,7 +134,7 @@ First-stage binary classifier separates on-time vs. delinquent; second-stage cla
 × 2 feature phases (baseline / enhanced)
 ```
 
-All experiments are logged to a **SQLite results database** (`results/2026_04_18_02/results.db`) with tables for:
+All experiments are logged to a **SQLite results database** (`data/training_results/2026_04_18_02/results.db`) with tables for:
 
 - `experiments` — one row per experiment (model, strategy, params, phase)
 - `metrics` — train/test accuracy, F1, AUC, precision, recall per experiment
@@ -151,14 +151,14 @@ The notebook is executed headlessly using **Papermill** via `run_experiment.py`.
 
 ### 7. Linear Discriminant Analysis (Exploratory)
 
-LDA is used as an exploratory analytical tool (not for final classification):
+LDA is used as an exploratory analytical tool (not for final classification) via `src/modules/exploratory_data_analysis/linear_discriminant_analysis.py`:
 
 - 4-class LDA: LD1 explains **79.5%** of separation variance; top separating features are `opening_balance_flag`, `opening_balance (log1p)`, `prev_bracket`, `dtp_wavg`
 - 3-class LDA (delinquent only, excluding on-time): LD1 explains **95.9%** of separation variance
 
 ### 8. Web Dashboard
 
-A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
+A **Dash** (Plotly) web application (`run_app.py`) provides an interactive frontend:
 
 - Multi-step setup wizard for uploading data and triggering the pipeline
 - KPI dashboard with class distribution and payment timelines
@@ -172,79 +172,112 @@ A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
 
 ```
 .
-├── app.py                          # Dash web application entry point
+├── run_app.py                      # Python entry point for the Dash web app
 ├── run_experiment.py               # Headless notebook runner (Papermill)
 ├── settings.json                   # Experiment configuration
-├── requirements.txt                # Python dependencies
-├── environment.yml                 # Conda environment (pinned, CUDA 12.9)
+├── .gitignore
+├── FEATURE_REFERENCE.md
 │
-├── Machine Learning.ipynb          # ** Primary ML notebook **
-├── ML_Results_Analysis.ipynb       # ** Results analysis & visualization **
-├── Exploratory Data Analysis.ipynb # Full EDA notebook
-├── eda_credit_sales.ipynb          # Credit-sales-specific EDA
+├── environments/
+│   ├── environment.yml             # Conda environment (pinned, CUDA 12.9)
+│   └── requirements.txt            # Python dependencies
 │
-├── feature_engineering/
-│   ├── credit_sales_machine_learning.py  # Main feature engineering pipeline
-│   ├── consecutive_years.py              # Enrollment streak feature
-│   ├── days_sales_outstanding.py         # DSO financial analysis
-│   └── credit_sales_eda.py               # EDA helper
+├── notebooks/
+│   ├── eda/                        # Exploratory data analysis notebooks
+│   ├── results/                    # Results analysis & visualization notebooks
+│   ├── training/                   # Primary ML training notebooks
+│   └── Pseudonymizer.ipynb         # Dataset pseudonymization utility
 │
-├── machine_learning/
-│   ├── parameters.json             # Hyperparameter grids for all 15 models
-│   ├── models/
-│   │   ├── base_pipeline.py        # Abstract base class (all models inherit this)
-│   │   ├── ada_boost.py
-│   │   ├── decision_tree.py
-│   │   ├── gaussian_naive_bayes.py
-│   │   ├── k_nearest_neighbor.py
-│   │   ├── random_forest.py
-│   │   ├── xg_boost.py
-│   │   ├── ordinal_classifier.py   # Ordinal wrapper (3 variants)
-│   │   └── two_stage_classifier.py # Two-stage stacking (6 variants)
-│   └── utils/
-│       ├── balancing/              # SMOTE variants + hybrid resampler
-│       ├── data/                   # Data preparation, encoding, train/test split
-│       ├── features/               # Cox PH survival feature generator
-│       ├── training/               # Parallel experiment runner
-│       └── io/                     # SQLite schema, results repository, file export
+├── src/
+│   ├── app/                        # Dash app components (screens, utils, assets)
+│   ├── modules/                    # Core domain modules
+│   │   ├── exploratory_data_analysis/
+│   │   │   ├── enrollment_statistics.py          # Enrollment stats analysis
+│   │   │   └── linear_discriminant_analysis.py   # LDA exploratory tool
+│   │   ├── feature_engineering/
+│   │   │   ├── _archived/                        # Archived feature engineering scripts
+│   │   │   ├── consecutive_years.py              # Enrollment streak feature
+│   │   │   ├── credit_sales_eda.py               # EDA helper
+│   │   │   ├── credit_sales_machine_learning.py  # Main feature engineering pipeline
+│   │   │   └── days_sales_outstanding.py         # DSO financial analysis
+│   │   └── machine_learning/
+│   │       ├── __init__.py
+│   │       ├── parameters.json     # Hyperparameter grids for all 15 models
+│   │       ├── models/
+│   │       │   ├── base_pipeline.py        # Abstract base class (all models inherit this)
+│   │       │   ├── ada_boost.py
+│   │       │   ├── decision_tree.py
+│   │       │   ├── gaussian_naive_bayes.py
+│   │       │   ├── k_nearest_neighbor.py
+│   │       │   ├── random_forest.py
+│   │       │   ├── xg_boost.py
+│   │       │   ├── ordinal_classifier.py   # Ordinal wrapper (3 variants)
+│   │       │   └── two_stage_classifier.py # Two-stage stacking (6 variants)
+│   │       └── utils/
+│   │           ├── balancing/      # SMOTE variants + hybrid resampler
+│   │           ├── data/           # Data preparation, encoding, train/test split
+│   │           ├── features/       # Cox PH survival feature generator
+│   │           ├── training/       # Parallel experiment runner
+│   │           └── io/             # SQLite schema, results repository, file export
+│   └── utils/                      # Shared utility scripts
+│       ├── __init__.py
+│       ├── pseudonymizer.py        # Dataset pseudonymization logic
+│       ├── scripts/                # Dev/debugging utility scripts
+│       └── data_loaders/           # Data ingestion layer
+│           ├── __init__.py
+│           ├── bad_debts.py        # Bad debts data loader
+│           ├── enrollees.py        # Enrollees data loader
+│           ├── revenues.py         # Revenues data loader
+│           ├── read_settings_json.py
+│           └── settings.py         # Settings loader
 │
-├── results/
-│   └── 2026_04_18_02/             # ✓ Latest valid results (1092 experiments)
-│       └── results.db
+├── data/
+│   ├── deployed_models/            # Serialized model artifacts for the web app
+│   ├── eda_results/                # Outputs from EDA notebooks
+│   ├── Results_Base-Graphics-for-Paper/ # Figures used in the paper
+│   ├── temp_cache/                 # Temporary processing cache
+│   ├── training_input/             # Prepared datasets fed into training runs
+│   ├── training_logs/              # Papermill execution logs + executed notebooks
+│   ├── training_results/           # SQLite results databases from experiment runs
+│   │   └── 2026_04_18_02/         # ✓ Latest valid results (1092 experiments)
+│   │       └── results.db
+│   └── _training_results_archived/ # Archived results from prior/invalid runs
 │
-├── docs/
-│   ├── IEEE-PaperDraft-1.ipynb
-│   ├── 202616APRIL-RESULTSGRAPHS/ # Current ML_Results_Analysis output target
-│   └── 202619APRIL-RESULTSGRAPHS/ # Existing April figures from prior run
-│
-├── logs/                           # Papermill execution logs + executed notebooks
-├── analysis/                       # Enrollment statistics script
-├── app/                            # Dash app components (screens, utils, assets)
-├── scripts/                        # Dev/debugging utility scripts
-├── tests/                          # Test suite
-├── annesnotes/                     # Developer working notes & planning docs
-└── database/                       # ⚠ Private — not committed to version control
+└── tests/
+    ├── diagnose_charts.ipynb
+    ├── test_deployed_model.py
+    ├── test_param_parse.py
+    ├── test_param_parse2.py
+    ├── test_param_parse3.py
+    └── Tests.ipynb
 ```
+
+> **Note:** The `data/` folder (except committed CSVs or schema files) and any raw database exports are excluded via `.gitignore`. See [Database Privacy Notice](#database-privacy-notice).
 
 ---
 
 ## Key Files for Technical Review
 
-| File / Notebook                                                                                                             | What to Look For                                                                                                                       |
-| --------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [Machine Learning.ipynb](Machine%20Learning.ipynb)                                                                             | Full ML pipeline: EDA, LDA, data prep, single-model and multi-model training, survival feature integration, experiment runner          |
-| [ML_Results_Analysis.ipynb](ML_Results_Analysis.ipynb)                                                                         | Results aggregation from SQLite, accuracy/F1/AUC tables, confusion matrices, ROC curves, feature importance, balance strategy rankings |
-| [Exploratory Data Analysis.ipynb](Exploratory%20Data%20Analysis.ipynb)                                                         | Feature distributions, class imbalance, DTP trends, payment behavior patterns, correlation heatmaps                                    |
-| [machine_learning/models/base_pipeline.py](machine_learning/models/base_pipeline.py)                                           | Abstract pipeline design; all classifiers inherit from this                                                                            |
-| [machine_learning/models/two_stage_classifier.py](machine_learning/models/two_stage_classifier.py)                             | Two-stage stacking implementation                                                                                                      |
-| [machine_learning/models/ordinal_classifier.py](machine_learning/models/ordinal_classifier.py)                                 | Ordinal wrapper around base classifiers                                                                                                |
-| [machine_learning/utils/features/generate_survival_features.py](machine_learning/utils/features/generate_survival_features.py) | Cox PH model fitting and survival feature generation                                                                                   |
-| [machine_learning/utils/balancing/hybrid_resampler.py](machine_learning/utils/balancing/hybrid_resampler.py)                   | Custom hybrid undersampling + SMOTE strategy                                                                                           |
-| [machine_learning/utils/training/run_models_parallel.py](machine_learning/utils/training/run_models_parallel.py)               | Windows-compatible parallel experiment execution                                                                                       |
-| [machine_learning/utils/io/db_schema.py](machine_learning/utils/io/db_schema.py)                                               | SQLite schema (v3) for results storage                                                                                                 |
-| [feature_engineering/credit_sales_machine_learning.py](feature_engineering/credit_sales_machine_learning.py)                   | Full feature engineering pipeline from raw revenues + enrollees                                                                        |
-| [run_experiment.py](run_experiment.py)                                                                                         | Papermill headless runner; produces timestamped logs                                                                                   |
-| [machine_learning/parameters.json](machine_learning/parameters.json)                                                           | Hyperparameter grids for all 15 model types                                                                                            |
+| File / Notebook                                                                                                                                       | What to Look For                                                                                                                       |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| [notebooks/training/](notebooks/training/)                                                                                                            | Full ML pipeline: EDA, LDA, data prep, single-model and multi-model training, survival feature integration, experiment runner          |
+| [notebooks/results/](notebooks/results/)                                                                                                              | Results aggregation from SQLite, accuracy/F1/AUC tables, confusion matrices, ROC curves, feature importance, balance strategy rankings |
+| [notebooks/eda/](notebooks/eda/)                                                                                                                      | Feature distributions, class imbalance, DTP trends, payment behavior patterns, correlation heatmaps                                    |
+| [notebooks/Pseudonymizer.ipynb](notebooks/Pseudonymizer.ipynb)                                                                                        | Dataset pseudonymization utility                                                                                                       |
+| [src/modules/exploratory_data_analysis/linear_discriminant_analysis.py](src/modules/exploratory_data_analysis/linear_discriminant_analysis.py) | LDA exploratory tool; LD1 explains 79.5% of separation variance                                                                       |
+| [src/modules/exploratory_data_analysis/enrollment_statistics.py](src/modules/exploratory_data_analysis/enrollment_statistics.py)               | Enrollment statistics analysis                                                                                                         |
+| [src/utils/data_loaders/](src/utils/data_loaders/)                                                                                             | Data ingestion layer for revenues, enrollees, and bad debts source files                                                               |
+| [src/utils/pseudonymizer.py](src/utils/pseudonymizer.py)                                                                                       | Pseudonymization logic (also exposed as a notebook via `notebooks/Pseudonymizer.ipynb`)                                                |
+| [src/modules/machine_learning/models/base_pipeline.py](src/modules/machine_learning/models/base_pipeline.py)                                   | Abstract pipeline design; all classifiers inherit from this                                                                            |
+| [src/modules/machine_learning/models/two_stage_classifier.py](src/modules/machine_learning/models/two_stage_classifier.py)                           | Two-stage stacking implementation                                                                                                      |
+| [src/modules/machine_learning/models/ordinal_classifier.py](src/modules/machine_learning/models/ordinal_classifier.py)                               | Ordinal wrapper around base classifiers                                                                                                |
+| [src/modules/machine_learning/utils/features/generate_survival_features.py](src/modules/machine_learning/utils/features/generate_survival_features.py) | Cox PH model fitting and survival feature generation                                                                                   |
+| [src/modules/machine_learning/utils/balancing/hybrid_resampler.py](src/modules/machine_learning/utils/balancing/hybrid_resampler.py)                 | Custom hybrid undersampling + SMOTE strategy                                                                                           |
+| [src/modules/machine_learning/utils/training/run_models_parallel.py](src/modules/machine_learning/utils/training/run_models_parallel.py)             | Windows-compatible parallel experiment execution                                                                                       |
+| [src/modules/machine_learning/utils/io/db_schema.py](src/modules/machine_learning/utils/io/db_schema.py)                                             | SQLite schema (v3) for results storage                                                                                                 |
+| [src/modules/feature_engineering/credit_sales_machine_learning.py](src/modules/feature_engineering/credit_sales_machine_learning.py)                 | Full feature engineering pipeline from raw revenues + enrollees                                                                        |
+| [run_experiment.py](run_experiment.py)                                                                                                                | Papermill headless runner; produces timestamped logs                                                                                   |
+| [src/modules/machine_learning/parameters.json](src/modules/machine_learning/parameters.json)                                                         | Hyperparameter grids for all 15 model types                                                                                            |
 
 ---
 
@@ -254,11 +287,11 @@ A **Dash** (Plotly) web application (`app.py`) provides an interactive frontend:
 
 Before running the pipeline, make sure the following folders exist in your local project root:
 
-- `results/`
-- `docs/`
-- `database/`
+- `data/training_results/`
+- `data/training_logs/`
+- `data/training_input/`
 
-These paths are used by the notebooks, experiment runner, and exports. The `database/` folder should contain your private local data exports and must remain excluded from version control.
+These paths are used by the notebooks, experiment runner, and exports. Any raw database exports should be placed locally and must remain excluded from version control.
 
 ### Requirements
 
@@ -270,11 +303,11 @@ These paths are used by the notebooks, experiment runner, and exports. The `data
 
 ```bash
 # Conda (recommended — includes all pinned versions + CUDA)
-conda env create -f environment.yml
+conda env create -f environments/environment.yml
 conda activate <env_name>
 
 # OR pip
-pip install -r requirements.txt
+pip install -r environments/requirements.txt
 ```
 
 ### Running Experiments
@@ -284,25 +317,25 @@ Before executing experiments, review `settings.json` carefully. This file contro
 Important: update `observation_end` to match the last available entry in your dataset so that feature engineering, labeling, and experiment windows align with your most recent data.
 
 ```bash
-# Headless full pipeline run (logs to logs/experiment_log_*.txt)
+# Headless full pipeline run (logs to data/training_logs/)
 python run_experiment.py
 
 # Monitor live output (PowerShell)
-Get-Content logs/experiment_log_*.txt -Wait
+Get-Content data/training_logs/experiment_log_*.txt -Wait
 ```
 
 ### Running the Web App
 
 ```bash
-python app.py
+python run_app.py
 ```
 
 ### Viewing Results
 
-Open [ML_Results_Analysis.ipynb](ML_Results_Analysis.ipynb) and point it to the latest results DB:
+Open the results notebooks in [`notebooks/results/`](notebooks/results/) and point them to the latest results DB:
 
 ```
-results/2026_04_18_02/results.db
+data/training_results/2026_04_18_02/results.db
 ```
 
 ---
@@ -313,13 +346,12 @@ results/2026_04_18_02/results.db
 - **Two-stage classifiers** (notably XGB → AdaBoost) show the strongest overall performance
 - **Cox PH C-index:** 0.7817 — survival features provide meaningful additional signal
 - **Top separating features** (from LDA): `opening_balance_flag`, `opening_balance`, `prev_bracket`, `dtp_wavg`
-- Result figures are currently generated to [docs/202616APRIL-RESULTSGRAPHS/](docs/202616APRIL-RESULTSGRAPHS/) by the analysis notebook
-- Existing April figure exports from prior runs are in [docs/202619APRIL-RESULTSGRAPHS/](docs/202619APRIL-RESULTSGRAPHS/)
+- Result figures are currently generated to [`data/Results_Base-Graphics-for-Paper/`](data/Results_Base-Graphics-for-Paper/) by the analysis notebooks
 
 ---
 
 ## Notes for Reviewers
 
-- Neural network models (RNN, Transformer, MLP) were evaluated in an earlier phase and archived in `machine_learning/models/_archived/` — they are not part of the final experiment results.
-- The `results/2026_04_16_01/` and `results/2026_04_18_01/` folders contain results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `results/2026_04_18_02/` contains valid, bug-corrected results.
+- Neural network models (RNN, Transformer, MLP) were evaluated in an earlier phase and archived in `src/modules/machine_learning/models/_archived/` — they are not part of the final experiment results.
+- The `data/_training_results_archived/` folder contains results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `data/training_results/2026_04_18_02/` contains valid, bug-corrected results.
 - All date fields in the dataset have been shifted/pseudonymized. No real student identifiers are present in any committed file.
