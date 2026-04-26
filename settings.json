@@ -12,9 +12,9 @@
   "Training": {
     // Training specific directories
     "MODEL_PARAMETERS": "src/modules/machine_learning/parameters.json",
-    "RESULTS_ROOT": "data/training_results",
-    "LOGS": "data/training_logs",
-    "DEPLOYED_MODELS": "data/training_results/deployed_models",
+    "RESULTS_ROOT": "results",
+    "LOGS": "data/logs",
+    "DEPLOYED_MODELS": "results/deployed_models",
 
     "observation_end": "2026/04/24",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",
