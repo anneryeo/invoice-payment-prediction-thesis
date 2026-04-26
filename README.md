@@ -1,9 +1,13 @@
 # Utilizing Machine Learning to Solve the Invoice Payment Prediction Problem (IPPP)
 
 > **Undergraduate Thesis — Bachelor of Science in Data Science**
-> R.J.T. Beley · C.J.L. Reyes ·J. De Goma
+> R.J.T. Beley · C.J.L. Reyes · J. De Goma
 
 ---
+## Description
+> **Utilizing Machine Learning to Solve the Invoice Payment Prediction Problem (IPPP)**: 
+> This undergraduate thesis develops a production-ready ML classification system that predicts how long invoices will remain unpaid. Using pseudonymized educational institution data, the system classifies invoices into four payment brackets (On-Time, 1–30 days late, 31–60 days late, 61+ days late) to support cash flow forecasting and accounts receivable management.
+> The approach combines payment behavior analytics, Cox proportional hazards survival modeling, and a comprehensive comparison of 15 classifier architectures across 7 class-balancing strategies. All 1092 experiments are logged to an SQLite results database with full traceability, feature importance tracking, and cross-validation metrics. Results include an interactive Dash web dashboard for model inspection, invoice-level prediction, and audit logging.
 
 ## Overview
 
