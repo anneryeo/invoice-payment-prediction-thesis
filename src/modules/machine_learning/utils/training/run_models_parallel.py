@@ -106,7 +106,72 @@ def _save_cached_features(cache_dir: str, balance_strategy: str, threshold,
         print(f"[feature-cache] Warning: could not save features ({e})", flush=True)
 
 
-from src.modules.machine_learning.utils.training.load_parameters import ParameterLoader
+def _make_model_cache_key(model_name: str, param_str: str, balance_strategy: str, 
+                         threshold=None, fs_mode: str = "enhanced") -> str:
+    """Deterministic key for caching trained models.
+    
+    Parameters:
+    -----------
+    model_name : str
+        Name of the model (e.g., 'random_forest', 'ordinal_xgboost')
+    param_str : str
+        String representation of parameters (e.g., from _make_task_key)
+    balance_strategy : str
+        Balancing strategy used (e.g., 'smote', 'hybrid')
+    threshold : float or None
+        Threshold for hybrid balancing (e.g., 0.5, 0.7)
+    fs_mode : str
+        Feature selection mode ('baseline' or 'enhanced')
+    """
+    threshold_str = f"@{threshold}" if threshold is not None else ""
+    param_hash = str(hash(param_str) & 0x7FFFFFFF)[:8]  # 8-char hash of params
+    return f"model_{model_name}_{balance_strategy}{threshold_str}_{fs_mode}_{param_hash}.pkl"
+
+
+def _load_cached_model(cache_dir: str, model_name: str, param_str: str, 
+                      balance_strategy: str, threshold=None, fs_mode: str = "enhanced"):
+    """Load cached trained model and evaluation results.
+    
+    Returns: (trained_pipeline, evaluation_results) or (None, None) if not found
+    """
+    if cache_dir is None or not os.path.exists(cache_dir):
+        return None, None
+    
+    cache_key = _make_model_cache_key(model_name, param_str, balance_strategy, threshold, fs_mode)
+    cache_path = os.path.join(cache_dir, cache_key)
+    
+    if not os.path.exists(cache_path):
+        return None, None
+    
+    try:
+        with open(cache_path, "rb") as f:
+            data = pickle.load(f)
+        print(f"[model-cache] Hit: {model_name} ({balance_strategy}{('@'+str(threshold)) if threshold else ''})", flush=True)
+        return data.get("pipeline"), data.get("results")
+    except Exception as e:
+        print(f"[model-cache] Could not load {cache_key} ({e}); retraining", flush=True)
+        return None, None
+
+
+def _save_cached_model(cache_dir: str, model_name: str, param_str: str, 
+                      balance_strategy: str, threshold, pipeline, results,
+                      fs_mode: str = "enhanced") -> None:
+    """Save trained model and evaluation results to disk cache."""
+    if cache_dir is None:
+        return
+    
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_key = _make_model_cache_key(model_name, param_str, balance_strategy, threshold, fs_mode)
+        cache_path = os.path.join(cache_dir, cache_key)
+        tmp_path = cache_path + ".tmp"
+        
+        with open(tmp_path, "wb") as f:
+            pickle.dump({"pipeline": pipeline, "results": results}, f)
+        os.replace(tmp_path, cache_path)
+        print(f"[model-cache] Saved: {cache_key}", flush=True)
+    except Exception as e:
+        print(f"[model-cache] Warning: could not save model ({e})", flush=True)
 from src.modules.machine_learning.utils.data.data_preparation import DataPreparer
 from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
 from src.modules.machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
@@ -197,10 +262,17 @@ def _run_model_experiment_fn(
     balance_strategy, threshold,
     args, use_lda, lda_mode,
     fs_baseline, fs_enhanced,
+    model_cache_dir=None,
 ):
     """Module-level experiment runner — picklable, called by both Pool workers and instance methods."""
     (X_train, X_test, y_train, y_test,
      X_survival_train, X_survival_test) = dataset
+
+    # Convert param dict to string for cache key
+    if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
+        param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
+    else:
+        param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
 
     pipeline_baseline, pipeline_enhanced = _build_pipelines_fn(
         model_name, pipeline_class, param,
@@ -209,23 +281,78 @@ def _run_model_experiment_fn(
         args, use_lda, lda_mode,
     )
 
+    # Try to load models from cache (if enabled)
+    result_baseline = None
+    result_enhanced = None
+    pipeline_baseline_cached = None
+    pipeline_enhanced_cached = None
+    
+    if model_cache_dir:
+        # Try baseline cache
+        pipeline_baseline_cached, baseline_results_cached = _load_cached_model(
+            model_cache_dir, model_name, param_str, balance_strategy, threshold, fs_mode="baseline"
+        )
+        if baseline_results_cached is not None:
+            result_baseline = baseline_results_cached
+        
+        # Try enhanced cache
+        pipeline_enhanced_cached, enhanced_results_cached = _load_cached_model(
+            model_cache_dir, model_name, param_str, balance_strategy, threshold, fs_mode="enhanced"
+        )
+        if enhanced_results_cached is not None:
+            result_enhanced = enhanced_results_cached
+    
+    # Cache hit for both — return immediately
+    if result_baseline is not None and result_enhanced is not None:
+        print(f"[model-cache] Hit both modes for {model_name} ({balance_strategy})", flush=True)
+        result = {
+            "model": model_name,
+            "underscore_threshold": threshold,
+            "parameters": param_str,
+            "balance_strategy": balance_strategy,
+            **{f"baseline_{k}": v for k, v in result_baseline.items()},
+            "baseline_feature_method":      pipeline_baseline_cached.features.method_text if pipeline_baseline_cached else "N/A",
+            "baseline_feature_parameters":  pipeline_baseline_cached.features.method_parameters if pipeline_baseline_cached else None,
+            "baseline_feature_selected":    pipeline_baseline_cached.features.selected if pipeline_baseline_cached else None,
+            "baseline_feature_weights":     pipeline_baseline_cached.features.weights if pipeline_baseline_cached else None,
+            **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
+            "enhanced_feature_method":      pipeline_enhanced_cached.features.method_text if pipeline_enhanced_cached else "N/A",
+            "enhanced_feature_parameters":  pipeline_enhanced_cached.features.method_parameters if pipeline_enhanced_cached else None,
+            "enhanced_feature_selected":    pipeline_enhanced_cached.features.selected if pipeline_enhanced_cached else None,
+            "enhanced_feature_weights":     pipeline_enhanced_cached.features.weights if pipeline_enhanced_cached else None,
+        }
+        return result
+
+    # Cache miss (partial or complete) — train missing models
     # Use threading backend so nested joblib calls (e.g. permutation_importance
     # inside KNN) don't try to spawn Loky subprocesses from within a Pool worker.
     with joblib.parallel_backend('threading'):
-        pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
-        result_baseline = pipeline_baseline.evaluate().show_results()
+        if result_baseline is None:
+            pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
+            result_baseline = pipeline_baseline.evaluate().show_results()
+            # Save baseline to cache
+            if model_cache_dir:
+                _save_cached_model(model_cache_dir, model_name, param_str, 
+                                 balance_strategy, threshold, pipeline_baseline, result_baseline,
+                                 fs_mode="baseline")
 
-        pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
-        result_enhanced = pipeline_enhanced.evaluate().show_results()
+        if result_enhanced is None:
+            pipeline_enhanced.initialize_model().fit(use_feature_selection=fs_enhanced)
+            result_enhanced = pipeline_enhanced.evaluate().show_results()
+            # Save enhanced to cache
+            if model_cache_dir:
+                _save_cached_model(model_cache_dir, model_name, param_str, 
+                                 balance_strategy, threshold, pipeline_enhanced, result_enhanced,
+                                 fs_mode="enhanced")
 
     if model_name in _TWO_STAGE_ESTIMATOR_PAIRS:
         param_str = f"stage1={param['stage1']}, stage2={param['stage2']}"
     else:
         param_str = str(sorted({k: v for k, v in param.items() if k != "scale_pos_weight"}.items()))
 
-    return {
+    result = {
         "model": model_name,
-        "undersample_threshold": threshold,
+        "underscore_threshold": threshold,
         "parameters": param_str,
         "balance_strategy": balance_strategy,
         **{f"baseline_{k}": v for k, v in result_baseline.items()},
@@ -239,6 +366,8 @@ def _run_model_experiment_fn(
         "enhanced_feature_selected":    pipeline_enhanced.features.selected,
         "enhanced_feature_weights":     pipeline_enhanced.features.weights,
     }
+    
+    return result
 
 
 def _run_task(task_tuple):
@@ -342,6 +471,9 @@ class SurvivalExperimentRunner:
         
         # Feature cache directory (disk cache for survival features to speed up reruns)
         self.feature_cache_dir = os.path.join(cache_dir, "survival_features") if cache_dir else None
+        
+        # Model cache directory (disk cache for trained models to skip retraining on reruns)
+        self.model_cache_dir = os.path.join(cache_dir, "models") if cache_dir else None
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Cox PH model fitting (cached, reused across all balance strategies)
@@ -531,6 +663,7 @@ class SurvivalExperimentRunner:
             balance_strategy, threshold,
             self.args, self.use_lda, self.lda_mode,
             self.feature_selection_baseline, self.feature_selection_enhanced,
+            self.model_cache_dir,
         )
 
     # -----------------------------
@@ -587,6 +720,7 @@ class SurvivalExperimentRunner:
                             balance_strategy, threshold,
                             self.args, self.use_lda, self.lda_mode,
                             self.feature_selection_baseline, self.feature_selection_enhanced,
+                            self.model_cache_dir,
                         )
 
                         if model_name in self.do_not_parallel_compute:
