@@ -58,6 +58,54 @@ def _save_checkpoint(path, completed_keys, results):
         print(f"[checkpoint] Warning: could not save checkpoint ({e})", flush=True)
 
 
+def _make_feature_cache_key(balance_strategy: str, threshold=None, test_size: float = 0.2) -> str:
+    """Deterministic key for caching survival features by strategy and threshold."""
+    threshold_str = f"@{threshold}" if threshold is not None else ""
+    return f"features_{balance_strategy}{threshold_str}_test{int(test_size*100)}.pkl"
+
+
+def _load_cached_features(cache_dir: str, balance_strategy: str, threshold=None, test_size: float = 0.2) -> tuple:
+    """Load cached survival features. Returns (X_surv_train, X_surv_test) or (None, None) if not found."""
+    if cache_dir is None or not os.path.exists(cache_dir):
+        return None, None
+    
+    cache_key = _make_feature_cache_key(balance_strategy, threshold, test_size)
+    cache_path = os.path.join(cache_dir, cache_key)
+    
+    if not os.path.exists(cache_path):
+        return None, None
+    
+    try:
+        with open(cache_path, "rb") as f:
+            data = pickle.load(f)
+        print(f"[feature-cache] Hit: {balance_strategy}{('@'+str(threshold)) if threshold else ''}", flush=True)
+        return data.get("X_surv_train"), data.get("X_surv_test")
+    except Exception as e:
+        print(f"[feature-cache] Could not load {cache_key} ({e}); regenerating", flush=True)
+        return None, None
+
+
+def _save_cached_features(cache_dir: str, balance_strategy: str, threshold, 
+                         X_surv_train: pd.DataFrame, X_surv_test: pd.DataFrame, 
+                         test_size: float = 0.2) -> None:
+    """Save survival features to disk cache."""
+    if cache_dir is None:
+        return
+    
+    try:
+        os.makedirs(cache_dir, exist_ok=True)
+        cache_key = _make_feature_cache_key(balance_strategy, threshold, test_size)
+        cache_path = os.path.join(cache_dir, cache_key)
+        tmp_path = cache_path + ".tmp"
+        
+        with open(tmp_path, "wb") as f:
+            pickle.dump({"X_surv_train": X_surv_train, "X_surv_test": X_surv_test}, f)
+        os.replace(tmp_path, cache_path)
+        print(f"[feature-cache] Saved: {cache_key}", flush=True)
+    except Exception as e:
+        print(f"[feature-cache] Warning: could not save features ({e})", flush=True)
+
+
 from src.modules.machine_learning.utils.training.load_parameters import ParameterLoader
 from src.modules.machine_learning.utils.data.data_preparation import DataPreparer
 from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
@@ -291,6 +339,9 @@ class SurvivalExperimentRunner:
         # Cache for fitted Cox model (fitted once, reused for all balance strategies)
         self._fitted_cox_model = None
         self._cox_scaler = None
+        
+        # Feature cache directory (disk cache for survival features to speed up reruns)
+        self.feature_cache_dir = os.path.join(cache_dir, "survival_features") if cache_dir else None
 
     # ─────────────────────────────────────────────────────────────────────────────
     # Cox PH model fitting (cached, reused across all balance strategies)
@@ -384,28 +435,52 @@ class SurvivalExperimentRunner:
         if self._fitted_cox_model is None:
             self._fitted_cox_model, self._cox_scaler = self._fit_cox_model_once()
 
-        # Bug fix: restrict Cox fitting to train-partition rows (plus all censored
-        # rows, which don't belong to either classifier partition). Fitting Cox on
-        # the full dataset — including test-partition rows' survival outcomes — is
-        # data leakage that inflates test-set survival feature quality.
-        _train_mask = (
-            self.df_data_surv.index.isin(self._train_indices)
-            | (self.df_data_surv["censor"] == 0)
+        # Try to load from cache first (speeds up reruns)
+        X_surv_train, X_surv_test = _load_cached_features(
+            self.feature_cache_dir, 
+            balance_strategy, 
+            threshold,
+            test_size=self.args.test_size
         )
-        _df_surv_train = self.df_data_surv[_train_mask]
-        X_surv = _df_surv_train.drop(columns=["days_elapsed_until_fully_paid", "censor"])
-        T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
-        E = _df_surv_train["censor"]
+        
+        if X_surv_train is not None and X_surv_test is not None:
+            # Cache hit — skip feature generation
+            print(f"[dataset]   Using cached survival features ({_format_duration(time.time() - _ds_start)})", flush=True)
+        else:
+            # Cache miss — generate and save features
+            # Bug fix: restrict Cox fitting to train-partition rows (plus all censored
+            # rows, which don't belong to either classifier partition). Fitting Cox on
+            # the full dataset — including test-partition rows' survival outcomes — is
+            # data leakage that inflates test-set survival feature quality.
+            _train_mask = (
+                self.df_data_surv.index.isin(self._train_indices)
+                | (self.df_data_surv["censor"] == 0)
+            )
+            _df_surv_train = self.df_data_surv[_train_mask]
+            X_surv = _df_surv_train.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+            T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
+            E = _df_surv_train["censor"]
 
-        # Pass cached Cox model to generate_survival_features to skip refitting
-        print(f"[dataset]   Generating survival features (using cached Cox) ...", flush=True)
-        X_surv_train, X_surv_test = generate_survival_features(
-            X_surv, T, E, X_train_raw, X_test_raw,
-            best_params=None,  # Not needed when using fitted_cox + cox_scaler
-            time_points=self.args.time_points,
-            fitted_cph=self._fitted_cox_model,  # Use cached model
-            cox_scaler=self._cox_scaler,  # Use cached scaler
-        )
+            # Pass cached Cox model to generate_survival_features to skip refitting
+            print(f"[dataset]   Generating survival features (using cached Cox) ...", flush=True)
+            X_surv_train, X_surv_test = generate_survival_features(
+                X_surv, T, E, X_train_raw, X_test_raw,
+                best_params=None,  # Not needed when using fitted_cox + cox_scaler
+                time_points=self.args.time_points,
+                fitted_cph=self._fitted_cox_model,  # Use cached model
+                cox_scaler=self._cox_scaler,  # Use cached scaler
+            )
+            
+            # Save to cache for future runs
+            _save_cached_features(
+                self.feature_cache_dir,
+                balance_strategy,
+                threshold,
+                X_surv_train,
+                X_surv_test,
+                test_size=self.args.test_size
+            )
+            
         print(f"[dataset]   Done ({_format_duration(time.time() - _ds_start)})", flush=True)
 
         # Apply LDA AFTER survival feature generation.
