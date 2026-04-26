@@ -173,6 +173,7 @@ def _save_cached_model(cache_dir: str, model_name: str, param_str: str,
     except Exception as e:
         print(f"[model-cache] Warning: could not save model ({e})", flush=True)
 from src.modules.machine_learning.utils.data.data_preparation import DataPreparer
+from src.modules.machine_learning.utils.training.load_parameters import ParameterLoader
 from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
 from src.modules.machine_learning.utils.features.adjust_survival_time_periods import adjust_payment_period
 from src.modules.machine_learning.models.ordinal_classifier import OrdinalPipeline
@@ -263,6 +264,7 @@ def _run_model_experiment_fn(
     args, use_lda, lda_mode,
     fs_baseline, fs_enhanced,
     model_cache_dir=None,
+    cache_key=None,
 ):
     """Module-level experiment runner — picklable, called by both Pool workers and instance methods."""
     (X_train, X_test, y_train, y_test,
@@ -310,6 +312,7 @@ def _run_model_experiment_fn(
             "underscore_threshold": threshold,
             "parameters": param_str,
             "balance_strategy": balance_strategy,
+            "cache_key": cache_key,
             **{f"baseline_{k}": v for k, v in result_baseline.items()},
             "baseline_feature_method":      pipeline_baseline_cached.features.method_text if pipeline_baseline_cached else "N/A",
             "baseline_feature_parameters":  pipeline_baseline_cached.features.method_parameters if pipeline_baseline_cached else None,
@@ -355,6 +358,7 @@ def _run_model_experiment_fn(
         "underscore_threshold": threshold,
         "parameters": param_str,
         "balance_strategy": balance_strategy,
+        "cache_key": cache_key,
         **{f"baseline_{k}": v for k, v in result_baseline.items()},
         "baseline_feature_method":      pipeline_baseline.features.method_text,
         "baseline_feature_parameters":  pipeline_baseline.features.method_parameters,
@@ -372,7 +376,9 @@ def _run_model_experiment_fn(
 
 def _run_task(task_tuple):
     """Module-level worker for multiprocessing.Pool — fully self-contained, no instance pickling."""
+    # task_tuple includes cache_key at index 12 (if added to run())
     result = _run_model_experiment_fn(*task_tuple)
+    # key for checkpointing excludes cache_key
     key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
     return key, result
 
@@ -547,6 +553,12 @@ class SurvivalExperimentRunner:
         Cox PH model is cached to avoid refitting (saves ~2.5 min per strategy).
         """
         label = f"{balance_strategy}" + (f"@{threshold}" if threshold is not None else "")
+        
+        # 1. Generate deterministic cache key
+        import hashlib
+        key_src = f"{balance_strategy}|{threshold}|{self.args.observation_end}|{self.args.test_size}"
+        cache_key = hashlib.md5(key_src.encode()).hexdigest()
+
         print(f"[dataset] Preparing: {label} ...", flush=True)
         _ds_start = time.time()
 
@@ -632,7 +644,8 @@ class SurvivalExperimentRunner:
             X_train = X_train_raw
             X_test  = X_test_raw
 
-        return X_train, X_test, y_train, y_test, X_surv_train, X_surv_test
+        dataset = (X_train, X_test, y_train, y_test, X_surv_train, X_surv_test)
+        return dataset, cache_key
 
     # -----------------------------
     # Pipeline construction helper
@@ -710,7 +723,7 @@ class SurvivalExperimentRunner:
             strategy_thresholds = (self.thresholds or [None]) if balance_strategy == "hybrid" else [None]
 
             for threshold in strategy_thresholds:
-                dataset = self.prepare_dataset(balance_strategy, threshold)
+                dataset, cache_key = self.prepare_dataset(balance_strategy, threshold)
 
                 for model_name, pipeline_class in self.models.items():
                     for param in self.parameters_by_model[model_name]:
@@ -721,6 +734,7 @@ class SurvivalExperimentRunner:
                             self.args, self.use_lda, self.lda_mode,
                             self.feature_selection_baseline, self.feature_selection_enhanced,
                             self.model_cache_dir,
+                            cache_key,
                         )
 
                         if model_name in self.do_not_parallel_compute:
@@ -879,6 +893,7 @@ class FinalizationRunner:
         fitted_cph=None,
         use_lda: bool = False,
         lda_mode: str = "append",
+        feature_metadata: dict | None = None,
     ):
         self.df_data          = df_data
         self.df_data_surv     = df_data_surv
@@ -889,6 +904,8 @@ class FinalizationRunner:
         self.fitted_cph       = fitted_cph
         self.use_lda          = use_lda
         self.lda_mode         = lda_mode
+        # Training-set statistics (e.g. plan_risk_map) bundled into the pkl.
+        self.feature_metadata = feature_metadata or {}
 
         # Validate model_key early so the caller gets a clear error before
         # any expensive data preparation runs.
@@ -1061,6 +1078,7 @@ class FinalizationRunner:
             model_key           = self.model_key,
             features            = pipeline.features,
             parameters          = getattr(self.args, "parameters", {}),
+            feature_metadata    = self.feature_metadata,
         )
 
         return inference_bundle, preparer.label_encoder
