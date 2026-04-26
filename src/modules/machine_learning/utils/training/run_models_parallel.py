@@ -200,6 +200,8 @@ def _run_task(task_tuple):
     return key, result
 
 
+from src.modules.machine_learning.utils.training.cache_manager import CacheManager
+
 class SurvivalExperimentRunner:
     """
     SurvivalExperimentRunner
@@ -207,41 +209,6 @@ class SurvivalExperimentRunner:
     A class to manage and execute survival model experiments with baseline and enhanced
     survival features. Supports parallel and sequential execution, dataset preparation,
     and feature generation.
-
-    This class encapsulates:
-    - Dataset preparation per balance strategy and threshold
-    - Survival feature generation (cached per dataset)
-    - Model training and evaluation (baseline vs. enhanced)
-    - Parallel execution with tqdm progress bars
-
-    Attributes
-    ----------
-    df_data_surv : pd.DataFrame
-        Input survival dataset.
-    models : dict
-        Dictionary mapping model names to pipeline classes.
-    balance_strategies : list
-        List of balancing strategies to evaluate (e.g., "undersample", "oversample", "hybrid").
-    args : Namespace
-        Experiment configuration arguments (parameters_dir, target_feature, test_size, etc.).
-    best_penalty : float
-        Penalty parameter used in survival feature generation.
-    thresholds : list or None
-        Thresholds for hybrid balancing strategy.
-    n_jobs : int
-        Number of parallel jobs for joblib execution.
-    output_path : str
-        Path to save the results Excel file.
-    do_not_parallel_compute : list
-        List of model names to run sequentially instead of in parallel.
-    feature_selection : bool
-        Whether to perform feature selection during model training.
-    loader : ParameterLoader
-        Loader for model parameters.
-    parameters_by_model : dict
-        Cached parameters for each model.
-    preparer : SurvivalDataPreparer
-        Preparer object for dataset splitting and balancing.
     """
 
     def __init__(
@@ -260,6 +227,7 @@ class SurvivalExperimentRunner:
         use_lda: bool = False,
         lda_mode: str = "append",
         checkpoint_path=None,
+        cache_dir="data/cache",
     ):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
@@ -275,6 +243,7 @@ class SurvivalExperimentRunner:
         self.use_lda  = use_lda
         self.lda_mode = lda_mode
         self.checkpoint_path = checkpoint_path
+        self.cache = CacheManager(cache_root=cache_dir)
 
         # Initialize parameter loader
         self.loader = ParameterLoader(args.parameters_dir)
@@ -319,9 +288,72 @@ class SurvivalExperimentRunner:
         # restrict Cox fitting to train rows only, preventing test-set leakage.
         self._train_indices = self.preparer.X_train.index
 
-    # -----------------------------
+        # Cache for fitted Cox model (fitted once, reused for all balance strategies)
+        self._fitted_cox_model = None
+        self._cox_scaler = None
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # Cox PH model fitting (cached, reused across all balance strategies)
+    # ─────────────────────────────────────────────────────────────────────────────
+
+    def _fit_cox_model_once(self):
+        """
+        Fit Cox PH model ONCE on original train data + all censored rows.
+        Cached and reused for all balance strategies to avoid refitting.
+
+        Returns: (fitted_cox_model, scaler) tuple
+        """
+        from sksurv.linear_model import CoxnetSurvivalAnalysis
+        from sksurv.util import Surv
+        import warnings
+        from src.modules.machine_learning.utils.data.clean_survival_inputs import clean_survival_inputs
+
+        print("[cox] Fitting Cox PH model on original train data ...", flush=True)
+        cox_start = time.time()
+
+        # Restrict Cox fitting to train-partition rows (plus all censored rows)
+        _train_mask = (
+            self.df_data_surv.index.isin(self._train_indices)
+            | (self.df_data_surv["censor"] == 0)
+        )
+        _df_surv_train = self.df_data_surv[_train_mask]
+        X_surv = _df_surv_train.drop(columns=["days_elapsed_until_fully_paid", "censor"])
+        T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
+        E = _df_surv_train["censor"]
+
+        # Clean and prepare survival inputs
+        from src.modules.machine_learning.utils.data.clean_survival_inputs import clean_survival_inputs
+        _, _, _, df_fit = clean_survival_inputs(X_surv, T, E)
+        feature_cols = [c for c in df_fit.columns if c not in ("T", "E")]
+        X_fit_raw = df_fit[feature_cols]
+
+        # Import _safe_scale from generate_survival_features
+        from src.modules.machine_learning.utils.features.generate_survival_features import _safe_scale
+
+        X_fit_scaled, fit_scaler = _safe_scale(X_fit_raw)
+
+        y_fit = Surv.from_arrays(
+            event=df_fit["E"].astype(bool).values,
+            time=df_fit["T"].astype(float).values,
+        )
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)
+            cox = CoxnetSurvivalAnalysis(
+                l1_ratio=self.best_parameters["l1_ratio"],
+                alphas=[self.best_parameters["alpha"]],
+                fit_baseline_model=True,
+                max_iter=100_000,
+                tol=1e-7,
+            )
+            cox.fit(X_fit_scaled, y_fit)
+
+        print(f"[cox] Done ({_format_duration(time.time() - cox_start)})", flush=True)
+        return cox, fit_scaler
+
+    # ─────────────────────────────────────────────────────────────────────────────
     # Dataset preparation helper
-    # -----------------------------
+    # ─────────────────────────────────────────────────────────────────────────────
 
     def prepare_dataset(self, balance_strategy, threshold):
         """
@@ -329,6 +361,7 @@ class SurvivalExperimentRunner:
 
         Runs data preparation, splits train/test sets, and generates survival features.
         Results are cached and reused across models and parameters.
+        Cox PH model is cached to avoid refitting (saves ~2.5 min per strategy).
         """
         label = f"{balance_strategy}" + (f"@{threshold}" if threshold is not None else "")
         print(f"[dataset] Preparing: {label} ...", flush=True)
@@ -347,6 +380,10 @@ class SurvivalExperimentRunner:
         X_test_raw  = self.preparer.X_test.copy()
         y_train, y_test = self.preparer.y_train.copy(), self.preparer.y_test.copy()
 
+        # Ensure Cox model is fitted ONCE before the first prepare_dataset call
+        if self._fitted_cox_model is None:
+            self._fitted_cox_model, self._cox_scaler = self._fit_cox_model_once()
+
         # Bug fix: restrict Cox fitting to train-partition rows (plus all censored
         # rows, which don't belong to either classifier partition). Fitting Cox on
         # the full dataset — including test-partition rows' survival outcomes — is
@@ -360,11 +397,14 @@ class SurvivalExperimentRunner:
         T = adjust_payment_period(_df_surv_train["days_elapsed_until_fully_paid"])
         E = _df_surv_train["censor"]
 
-        # Pass original features to Cox — survival features generated first
-        print(f"[dataset]   Generating survival features ...", flush=True)
+        # Pass cached Cox model to generate_survival_features to skip refitting
+        print(f"[dataset]   Generating survival features (using cached Cox) ...", flush=True)
         X_surv_train, X_surv_test = generate_survival_features(
             X_surv, T, E, X_train_raw, X_test_raw,
-            best_params=self.best_parameters, time_points=self.args.time_points
+            best_params=None,  # Not needed when using fitted_cox + cox_scaler
+            time_points=self.args.time_points,
+            fitted_cph=self._fitted_cox_model,  # Use cached model
+            cox_scaler=self._cox_scaler,  # Use cached scaler
         )
         print(f"[dataset]   Done ({_format_duration(time.time() - _ds_start)})", flush=True)
 
