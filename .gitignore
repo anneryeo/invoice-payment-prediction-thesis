@@ -1,6 +1,7 @@
-# ANNE
-annesnotes/
-docs/
+#ANNE
+.local/
+#annesnotes/
+#docs/
 .github/
 .geminiignore
 
@@ -76,3 +77,8 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+
+settings.json
+data/cache/
+*.pyc
+convert_notebooks.py

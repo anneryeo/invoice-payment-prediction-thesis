@@ -123,6 +123,7 @@ class InferencePipeline:
         model_key: str = "",
         features=None,
         parameters: dict | None = None,
+        feature_metadata: dict | None = None,
     ):
         self.scaler               = scaler
         self.cox_model            = cox_model
@@ -133,6 +134,9 @@ class InferencePipeline:
         self.model_key            = model_key
         self.features             = features
         self.parameters           = parameters or {}
+        # Stores training-set statistics (e.g. plan_risk_map) so that inference
+        # batches are scored using the exact distribution seen at fit time.
+        self.feature_metadata     = feature_metadata or {}
 
     # ── internal preprocessing chain ─────────────────────────────────────────
 
@@ -159,7 +163,7 @@ class InferencePipeline:
         np.ndarray
             Preprocessed feature matrix ready for the classifier.
         """
-       from src.modules.machine_learning.utils.features.generate_survival_features import (
+        from src.modules.machine_learning.utils.features.generate_survival_features import (
             generate_survival_features,
         )
 
@@ -245,9 +249,10 @@ class InferencePipeline:
         )
         return (
             f"InferencePipeline(\n"
-            f"  model_key       = {self.model_key!r}\n"
-            f"  lda_transformer = {lda_info}\n"
-            f"  time_points     = {len(self.time_points)} points\n"
-            f"  classes         = {list(self.label_encoder.classes_)}\n"
+            f"  model_key         = {self.model_key!r}\n"
+            f"  lda_transformer   = {lda_info}\n"
+            f"  time_points       = {len(self.time_points)} points\n"
+            f"  classes           = {list(self.label_encoder.classes_)}\n"
+            f"  feature_metadata  = {list(self.feature_metadata.keys())}\n"
             f")"
         )

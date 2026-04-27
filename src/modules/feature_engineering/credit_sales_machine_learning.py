@@ -628,6 +628,14 @@ class FeatureEngineer:
     winsorise_percentile : float, default 0.01
         Lower-tail percentile for winsorisation (upper = 1 − this).
         Only used when ``winsorise_dtp=True``.
+    plan_risk_map : dict or None, default None
+        Pre-fitted plan-type → risk-score mapping (Fit-Transform pattern).
+        **Inference mode:** provide the map saved at training time so that
+        new data is scored using the training-set distribution, regardless
+        of batch size or composition.
+        **Training mode (None):** the map is computed from the current data
+        and stored in ``self.plan_risk_map`` for export into the
+        ``InferencePipeline`` pickle.
     """
 
     def __init__(
@@ -645,6 +653,7 @@ class FeatureEngineer:
         add_plan_risk_score: bool = True,
         winsorise_dtp: bool = False,
         winsorise_percentile: float = 0.01,
+        plan_risk_map: dict | None = None,
     ):
         self.df_cs = df_cs
         self.df_revenues = df_revenues
@@ -659,6 +668,9 @@ class FeatureEngineer:
         self.add_plan_risk_score = add_plan_risk_score
         self.winsorise_dtp = winsorise_dtp
         self.winsorise_percentile = winsorise_percentile
+        # Fit-Transform state: if provided, used as-is (inference mode).
+        # If None, computed from data and stored here (training mode).
+        self.plan_risk_map = plan_risk_map
 
     def build(self) -> pd.DataFrame:
         """
@@ -1093,18 +1105,22 @@ class FeatureEngineer:
 
     def _add_plan_risk_score(self, df: pd.DataFrame) -> pd.DataFrame:
         """
-        Add an ordinal risk score derived from each plan type's observed 90-day rate
-        in the current dataset.
+        Add an ordinal risk score derived from each plan type's observed 90-day rate.
 
-        Scores are computed dynamically rather than hardcoded, so they adapt
-        automatically if the plan-type mix or payment behaviour changes across
-        school years or dataset versions. Each plan type is ranked by its
-        proportion of 90_days invoices and assigned an integer score via
-        ``pd.qcut`` into ``n_quantiles`` equal-frequency bins (default 5),
-        giving scores 0 (lowest risk) to ``n_quantiles - 1`` (highest risk).
-        Plan types with identical 90-day rates receive the same score.
+        Fit-Transform pattern
+        ---------------------
+        Training mode (``self.plan_risk_map is None``):
+            Computes the plan-to-score mapping from ``df`` and stores it in
+            ``self.plan_risk_map`` so it can be exported and bundled with the
+            deployed InferencePipeline.
 
-        The score is computed on the labelled (censored == 1) subset only,
+        Inference mode (``self.plan_risk_map`` is a pre-fitted dict):
+            Skips computation entirely and maps every row using the stored
+            training-set distribution.  This ensures that a single-row
+            inference batch receives the same score a plan type would have
+            received at training time, regardless of the batch composition.
+
+        Scores are computed on the labelled (censored == 1) subset only,
         so uncensored invoices without a bracket do not distort the ranking.
         Uncensored invoices are scored by lookup after the ranking is built.
 
@@ -1145,31 +1161,35 @@ class FeatureEngineer:
 
         df['_plan_label'] = df[present].apply(_plan_label, axis=1)
 
-        # Compute 90-day rate per plan type from labelled rows only
-        labelled = df[df['dtp_bracket'].notna()].copy()
-        labelled['_is_90'] = (labelled['dtp_bracket'] == '90_days').astype(int)
-
-        rate_per_plan = (
-            labelled.groupby('_plan_label')['_is_90']
-            .mean()
-            .rename('_90day_rate')
-        )
-
-        # Rank plans by 90-day rate into n_quantiles equal-frequency tiers.
-        # duplicates='drop' handles ties gracefully — plans with identical rates
-        # share a bin rather than raising an error.
-        if len(rate_per_plan) >= n_quantiles:
-            plan_scores = pd.qcut(
-                rate_per_plan,
-                q=n_quantiles,
-                labels=False,
-                duplicates='drop',
-            ).rename('plan_type_risk_score')
+        if self.plan_risk_map is not None:
+            # ── Inference / Transform mode ────────────────────────────────────
+            # Use the exact distribution from training; ignore current batch.
+            score_map = self.plan_risk_map
         else:
-            # Fewer distinct plans than quantiles — fall back to simple rank
-            plan_scores = rate_per_plan.rank(method='dense').sub(1).astype(int).rename('plan_type_risk_score')
+            # ── Training / Fit mode ───────────────────────────────────────────
+            # Compute the map from the current data and store it for export.
+            labelled = df[df['dtp_bracket'].notna()].copy()
+            labelled['_is_90'] = (labelled['dtp_bracket'] == '90_days').astype(int)
 
-        score_map = plan_scores.to_dict()
+            rate_per_plan = (
+                labelled.groupby('_plan_label')['_is_90']
+                .mean()
+                .rename('_90day_rate')
+            )
+
+            if len(rate_per_plan) >= n_quantiles:
+                plan_scores = pd.qcut(
+                    rate_per_plan,
+                    q=n_quantiles,
+                    labels=False,
+                    duplicates='drop',
+                ).rename('plan_type_risk_score')
+            else:
+                plan_scores = rate_per_plan.rank(method='dense').sub(1).astype(int).rename('plan_type_risk_score')
+
+            score_map = plan_scores.to_dict()
+            # Store so CreditSalesProcessor can expose it for bundling.
+            self.plan_risk_map = score_map
 
         df['plan_type_risk_score'] = (
             df['_plan_label']
@@ -1479,6 +1499,16 @@ class CreditSalesProcessor:
         Clip DTP columns at percentile bounds to remove extreme outliers.
     winsorise_percentile : float, default 0.01
         Lower-tail percentile for winsorisation (upper = 1 − this).
+
+    Fit-Transform state
+    -------------------
+    plan_risk_map : dict or None, default None
+        Pre-fitted plan-type → risk-score mapping.
+        Pass the map exported from training so that inference batches of
+        any size receive the same risk scores as the training set.
+        Leave as ``None`` during training — the map is then computed from
+        the current data and made available via the ``plan_risk_map``
+        property for bundling into the ``InferencePipeline`` pickle.
     """
 
     def __init__(
@@ -1507,6 +1537,8 @@ class CreditSalesProcessor:
         add_plan_risk_score: bool = True,
         winsorise_dtp: bool = False,
         winsorise_percentile: float = 0.01,
+        # ── fit-transform state ───────────────────────────────────────────────
+        plan_risk_map: dict | None = None,
     ):
         df_revenues = df_revenues.drop(columns=['entry_number'])
 
@@ -1518,7 +1550,8 @@ class CreditSalesProcessor:
         df_cs = builder.build()
 
         # ── Stage 2: engineer features ────────────────────────────────────────
-        engineer = FeatureEngineer(
+        # Keep a reference so plan_risk_map can be retrieved after build().
+        self._engineer = FeatureEngineer(
             df_cs=df_cs,
             df_revenues=df_revenues,
             df_payments_to_all=builder.df_payments_to_all,
@@ -1532,8 +1565,9 @@ class CreditSalesProcessor:
             add_plan_risk_score=add_plan_risk_score,
             winsorise_dtp=winsorise_dtp,
             winsorise_percentile=winsorise_percentile,
+            plan_risk_map=plan_risk_map,
         )
-        df_cs = engineer.build()
+        df_cs = self._engineer.build()
 
         # ── Stage 3: post-process ─────────────────────────────────────────────
         post_processor = InvoicePostProcessor(
@@ -1549,6 +1583,20 @@ class CreditSalesProcessor:
             exclude_school_years=exclude_school_years,
         )
         self.df_cs = post_processor.build()
+
+    @property
+    def plan_risk_map(self) -> dict | None:
+        """
+        The plan-type → risk-score mapping fitted during feature engineering.
+
+        In training mode this is populated automatically after ``__init__``
+        completes.  Export this value and bundle it into ``feature_metadata``
+        of the ``InferencePipeline`` so that inference batches are scored
+        using the training-set distribution rather than being recomputed.
+
+        Returns ``None`` when ``add_plan_risk_score=False``.
+        """
+        return self._engineer.plan_risk_map
 
     def show_data(self) -> pd.DataFrame:
         """Return the fully processed DataFrame."""

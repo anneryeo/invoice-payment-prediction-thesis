@@ -131,6 +131,7 @@ def generate_survival_features(
     best_params: dict = None,
     time_points: list = None,
     fitted_cph=None,
+    cox_scaler=None,
 ) -> Union[pd.DataFrame, Tuple[pd.DataFrame, pd.DataFrame]]:
     """
     Fit (or reuse) a CoxnetSurvivalAnalysis model and generate
@@ -158,6 +159,10 @@ def generate_survival_features(
     fitted_cph : CoxnetSurvivalAnalysis, optional
         A pre-fitted model.  When supplied no new fitting is performed.
         The parameter name "fitted_cph" is kept for backward compatibility.
+    cox_scaler : StandardScaler, optional
+        A pre-fitted scaler from the Cox model fitting.  Used with fitted_cph
+        to avoid refitting the scaler. When supplied with fitted_cph, skips
+        scaler refitting.
 
     Returns
     -------
@@ -174,7 +179,12 @@ def generate_survival_features(
         time_points = [30, 60, 90, 120]
 
     # ── Step 1: fit or reuse Cox model ───────────────────────────────────────
-    if fitted_cph is not None:
+    if fitted_cph is not None and cox_scaler is not None:
+        # Reuse caller-supplied model AND scaler — skip all refitting
+        cox = fitted_cph
+        fit_scaler = cox_scaler
+
+    elif fitted_cph is not None:
         # Reuse caller-supplied model — derive scaler from reference data.
         cox = fitted_cph
         _ref = X_surv if X_surv is not None else X_train
