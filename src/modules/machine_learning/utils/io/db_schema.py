@@ -19,11 +19,12 @@
 
 # ── Version ───────────────────────────────────────────────────────────────────
 
-SCHEMA_VERSION: int = 3
+SCHEMA_VERSION: int = 4
 """
 Increment this whenever a breaking DDL change is introduced so that
 ResultsRepository can detect and migrate older databases automatically.
 
+v4 — added cache_key column to experiments and created cache_registry table.
 v3 — added undersample_threshold column to experiments.
 """
 
@@ -38,7 +39,21 @@ CREATE TABLE IF NOT EXISTS experiments (
     undersample_threshold REAL,
     parameters           TEXT,
     param_hash           TEXT,
+    cache_key            TEXT,
     created_at           TEXT    DEFAULT (datetime('now'))
+)
+"""
+
+# ── Caching registry ─────────────────────────────────────────────────────────
+
+DDL_CACHE_REGISTRY = """
+CREATE TABLE IF NOT EXISTS cache_registry (
+    cache_key       TEXT PRIMARY KEY,
+    cache_type      TEXT NOT NULL CHECK(cache_type IN ('dataset', 'model')),
+    parameters_hash TEXT NOT NULL,
+    file_path       TEXT NOT NULL,
+    created_at      TEXT DEFAULT (datetime('now')),
+    metadata        TEXT
 )
 """
 
@@ -125,6 +140,7 @@ DDL_INDEXES = [
 
 ALL_DDL: list[str] = [
     DDL_EXPERIMENTS,
+    DDL_CACHE_REGISTRY,
     DDL_METRICS,
     DDL_CHARTS,
     DDL_FEATURES,

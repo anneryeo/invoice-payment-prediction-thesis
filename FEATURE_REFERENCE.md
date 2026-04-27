@@ -1,6 +1,6 @@
 # Feature Reference
 
-This document describes all columns present in the processed credit sales dataset used for model training. Anyone replicating this study must supply institutional data that can be transformed into this schema via the `CreditSalesProcessor` pipeline (`feature_engineering/credit_sales_machine_learning.py`).
+This document describes all columns present in the processed credit sales dataset used for model training. Anyone replicating this study must supply institutional data that can be transformed into this schema via the `CreditSalesProcessor` pipeline (`src/modules/feature_engineering/credit_sales_machine_learning.py`).
 
 ---
 
