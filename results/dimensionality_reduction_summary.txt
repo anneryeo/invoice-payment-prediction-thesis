@@ -1,0 +1,25 @@
+================================================================================
+DIMENSIONALITY REDUCTION VALIDATION SUMMARY
+================================================================================
+
+Dataset: 6483 samples × 27 features
+Target: 4 classes
+CV Strategy: 5-fold Stratified
+
+BASELINE (50 columns):
+  F1-Score: 0.6211 ± 0.0159
+  Precision: 0.6871
+  Recall: 0.6236
+  AUC: 0.8936
+
+ACCEPTABLE REDUCTIONS (≥95% baseline F1):
+  None
+
+
+RECOMMENDATION:
+
+❌ No acceptable PCA reduction found
+
+❌ No acceptable LDA reduction found
+
+================================================================================

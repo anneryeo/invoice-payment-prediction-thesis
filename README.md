@@ -12,7 +12,7 @@
 * Submitted and accepted at the 18th International Conference on Computer Modeling and Simulation (ICCMS) 2026 that is co-sponsored by **Intelligent IoT System Modeling and Simulation Committee of China Simulation Federation**, China; **Hangzhou International Innovation Institute of Beihang University**, China and IEEE, hosted by Hangzhou International Innovation Institute of Beihang University, China, assisted by Beihang University, China.
 * To be presented onsite at Hangzhou, China by C.J.L. Reyes on May 15 to 17.
 
-**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Survival-Enhanced Granular Approach**
+**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Step Approach**
 
 * In progress. This version presents **better results** by applying Survival-Analysis, Multistage Classification for granular payment prediction.
 
@@ -20,7 +20,6 @@
 
 > **Utilizing Machine Learning to Solve the Invoice Payment Prediction Problem (IPPP)**:
 > This undergraduate thesis develops a production-ready ML classification system that predicts how long invoices will remain unpaid. Using pseudonymized educational institution data, the system classifies invoices into four payment brackets (On-Time, 1–30 days late, 31–60 days late, 61+ days late) to support cash flow forecasting and accounts receivable management.
->
 >
 > The approach combines payment behavior analytics, Cox proportional hazards survival modeling, and a comprehensive comparison of 15 classifier architectures across 7 class-balancing strategies. All 1092 experiments are logged to an SQLite results database with full traceability, feature importance tracking, and cross-validation metrics. Results include an interactive Dash web dashboard for model inspection, invoice-level prediction, and audit logging.
 
