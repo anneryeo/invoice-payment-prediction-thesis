@@ -2,7 +2,7 @@ import os
 import pickle
 import pandas as pd
 import time
-import joblib
+from sklearn.utils.parallel import joblib
 import warnings
 from multiprocessing import Pool, cpu_count
 from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
@@ -277,7 +277,7 @@ def _run_model_experiment_fn(
         }
         return result
 
-    with joblib.parallel_backend('threading'):
+    with joblib.parallel_config(backend='threading'):
         if result_baseline is None:
             pipeline_baseline.initialize_model().fit(use_feature_selection=fs_baseline)
             result_baseline = pipeline_baseline.evaluate().show_results()

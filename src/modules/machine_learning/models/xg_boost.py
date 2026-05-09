@@ -10,15 +10,28 @@ class XGBoostPipeline(BasePipeline):
 
         def xgboost_can_use_gpu():
             """Directly test if XGBoost can actually use the GPU."""
-            try:
-                import xgboost as xgb
-                import numpy as np
-                data = xgb.DMatrix(np.random.rand(10, 3), label=np.random.randint(0, 2, 10))
-                params = {"device": "cuda", "tree_method": "hist", "verbosity": 0}
-                xgb.train(params, data, num_boost_round=1)
-                return True
-            except Exception:
-                return False
+            import warnings
+            import xgboost as xgb
+            import numpy as np
+
+            data = xgb.DMatrix(np.random.rand(10, 3), label=np.random.randint(0, 2, 10))
+            params = {"device": "cuda", "tree_method": "hist", "verbosity": 0}
+
+            with warnings.catch_warnings(record=True) as caught:
+                warnings.simplefilter("always")
+                try:
+                    xgb.train(params, data, num_boost_round=1)
+                except Exception:
+                    return False
+
+            # If XGBoost silently fell back to CPU, it emits a UserWarning mentioning "GPU" or "CPU"
+            for w in caught:
+                if issubclass(w.category, UserWarning) and (
+                    "Device is changed" in str(w.message) or "GPU" in str(w.message)
+                ):
+                    return False
+
+            return True
 
         requested_device = self.parameters.get("device")
 
