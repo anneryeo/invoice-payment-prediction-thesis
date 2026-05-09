@@ -181,6 +181,8 @@ _TWO_STAGE_ESTIMATOR_PAIRS = {
     "two_stage_ada_xgb": (AdaBoostClassifier, XGBClassifier),
 }
 
+# Shared mutable state read by Dash callbacks in step_3.py to drive
+# the progress bar, ETA, and step-circle indicators in real time.
 progress_state = {"completed": 0, "total": 0, "start_time": None}
 
 
@@ -444,8 +446,17 @@ class SurvivalExperimentRunner:
                         if model_name in self.do_not_parallel_compute: sequential_tasks.append(task_tuple)
                         else: parallel_tasks.append(task_tuple)
 
+        total_tasks = len(parallel_tasks) + len(sequential_tasks)
+
         parallel_tasks = [t for t in parallel_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
         sequential_tasks = [t for t in sequential_tasks if _make_task_key(t[0], t[2], t[4], t[5], t[9], t[10]) not in completed_keys]
+
+        done_count = len(prior_results)
+
+        # Update shared state so Dash progress bar shows correct total & ETA
+        progress_state["total"] = total_tasks
+        progress_state["completed"] = done_count
+        progress_state["start_time"] = time.time()
 
         all_results = list(prior_results)
         if parallel_tasks:
@@ -454,16 +465,20 @@ class SurvivalExperimentRunner:
                 for i, (key, result) in enumerate(pool.imap_unordered(_run_task, parallel_tasks), start=1):
                     all_results.append(result)
                     completed_keys.add(key)
+                    done_count += 1
+                    progress_state["completed"] = done_count
                     _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
-                    print(f"[{len(all_results)}/{progress_state['total']}] parallel task done", flush=True)
+                    print(f"[{done_count}/{total_tasks}] parallel task done", flush=True)
 
         for task_tuple in sequential_tasks:
             result = _run_model_experiment_fn(*task_tuple)
             key = _make_task_key(task_tuple[0], task_tuple[2], task_tuple[4], task_tuple[5], task_tuple[9], task_tuple[10])
             all_results.append(result)
             completed_keys.add(key)
+            done_count += 1
+            progress_state["completed"] = done_count
             _save_checkpoint(self.checkpoint_path, completed_keys, all_results)
-            print(f"[{len(all_results)}/{progress_state['total']}] {task_tuple[0]} done", flush=True)
+            print(f"[{done_count}/{total_tasks}] {task_tuple[0]} done", flush=True)
 
         return pd.DataFrame(all_results), self.class_mappings
 
