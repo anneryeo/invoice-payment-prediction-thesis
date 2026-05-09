@@ -3,7 +3,7 @@ import string
 import json
 import os
 
-_DEFAULT_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "Database", "pseudonym_cache.json")
+_DEFAULT_CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "data", 'training_input', "pseudonym_cache.json")
 
 class Pseudonymizer:
     def __init__(self, cache_file=None):
