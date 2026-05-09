@@ -268,7 +268,7 @@ def _run_model_experiment_fn(
     
     if result_baseline is not None and result_enhanced is not None:
         result = {
-            "model": model_name, "underscore_threshold": threshold, "parameters": param_str,
+            "model": model_name, "undersample_threshold": threshold, "parameters": param_str,
             "balance_strategy": balance_strategy, "cache_key": cache_key,
             **{f"baseline_{k}": v for k, v in result_baseline.items()},
             **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
@@ -289,7 +289,7 @@ def _run_model_experiment_fn(
                 _save_cached_model(model_cache_dir, model_name, param_str, balance_strategy, threshold, pipeline_enhanced, result_enhanced, "enhanced")
 
     result = {
-        "model": model_name, "underscore_threshold": threshold, "parameters": param_str,
+        "model": model_name, "undersample_threshold": threshold, "parameters": param_str,
         "balance_strategy": balance_strategy, "cache_key": cache_key,
         **{f"baseline_{k}": v for k, v in result_baseline.items()},
         "baseline_feature_method":      pipeline_baseline.features.method_text,
