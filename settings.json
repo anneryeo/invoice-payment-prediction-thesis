@@ -16,7 +16,7 @@
     "LOGS": "data/training_logs",
     "DEPLOYED_MODELS": "data/training_results/deployed_models",
 
-    "observation_end": "2026/04/24",      // The last available entry date for the research study (YYYY/MM/DD)
+    "observation_end": "2026/05/09",      // The last available entry date for the research study (YYYY/MM/DD)
     "target_feature": "dtp_bracket",
     "test_size": "0.30"
   }
