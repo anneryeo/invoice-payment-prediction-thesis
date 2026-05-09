@@ -12,9 +12,10 @@ from src.utils.pseudonymizer import Pseudonymizer
 
 
 class Revenues:
-    def __init__(self, revenues_folder, directory):
+    def __init__(self, revenues_folder, directory, root=None):
         self.file_location_revenues = self._list_excel_files(revenues_folder)
         self.directory = directory
+        self.root = root
         self.drop_columns = ['Level', 'PR#', 'Full Name', 'Prev PR#', 'Particulars',
                              'Check No.', 'ClaimStatus', 'Is Correct', 'Audit Notes']
 
@@ -123,8 +124,10 @@ class Revenues:
         return df_r
     
     def _pseudonymize(self, df_r) -> pd.DataFrame:
-        p = Pseudonymizer()
-       
+        cache_file = None
+        if self.root:
+            cache_file = os.path.join(self.root, "data", "training_input", "pseudonym_cache.json")
+        p = Pseudonymizer(cache_file=cache_file)
         df_r_pseudo = p.pseudonymize(df_r)
 
         return df_r_pseudo
