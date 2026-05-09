@@ -27,17 +27,22 @@ class _Tee:
     """Writes to both the terminal and the log file simultaneously."""
     def __init__(self, *streams):
         self.streams = streams
+
     def write(self, data):
         for s in self.streams:
             s.write(data)
             s.flush()
+
     def flush(self):
         for s in self.streams:
             s.flush()
 
 
+from src.utils.data_loaders.read_settings_json import read_settings_json
+
 # Create logs folder if it doesn't exist
-log_dir = Path("data/logs")
+settings = read_settings_json()
+log_dir = Path(settings["Training"]["LOGS"])
 log_dir.mkdir(parents=True, exist_ok=True)
 
 log_file = log_dir / f"experiment_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
