@@ -125,6 +125,70 @@ def _allocate_payment_amounts_sequential(args) -> pd.DataFrame:
     return receivables[['cs_index', 'prepayments', 'total_payments']].copy()
 
 
+def _allocate_payment_brackets_sequential(args) -> pd.DataFrame:
+    """
+    Sequentially allocate payments across receivables (earliest due date first)
+    and assign each payment amount into time-based buckets based on days elapsed
+    since the receivable's due date.
+
+    This is the multiple-due-date counterpart of the vectorised single-due-date
+    bracket calculation. Because payments must be applied across receivables in
+    order, bucketing is done inside the allocation loop.
+    """
+    receivables, payments, bucket_cols = args
+
+    payments['payment_date'] = pd.to_datetime(payments['payment_date'], errors='coerce')
+    receivables['due_date'] = pd.to_datetime(receivables['due_date'], errors='coerce')
+
+    payments = payments.sort_values('payment_date').copy()
+    receivables = receivables.sort_values('due_date').copy()
+
+    # Initialise bucket columns
+    receivables.loc[:, bucket_cols[:-1]] = 0.0
+
+    receivables['remaining'] = receivables['credit_sale_amount']
+
+    for _, pay in payments.iterrows():
+        amt = pay['amount_paid']
+        pay_date = pay['payment_date']
+
+        for i in receivables.index:
+            if amt <= 0:
+                break
+            if receivables.at[i, 'remaining'] > 0:
+                apply_amt = min(amt, receivables.at[i, 'remaining'])
+                receivables.at[i, 'remaining'] -= apply_amt
+                amt -= apply_amt
+
+                # Determine bucket based on days elapsed
+                if pd.notnull(pay_date) and pd.notnull(receivables.at[i, 'due_date']):
+                    days = (pay_date - receivables.at[i, 'due_date']).days
+                else:
+                    days = np.inf  # treat missing dates as very late
+
+                if days <= 0:
+                    receivables.at[i, 'prepayments'] += apply_amt
+                elif days <= 30:
+                    receivables.at[i, '30_days'] += apply_amt
+                elif days <= 60:
+                    receivables.at[i, '60_days'] += apply_amt
+                elif days <= 90:
+                    receivables.at[i, '90_days'] += apply_amt
+                elif days <= 120:
+                    receivables.at[i, '120_days'] += apply_amt
+                elif days <= 150:
+                    receivables.at[i, '150_days'] += apply_amt
+                elif days <= 180:
+                    receivables.at[i, '180_days'] += apply_amt
+                else:
+                    receivables.at[i, '180_above'] += apply_amt
+
+    receivables['total_payments'] = receivables[bucket_cols[:-1]].sum(axis=1)
+
+    return_cols = ['cs_index'] + bucket_cols
+    return receivables[return_cols].copy()
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # InvoiceBuilder
 # ─────────────────────────────────────────────────────────────────────────────
@@ -145,11 +209,27 @@ class InvoiceBuilder:
     calculate_payment_amounts : bool, default False
         If True, adds ``prepayments``, ``total_payments``, ``adjusted_credit_amount``,
         and ``net_receivables`` columns.
+    calculate_payment_brackets : bool, default False
+        If True, adds time-based payment bucket columns (``prepayments``,
+        ``30_days``, ``60_days``, ``90_days``, ``120_days``, ``150_days``,
+        ``180_days``, ``180_above``, ``total_payments``), ``adjusted_credit_amount``,
+        and ``net_receivables``.
+        Single due-date records use vectorised bucket assignment; multiple
+        due-date records use sequential allocation (ThreadPool).
+        Mutually exclusive with ``calculate_payment_amounts`` — if both are
+        True, ``calculate_payment_brackets`` takes precedence since it is a
+        superset of the simpler calculation.
     """
 
-    def __init__(self, df_revenues: pd.DataFrame, calculate_payment_amounts: bool = False):
+    def __init__(
+        self,
+        df_revenues: pd.DataFrame,
+        calculate_payment_amounts: bool = False,
+        calculate_payment_brackets: bool = False,
+    ):
         self.df_revenues = df_revenues
         self.calculate_payment_amounts = calculate_payment_amounts
+        self.calculate_payment_brackets = calculate_payment_brackets
 
         self.df_discounts = self._get_discounts(df_revenues)
         self.df_adjustments = self._get_adjustments(df_revenues)
@@ -182,7 +262,22 @@ class InvoiceBuilder:
         print(f"Single due date records:   {len(df_cs_single)}")
         print(f"Multiple due date records: {len(df_cs_multiple)}")
 
-        if self.calculate_payment_amounts:
+        if self.calculate_payment_brackets:
+            bracket_cols = ['prepayments', '30_days', '60_days', '90_days',
+                            '120_days', '150_days', '180_days', '180_above',
+                            'total_payments']
+            for col in bracket_cols:
+                if col not in df_cs.columns:
+                    df_cs[col] = 0.0
+            df_cs[bracket_cols] = df_cs[bracket_cols].fillna(0)
+            df_cs['adjusted_credit_amount'] = (
+                df_cs['credit_sale_amount'] - df_cs['prepayments']
+            )
+            df_cs = df_cs[df_cs['credit_sale_amount'] != 0]
+            df_cs['net_receivables'] = (
+                df_cs['credit_sale_amount'] - df_cs['total_payments']
+            )
+        elif self.calculate_payment_amounts:
             df_cs[['prepayments', 'total_payments']] = (
                 df_cs[['prepayments', 'total_payments']].fillna(0)
             )
@@ -313,7 +408,10 @@ class InvoiceBuilder:
         df_cs = pd.merge(df_cs, df_dd, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
         df_cs = pd.merge(df_cs, df_pd, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
 
-        if self.calculate_payment_amounts:
+        if self.calculate_payment_brackets:
+            df_pb = self._calculate_payment_brackets_single(df_revenues_single, df_dd)
+            df_cs = pd.merge(df_cs, df_pb, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
+        elif self.calculate_payment_amounts:
             df_pa = self._calculate_payment_amounts_single(df_revenues_single, df_dd)
             df_cs = pd.merge(df_cs, df_pa, on=['school_year', 'student_id_pseudonimized', 'category_name'], how='left')
 
@@ -438,6 +536,77 @@ class InvoiceBuilder:
         ).reset_index()
         return df_p
 
+    def _calculate_payment_brackets_single(
+        self, df_revenues: pd.DataFrame, df_dd: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Calculate payment amounts with time-based bucketing for single due date invoices.
+
+        Uses vectorised conditional assignment — each payment row is placed into
+        exactly one bucket based on the number of days elapsed between the
+        payment date and the invoice due date. This is the matrix-optimised
+        counterpart to the sequential allocation used for multiple due dates.
+
+        Parameters
+        ----------
+        df_revenues : pd.DataFrame
+            Revenue records for single due date students.
+        df_dd : pd.DataFrame
+            Due dates per student/category (from _calculate_due_dates_single).
+
+        Returns
+        -------
+        pd.DataFrame
+            Columns: school_year, student_id_pseudonimized, category_name,
+                     prepayments, 30_days, 60_days, 90_days, 120_days,
+                     150_days, 180_days, 180_above, total_payments
+        """
+        df_p = df_revenues[['school_year', 'student_id_pseudonimized', 'entry_date',
+                             'category_name', 'amount_paid', 'receivables']]
+        df_p = df_p[df_p['receivables'] < 0]
+        df_p = pd.merge(
+            df_dd, df_p,
+            on=['school_year', 'student_id_pseudonimized', 'category_name'],
+            how='left'
+        )
+        df_p = df_p.drop(columns=['receivables'])
+        df_p.rename(columns={'entry_date': 'payment_date'}, inplace=True)
+        df_p = df_p.dropna(subset=['amount_paid'])
+        df_p = df_p[df_p['amount_paid'] != 0]
+        df_p['amount_paid'] = df_p['amount_paid'].fillna(0)
+
+        df_p['Days Elapsed'] = (df_p['payment_date'] - df_p['due_date']).dt.days
+
+        # Define buckets: (lower_bound, upper_bound)
+        buckets = {
+            'prepayments': (None, 0),
+            '30_days': (1, 30),
+            '60_days': (31, 60),
+            '90_days': (61, 90),
+            '120_days': (91, 120),
+            '150_days': (121, 150),
+            '180_days': (151, 180),
+            '180_above': (181, None),
+        }
+
+        # Apply logic for each bucket
+        for name, (lower, upper) in buckets.items():
+            if lower is None:  # prepayments
+                df_p[name] = df_p.apply(lambda r: r['amount_paid'] if r['Days Elapsed'] <= upper else 0, axis=1)
+            elif upper is None:  # open-ended
+                df_p[name] = df_p.apply(lambda r: r['amount_paid'] if r['Days Elapsed'] >= lower else 0, axis=1)
+            else:  # bounded range
+                df_p[name] = df_p.apply(lambda r: r['amount_paid'] if lower <= r['Days Elapsed'] <= upper else 0, axis=1)
+
+        # Total payments
+        df_p['total_payments'] = df_p[list(buckets.keys())].sum(axis=1)
+
+        df_p = df_p.groupby(['school_year', 'student_id_pseudonimized', 'category_name']).sum(numeric_only=True)
+        df_p.reset_index(inplace=True)
+        df_p = df_p.drop(columns=['amount_paid', 'Days Elapsed'])
+
+        return df_p
+
     # ── Multiple due-date path ────────────────────────────────────────────────
 
     def _get_credit_sales_multiple(self, df_revenues_multiple: pd.DataFrame) -> pd.DataFrame:
@@ -447,7 +616,9 @@ class InvoiceBuilder:
         )
         df_cs = self._merge_latest_payment_dates_multiple(df_revenues_multiple, df_cs)
 
-        if self.calculate_payment_amounts:
+        if self.calculate_payment_brackets:
+            df_cs = self._merge_payment_brackets_multiple(df_revenues_multiple, df_cs)
+        elif self.calculate_payment_amounts:
             df_cs = self._merge_payment_amounts_multiple(df_revenues_multiple, df_cs)
 
         return df_cs
@@ -580,6 +751,76 @@ class InvoiceBuilder:
             how='left'
         ).drop(columns=['cs_index'])
         df_cs[['prepayments', 'total_payments']] = df_cs[['prepayments', 'total_payments']].fillna(0)
+
+        return df_cs
+
+    def _merge_payment_brackets_multiple(
+        self, df_revenues_multiple: pd.DataFrame, df_cs: pd.DataFrame
+    ) -> pd.DataFrame:
+        """
+        Calculate payment amounts with time-based bucketing for multiple due date invoices.
+
+        Payments are allocated sequentially across due dates (earliest first).
+        Each payment amount is placed into a bucket based on days elapsed since
+        the receivable's due date. Uses ThreadPool for parallel processing of
+        student-category groups.
+
+        Parameters
+        ----------
+        df_revenues_multiple : pd.DataFrame
+            Revenue records for multiple due date students.
+        df_cs : pd.DataFrame
+            Credit sales DataFrame with credit_sale_amount and due_date per row.
+
+        Returns
+        -------
+        pd.DataFrame
+            df_cs with added bucket columns: prepayments, 30_days, 60_days,
+            90_days, 120_days, 150_days, 180_days, 180_above, total_payments.
+        """
+        df_p = (
+            df_revenues_multiple[['school_year', 'student_id_pseudonimized', 'entry_date',
+                                   'category_name', 'amount_paid', 'receivables']]
+            .query("receivables < 0 and amount_paid.notnull() and amount_paid != 0")
+            .rename(columns={'entry_date': 'payment_date'})
+            .assign(amount_paid=lambda d: d['amount_paid'].fillna(0))
+        )
+        df_p.set_index(['school_year', 'student_id_pseudonimized', 'category_name'], inplace=True)
+
+        bucket_cols = ['prepayments', '30_days', '60_days', '90_days',
+                       '120_days', '150_days', '180_days', '180_above', 'total_payments']
+
+        # Ensure bucket columns exist in df_cs
+        for col in bucket_cols:
+            if col not in df_cs.columns:
+                df_cs[col] = 0.0
+
+        tasks = []
+        for keys, payments in df_p.groupby(level=[0, 1, 2]):
+            receivables = df_cs[
+                (df_cs['school_year'] == keys[0]) &
+                (df_cs['student_id_pseudonimized'] == keys[1]) &
+                (df_cs['category_name'] == keys[2])
+            ].sort_values(by='due_date').copy()
+            receivables['cs_index'] = receivables.index
+            tasks.append((receivables, payments, bucket_cols))
+
+        with ThreadPool(processes=cpu_count()) as pool:
+            results = pool.map(_allocate_payment_brackets_sequential, tasks)
+
+        df_bracket_amounts = pd.concat(results, ignore_index=True)
+        merge_cols = ['cs_index'] + bucket_cols
+        df_cs = df_cs.merge(
+            df_bracket_amounts[merge_cols],
+            left_index=True,
+            right_on='cs_index',
+            how='left',
+            suffixes=('_old', '')
+        )
+        # Drop old bucket columns from the left side and the cs_index key
+        old_cols = [c + '_old' for c in bucket_cols if c + '_old' in df_cs.columns]
+        df_cs = df_cs.drop(columns=['cs_index'] + old_cols)
+        df_cs[bucket_cols] = df_cs[bucket_cols].fillna(0)
 
         return df_cs
 
@@ -1464,6 +1705,13 @@ class CreditSalesProcessor:
     --------------------
     calculate_payment_amounts : bool, default False
         Adds prepayments, total_payments, adjusted_credit_amount, net_receivables.
+    calculate_payment_brackets : bool, default False
+        Adds time-based payment bucket columns (prepayments, 30_days, 60_days,
+        90_days, 120_days, 150_days, 180_days, 180_above, total_payments),
+        adjusted_credit_amount, and net_receivables.
+        Single due-date records use vectorised bucket assignment; multiple
+        due-date records use sequential allocation (ThreadPool).
+        Takes precedence over calculate_payment_amounts if both are True.
 
     Post-processing filters
     -----------------------
@@ -1518,6 +1766,7 @@ class CreditSalesProcessor:
         args,
         # ── invoice construction ──────────────────────────────────────────────
         calculate_payment_amounts: bool = False,
+        calculate_payment_brackets: bool = False,
         # ── post-processing ───────────────────────────────────────────────────
         drop_helper_columns: bool = False,
         drop_demographic_columns: bool = False,
@@ -1546,6 +1795,7 @@ class CreditSalesProcessor:
         builder = InvoiceBuilder(
             df_revenues=df_revenues,
             calculate_payment_amounts=calculate_payment_amounts,
+            calculate_payment_brackets=calculate_payment_brackets,
         )
         df_cs = builder.build()
 
