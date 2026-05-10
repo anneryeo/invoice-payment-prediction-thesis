@@ -12,7 +12,7 @@
 * Submitted and accepted at the 18th International Conference on Computer Modeling and Simulation (ICCMS) 2026 that is co-sponsored by **Intelligent IoT System Modeling and Simulation Committee of China Simulation Federation**, China; **Hangzhou International Innovation Institute of Beihang University**, China and IEEE, hosted by Hangzhou International Innovation Institute of Beihang University, China, assisted by Beihang University, China.
 * To be presented onsite at Hangzhou, China by C.J.L. Reyes on May 15 to 17.
 
-**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Step Approach**
+**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Stage Approach**
 
 * In progress. This version presents **better results** by applying Survival-Analysis, Multistage Classification for granular payment prediction.
 
