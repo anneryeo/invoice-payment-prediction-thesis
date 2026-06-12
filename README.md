@@ -12,7 +12,7 @@
 * Submitted and accepted at the 18th International Conference on Computer Modeling and Simulation (ICCMS) 2026 that is co-sponsored by **Intelligent IoT System Modeling and Simulation Committee of China Simulation Federation**, China; **Hangzhou International Innovation Institute of Beihang University**, China and IEEE, hosted by Hangzhou International Innovation Institute of Beihang University, China, assisted by Beihang University, China.
 * To be presented onsite at Hangzhou, China by C.J.L. Reyes on May 15 to 17.
 
-**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Step Approach**
+**V2 Title: Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Stage Approach**
 
 * In progress. This version presents **better results** by applying Survival-Analysis, Multistage Classification for granular payment prediction.
 
@@ -40,7 +40,7 @@ Accurate bracket prediction enables an educational institution to:
 - Prioritize collection efforts
 - Assess invoice-level repayment risk
 
-The dataset covers student enrollee revenue records (through March 31, 2026) from a **pseudonymized** educational institution.
+The dataset covers student enrollee revenue records (through May 09, 2026) from a **pseudonymized** educational institution.
 
 ---
 
@@ -68,7 +68,7 @@ Anyone replicating this study must supply their own institutional data that can 
 
 ### 1. Data & Feature Engineering
 
-Raw data is sourced from three Excel files (pseudonymized and stored in `database/`):
+Raw data is sourced from three Excel files (pseudonymized and stored in `data/training_input/`):
 
 - **Revenues** — itemized receivables, discounts, adjustments, payment dates
 - **Enrollees** — student enrollment records per school year
@@ -154,7 +154,7 @@ First-stage binary classifier separates on-time vs. delinquent; second-stage cla
 × 2 feature phases (baseline / enhanced)
 ```
 
-All experiments are logged to a **SQLite results database** (`results/2026_04_18_02/results.db`) with tables for:
+All experiments are logged to a **SQLite results database** (`data/training_results/2026_05_09_02/results.db`) with tables for:
 
 - `experiments` — one row per experiment (model, strategy, params, phase)
 - `metrics` — train/test accuracy, F1, AUC, precision, recall per experiment
@@ -198,14 +198,20 @@ A **Dash** (Plotly) web application (`run_app.py`) provides an interactive front
 ├── .gitignore
 ├── FEATURE_REFERENCE.md
 │
-├── database/                       # Source Excel datasets (pseudonymized)
-│   ├── revenues_pseudonymized.xlsx
-│   ├── enrollees_pseudonymized.xlsx
-│   └── chart_of_accounts.xlsx
+├── data/
+│   ├── _training_results_archived/ # Archived results from earlier (buggy) runs
+│   ├── cache/                      # Intermediate data caches
+│   ├── eda_results/                # Outputs from EDA notebooks
+│   ├── results_graphics/           # Figures used in the paper
+│   ├── temp_cache/                 # Temporary processing cache
+│   ├── training_input/             # Source datasets (pseudonymized)
+│   ├── training_logs/              # Experiment execution logs
+│   └── training_results/           # SQLite results databases from experiment runs
+│       ├── 2026_05_09_01/
+│       ├── 2026_05_09_02/          # ✓ Latest valid results (1092 experiments)
+│       └── deployed_models/        # Production-ready model artifacts
 │
-├── results/                        # SQLite results databases from experiment runs
-│   └── 2026_04_18_02/              # ✓ Latest valid results (1092 experiments)
-│       └── results.db
+├── docs/                           # Various internal project documentations
 │
 ├── src/
 │   ├── app/                        # Dash app components (screens, utils, assets)
@@ -221,13 +227,9 @@ A **Dash** (Plotly) web application (`run_app.py`) provides an interactive front
 │   └── training/                   # Primary ML training notebooks
 │
 ├── environments/                   # Conda/pip environment specs
-├── data/                           # Generated results (graphics, results)
-│   ├── eda_results/                # Outputs from EDA notebooks
-│   └── Results_Base-Graphics-for-Paper/ # Figures used in the paper
+├── misc-experiments/               # Miscellaneous experimental scripts
 └── tests/                          # Unit and integration tests
 ```
-
-> **Note:** Root-level directories like `machine_learning/` or `app/` (without `src/` prefix) are remnants or contain execution caches (`__pycache__`) and should be disregarded. All active source code resides within `src/`.
 
 ---
 
@@ -261,9 +263,9 @@ A **Dash** (Plotly) web application (`run_app.py`) provides an interactive front
 
 Before running the pipeline, make sure the following folders exist in your local project root:
 
-- `results/`
-- `data/logs/`
-- `data/training_input/` (or use `database/` as the source)
+- `data/training_results/`
+- `data/training_logs/`
+- `data/training_input/`
 
 These paths are used by the notebooks, experiment runner, and exports. Any raw database exports should be placed locally and must remain excluded from version control.
 
@@ -291,11 +293,11 @@ Before executing experiments, review `settings.json` carefully. This file contro
 Important: update `observation_end` to match the last available entry in your dataset so that feature engineering, labeling, and experiment windows align with your most recent data.
 
 ```bash
-# Headless full pipeline run (logs to data/logs/)
+# Headless full pipeline run (logs to data/training_logs/)
 python run_experiment.py
 
 # Monitor live output (PowerShell)
-Get-Content data/logs/experiment_log_*.txt -Wait
+Get-Content data/training_logs/experiment_log_*.txt -Wait
 ```
 
 ### Running the Web App
@@ -309,23 +311,23 @@ python run_app.py
 Open the results notebooks in [`notebooks/results/`](notebooks/results/) and point them to the latest results DB:
 
 ```
-results/2026_04_18_02/results.db
+data/training_results/2026_05_09_02/results.db
 ```
 
 ---
 
-## Results Summary (as of April 18, 2026)
+## Results Summary (as of May 9, 2026)
 
 - **1092 experiments** completed across all model/strategy/phase combinations
 - **Two-stage classifiers** (notably XGB → AdaBoost) show the strongest overall performance
 - **Cox PH C-index:** 0.7817 — survival features provide meaningful additional signal
 - **Top separating features** (from LDA): `opening_balance_flag`, `opening_balance`, `prev_bracket`, `dtp_wavg`
-- Result figures are currently generated to [`data/Results_Base-Graphics-for-Paper/`](data/Results_Base-Graphics-for-Paper/) by the analysis notebooks
+- Result figures are currently generated to [`data/results_graphics/`](data/results_graphics/) by the analysis notebooks
 
 ---
 
 ## Notes for Reviewers
 
 - Neural network models (RNN, Transformer, MLP) were evaluated in an earlier phase and archived in `src/modules/machine_learning/models/_archived/` — they are not part of the final experiment results.
-- The `data/_training_results_archived/` folder contains results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `results/2026_04_18_02/` contains valid, bug-corrected results.
+- The `data/_training_results_archived/` folder contains results from runs with known bugs (resampling accumulation, test leakage, schema issues) and should be disregarded. Only `data/training_results/2026_05_09_02/` contains valid, bug-corrected results.
 - All date fields in the dataset have been shifted/pseudonymized. No real student identifiers are present in any committed file.
