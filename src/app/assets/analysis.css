@@ -1,0 +1,22 @@
+/* analysis.css — inherited by Model Analysis screen; most styles in global.css */
+
+.analysis-container {
+  padding: 0;
+}
+
+.analysis-header {
+  margin-bottom: 24px;
+}
+
+.analysis-title {
+  font-size:   1.5rem;
+  font-weight: 700;
+  color:       var(--primary, #1b3a6b);
+  margin:      0 0 8px;
+}
+
+.analysis-divider {
+  border:     none;
+  border-top: 2px solid var(--border, #e5e1d8);
+  margin:     0;
+}
