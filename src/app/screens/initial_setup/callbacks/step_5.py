@@ -221,8 +221,22 @@ def _train_selected_model(
 def _train_survival_model(df_data_surv, results_root: str) -> dict:
     session          = SessionStore(results_root).load()
     survival_results = session["survival_results"]
-    best_params      = survival_results["best_surv_parameters"]
-    best_time_points = survival_results["best_time_points"]
+    # "best_parameters"/"time_points" are the old notebook key names; fall back
+    # for sessions saved before the notebook was corrected to use the app keys.
+    best_params = survival_results.get("best_surv_parameters") or survival_results.get("best_parameters")
+    if best_params is None:
+        raise KeyError(
+            f"survival_results is missing 'best_surv_parameters'. "
+            f"Available keys: {list(survival_results.keys())!r}. "
+            "Re-run Step 3 to regenerate the session."
+        )
+    best_time_points = survival_results.get("best_time_points") or survival_results.get("time_points")
+    if best_time_points is None:
+        raise KeyError(
+            f"survival_results is missing 'best_time_points'. "
+            f"Available keys: {list(survival_results.keys())!r}. "
+            "Re-run Step 3 to regenerate the session."
+        )
 
     # Prepare features and structured survival target
     T = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
