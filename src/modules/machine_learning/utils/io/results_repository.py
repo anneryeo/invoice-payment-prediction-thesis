@@ -187,42 +187,6 @@ class ResultsRepository:
             return text
 
     @staticmethod
-    def _coerce_params(value) -> dict:
-        """
-        Guarantee that a parameters value is a plain dict.
-
-        Old training runs stored parameters as ``str(sorted(param.items()))``
-        — a Python repr of a list of (key, value) tuples — serialized via
-        ``_to_json`` as a JSON string.  ``_from_json`` successfully
-        JSON-decodes that outer wrapper and returns the inner Python repr
-        string, so the ``ast.literal_eval`` fallback inside ``_from_json``
-        is never reached.  This method handles all surviving shapes:
-
-        * ``dict``  → returned as-is.
-        * ``list``  → ``dict(value)`` (list of tuples from ``ast.literal_eval``).
-        * ``str``   → ``ast.literal_eval`` then ``dict()`` if list/tuple.
-        * anything else (``None``, NaN, …) → ``{}``.
-        """
-        if isinstance(value, dict):
-            return value
-        if isinstance(value, list):
-            try:
-                return dict(value)
-            except (TypeError, ValueError):
-                return {}
-        if isinstance(value, str) and value:
-            try:
-                import ast as _ast
-                recovered = _ast.literal_eval(value)
-                if isinstance(recovered, dict):
-                    return recovered
-                if isinstance(recovered, (list, tuple)):
-                    return dict(recovered)
-            except (ValueError, SyntaxError):
-                pass
-        return {}
-
-    @staticmethod
     def _param_hash(params: dict) -> str:
         """Return a 6-character MD5 hex digest of the serialized parameter dict."""
         sig = json.dumps(params, sort_keys=True) if params else "default"
@@ -414,7 +378,7 @@ class ResultsRepository:
         with sqlite3.connect(self.db_path) as con:
             df = pd.read_sql(sql, con)
 
-        df["parameters"] = df["parameters"].apply(self._from_json).apply(self._coerce_params)
+        df["parameters"] = df["parameters"].apply(self._from_json)
         return df
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -519,6 +483,13 @@ class ResultsRepository:
             candidate = ast.literal_eval(raw)
             if isinstance(candidate, dict):
                 return candidate
+            # Old single-stage sessions stored param_str = str(sorted(param.items()))
+            # which produces a list of (key, value) tuples.  Convert it to a dict.
+            if isinstance(candidate, (list, tuple)):
+                try:
+                    return dict(candidate)
+                except (TypeError, ValueError):
+                    pass
         except (ValueError, SyntaxError):
             pass
         # "stage1={...}, stage2={...}" — not a Python literal (keyword= prefix),
