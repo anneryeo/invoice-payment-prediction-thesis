@@ -414,7 +414,7 @@ class ResultsRepository:
         with sqlite3.connect(self.db_path) as con:
             df = pd.read_sql(sql, con)
 
-        df["parameters"] = df["parameters"].apply(self._from_json)
+        df["parameters"] = df["parameters"].apply(self._from_json).apply(self._coerce_params)
         return df
 
     # ══════════════════════════════════════════════════════════════════════════
