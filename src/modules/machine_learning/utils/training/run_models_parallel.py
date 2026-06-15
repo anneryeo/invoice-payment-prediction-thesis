@@ -270,7 +270,7 @@ def _run_model_experiment_fn(
     
     if result_baseline is not None and result_enhanced is not None:
         result = {
-            "model": model_name, "undersample_threshold": threshold, "parameters": param_str,
+            "model": model_name, "undersample_threshold": threshold, "parameters": param,
             "balance_strategy": balance_strategy, "cache_key": cache_key,
             **{f"baseline_{k}": v for k, v in result_baseline.items()},
             **{f"enhanced_{k}": v for k, v in result_enhanced.items()},
@@ -291,7 +291,7 @@ def _run_model_experiment_fn(
                 _save_cached_model(model_cache_dir, model_name, param_str, balance_strategy, threshold, pipeline_enhanced, result_enhanced, "enhanced")
 
     result = {
-        "model": model_name, "undersample_threshold": threshold, "parameters": param_str,
+        "model": model_name, "undersample_threshold": threshold, "parameters": param,
         "balance_strategy": balance_strategy, "cache_key": cache_key,
         **{f"baseline_{k}": v for k, v in result_baseline.items()},
         "baseline_feature_method":      pipeline_baseline.features.method_text,
@@ -529,9 +529,48 @@ class FinalizationRunner:
             X_enhanced = lda.fit_transform(X_enhanced, y_full)
 
         model_params = getattr(self.args, "parameters", {}) or {}
+        # Defensive recovery: if parameters arrive as a string they were stored
+        # by an old version of the code.  Try three progressively looser parses:
+        #   1. json.loads  — handles JSON-encoded dicts
+        #   2. ast.literal_eval — handles Python repr dicts (single-quoted)
+        #   3. regex — handles the old "stage1={...}, stage2={...}" param_str
+        if isinstance(model_params, str) and model_params:
+            import json as _json, ast as _ast, re as _re
+            try:
+                model_params = _json.loads(model_params)
+            except (ValueError, _json.JSONDecodeError):
+                pass
+            if isinstance(model_params, str):
+                try:
+                    candidate = _ast.literal_eval(model_params)
+                    if isinstance(candidate, dict):
+                        model_params = candidate
+                except (ValueError, SyntaxError):
+                    pass
+            if isinstance(model_params, str):
+                _matches = _re.findall(r'(stage\d+)=(\{[^{}]*\})', model_params)
+                _recovered = {}
+                for _k, _v in _matches:
+                    try:
+                        _recovered[_k] = _ast.literal_eval(_v)
+                    except (ValueError, SyntaxError):
+                        pass
+                model_params = _recovered if _recovered else {}
         if self.model_key in _TWO_STAGE_ESTIMATOR_PAIRS:
             s1_cls, s2_cls = _TWO_STAGE_ESTIMATOR_PAIRS[self.model_key]
-            pipeline = TwoStagePipeline(X_enhanced, X_enhanced, y_full, y_full, self.args, stage1_estimator=s1_cls(**model_params["stage1"]), stage2_estimator=s2_cls(**model_params["stage2"]), use_lda=self.use_lda, lda_mode=self.lda_mode)
+            stage1_p = model_params.get("stage1") if isinstance(model_params, dict) else None
+            stage2_p = model_params.get("stage2") if isinstance(model_params, dict) else None
+            if stage1_p is None or stage2_p is None:
+                print(
+                    f"[WARNING] Tuned hyperparameters for '{self.model_key}' could not be "
+                    "recovered (stage1/stage2 keys missing from the parameters dict). "
+                    "Training will proceed with estimator defaults. "
+                    "Re-run Step 4 to regenerate the session with correctly stored parameters.",
+                    flush=True,
+                )
+                stage1_p = stage1_p or {}
+                stage2_p = stage2_p or {}
+            pipeline = TwoStagePipeline(X_enhanced, X_enhanced, y_full, y_full, self.args, stage1_estimator=s1_cls(**stage1_p), stage2_estimator=s2_cls(**stage2_p), use_lda=self.use_lda, lda_mode=self.lda_mode)
         elif self.model_key in _ORDINAL_ESTIMATOR_MAP:
             pipeline = OrdinalPipeline(X_enhanced, X_enhanced, y_full, y_full, self.args, parameters={"scale_pos_weight": model_params.get("scale_pos_weight", True)}, base_estimator=_ORDINAL_ESTIMATOR_MAP[self.model_key](**{k:v for k,v in model_params.items() if k!="scale_pos_weight"}))
         else:

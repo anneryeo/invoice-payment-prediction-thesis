@@ -163,6 +163,10 @@ class ResultsRepository:
         """
         Deserialize a JSON string.  Returns the original value unchanged
         when it is not a string or is not valid JSON.
+
+        Falls back to ``ast.literal_eval`` so that old sessions whose
+        parameters column was stored as a Python repr string (single-quoted
+        dict, not valid JSON) are still recovered correctly.
         """
         if text is None or (isinstance(text, float) and np.isnan(text)):
             return text
@@ -173,7 +177,50 @@ class ResultsRepository:
         try:
             return json.loads(text)
         except (json.JSONDecodeError, ValueError):
+            pass
+        # json.loads failed — try ast.literal_eval for Python repr strings
+        # (e.g. "{'stage1': {...}, 'stage2': {...}}" with single quotes).
+        try:
+            import ast
+            return ast.literal_eval(text)
+        except (ValueError, SyntaxError):
             return text
+
+    @staticmethod
+    def _coerce_params(value) -> dict:
+        """
+        Guarantee that a parameters value is a plain dict.
+
+        Old training runs stored parameters as ``str(sorted(param.items()))``
+        — a Python repr of a list of (key, value) tuples — serialized via
+        ``_to_json`` as a JSON string.  ``_from_json`` successfully
+        JSON-decodes that outer wrapper and returns the inner Python repr
+        string, so the ``ast.literal_eval`` fallback inside ``_from_json``
+        is never reached.  This method handles all surviving shapes:
+
+        * ``dict``  → returned as-is.
+        * ``list``  → ``dict(value)`` (list of tuples from ``ast.literal_eval``).
+        * ``str``   → ``ast.literal_eval`` then ``dict()`` if list/tuple.
+        * anything else (``None``, NaN, …) → ``{}``.
+        """
+        if isinstance(value, dict):
+            return value
+        if isinstance(value, list):
+            try:
+                return dict(value)
+            except (TypeError, ValueError):
+                return {}
+        if isinstance(value, str) and value:
+            try:
+                import ast as _ast
+                recovered = _ast.literal_eval(value)
+                if isinstance(recovered, dict):
+                    return recovered
+                if isinstance(recovered, (list, tuple)):
+                    return dict(recovered)
+            except (ValueError, SyntaxError):
+                pass
+        return {}
 
     @staticmethod
     def _param_hash(params: dict) -> str:
@@ -451,6 +498,44 @@ class ResultsRepository:
     #  READ — MODELS-compatible dict
     # ══════════════════════════════════════════════════════════════════════════
 
+    @staticmethod
+    def _try_recover_params(raw) -> dict:
+        """
+        Recover a parameters dict from a non-dict string value left by old
+        serialization code.  Handles two formats:
+
+        1. Python repr dict:  ``"{'stage1': {...}, 'stage2': {...}}"``
+           (stored via ``str(param)`` which uses single quotes).
+        2. Old two-stage param_str: ``"stage1={'n_est': 100}, stage2={'n_est': 50}"``
+           (stored via ``f"stage1={param['stage1']}, stage2={param['stage2']}"``,
+           produced by the original ``_run_model_experiment_fn`` code).
+
+        Returns ``{}`` when recovery fails.
+        """
+        if not isinstance(raw, str) or not raw:
+            return {}
+        import ast, re as _re
+        try:
+            candidate = ast.literal_eval(raw)
+            if isinstance(candidate, dict):
+                return candidate
+        except (ValueError, SyntaxError):
+            pass
+        # "stage1={...}, stage2={...}" — not a Python literal (keyword= prefix),
+        # so ast.literal_eval won't work.  Extract each stageN={...} pair with
+        # a regex, then parse each dict value individually.
+        matches = _re.findall(r'(stage\d+)=(\{[^{}]*\})', raw)
+        if matches:
+            recovered = {}
+            for k, v in matches:
+                try:
+                    recovered[k] = ast.literal_eval(v)
+                except (ValueError, SyntaxError):
+                    pass
+            if recovered:
+                return recovered
+        return {}
+
     def load_models_dict(self) -> dict:
         """
         Build the ``MODELS``-compatible dict used by the Dash dashboard.
@@ -459,8 +544,9 @@ class ResultsRepository:
         models: dict = {}
 
         for _, row in df.iterrows():
-            params   = row["parameters"] if isinstance(row["parameters"], dict) else {}
-            p_hash   = row["param_hash"] or self._param_hash(params)
+            raw_p  = row["parameters"]
+            params = raw_p if isinstance(raw_p, dict) else self._try_recover_params(raw_p)
+            p_hash = row["param_hash"] or self._param_hash(params)
             slug     = re.sub(r"\s+", "_", str(row["model"])).lower()
             key      = f"{slug}__{row['balance_strategy']}__{p_hash}"
 
