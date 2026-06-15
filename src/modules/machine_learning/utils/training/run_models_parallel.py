@@ -497,7 +497,19 @@ class FinalizationRunner:
         self.feature_metadata = feature_metadata or {}
 
     def train(self):
-        from src.modules.machine_learning import AdaBoostPipeline, DecisionTreePipeline, GaussianNaiveBayesPipeline, KNearestNeighborPipeline, RandomForestPipeline, XGBoostPipeline, StackedEnsemblePipeline, MultiLayerPerceptronPipeline, TransformerPipeline, OrdinalPipeline, TwoStagePipeline
+        from src.modules.machine_learning import (
+            AdaBoostPipeline,
+            DecisionTreePipeline,
+            GaussianNaiveBayesPipeline,
+            KNearestNeighborPipeline,
+            RandomForestPipeline,
+            XGBoostPipeline,
+            StackedEnsemblePipeline,
+            #MultiLayerPerceptronPipeline,
+            #TransformerPipeline,
+            OrdinalPipeline,
+            TwoStagePipeline,
+        )
         from src.modules.machine_learning.utils.features.generate_survival_features import generate_survival_features
         from src.modules.machine_learning.utils.data.data_preparation import DataPreparer
         from src.modules.machine_learning.utils.inference.inference_pipeline import InferencePipeline
