@@ -212,17 +212,17 @@ def _train_selected_model(
     from src.modules.machine_learning.utils.training.run_models_parallel import FinalizationRunner
 
     runner = FinalizationRunner(
-        df_data=df_data,
-        df_data_surv=df_data_surv,
-        model_key=model_key,
-        balance_strategy=balance_strategy,
-        args=args,
-        best_surv_params=best_surv_params,
-        fitted_cph=fitted_cph,
-        cox_scaler=cox_scaler,
-        use_lda=use_lda,
-        lda_mode=lda_mode,
-        feature_metadata=feature_metadata,
+        df_data          = df_data,
+        df_data_surv     = df_data_surv,
+        model_key        = model_key,
+        balance_strategy = balance_strategy,
+        args             = args,
+        best_surv_params = best_surv_params,
+        fitted_cph       = fitted_cph,
+        cox_scaler       = cox_scaler,
+        use_lda          = use_lda,
+        lda_mode         = lda_mode,
+        feature_metadata = feature_metadata,
     )
     # runner.train() now returns (InferencePipeline, label_encoder).
     # The InferencePipeline is the fully self-contained bundle that
