@@ -1,20 +1,18 @@
 # screens/invoice_drilldown.py
 #
 # Invoice Prediction Drilldown
-# Loads the processed invoice cache, runs the deployed InferencePipeline,
-# and displays per-invoice predictions with confidence scores.
+# Builds the invoice feature DataFrame via CreditSalesProcessor, runs the
+# deployed InferencePipeline, and displays per-invoice predictions with
+# confidence scores.
 # Supports toggleable bracket filtering, column sorting, CSV export, and
 # an expected cash flow projection chart.
 
 from __future__ import annotations
 
-import io
-import os
-import glob
 import logging
-import pickle
 import re
 from collections import Counter, defaultdict
+from datetime import datetime
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -24,147 +22,19 @@ from dash.exceptions import PreventUpdate
 from src.app import dash_app
 from src.utils.data_loaders.read_settings_json import read_settings_json
 from src.app.utils.audit_logger import log_event
+from src.modules.feature_engineering.credit_sales_machine_learning import CreditSalesProcessor
+from src.modules.machine_learning.utils.inference.inference_pipeline import (
+    load_inference_pipeline,
+    _BRACKET_LABELS,
+    _INTERNAL_KEYS,
+)
 
 _logger = logging.getLogger(__name__)
 
-# Bracket display
-_BRACKET_LABELS = {
-    "on_time": "On Time",
-    "30_days": "1–30 Days",
-    "60_days": "31–60 Days",
-    "90_days": "61+ Days",
-}
 _BRACKET_OPTIONS = [{"label": "All Brackets", "value": "all"}] + [
     {"label": v, "value": k} for k, v in _BRACKET_LABELS.items()
 ]
 _ALL_BRACKET_KEYS = ["on_time", "30_days", "60_days", "90_days"]
-
-# Internal keys that live in the predictions store but must never reach the
-# visible DataTable rows or CSV export.
-_INTERNAL_KEYS = {"_pred_key", "_amount_raw", "prediction", "confidence"}
-
-# Columns that are metadata / target — not passed to the model.
-# Used only as a fallback when the pipeline's fitted scaler doesn't expose
-# feature_names_in_ (e.g. a legacy artifact); the normal path below derives
-# the real feature list from the pipeline itself.
-_NON_FEATURE_COLS = {"dtp_bracket", "due_date", "date_fully_paid",
-                     "censor", "days_elapsed_until_fully_paid"}
-# Columns we want to show as display info when present
-_DISPLAY_COLS     = ["due_date", "gross_receivables", "net_receivables",
-                     "school_year", "category_name", "student_id_pseudonimized"]
-
-
-def _select_feature_columns(df_full: pd.DataFrame, pipeline) -> pd.DataFrame:
-    """
-    Build the raw feature matrix the pipeline expects.
-
-    Prefers the fitted scaler's feature_names_in_ (the actual columns seen
-    at training time — see DataPreparer.normalize()) over the hand-maintained
-    _NON_FEATURE_COLS exclusion list, since the latter can silently drift out
-    of sync with what the model was trained on.
-    """
-    scaler   = getattr(pipeline, "scaler", None)
-    expected = list(getattr(scaler, "feature_names_in_", []))
-    if expected:
-        missing = [c for c in expected if c not in df_full.columns]
-        if missing:
-            raise ValueError(
-                f"Invoice cache is missing {len(missing)} column(s) required "
-                f"by the deployed model: {missing}"
-            )
-        return df_full[expected].copy()
-
-    feature_cols = [c for c in df_full.columns if c not in _NON_FEATURE_COLS]
-    return df_full[feature_cols].copy()
-
-
-def _extract_amount(df_full: pd.DataFrame, i: int) -> float | None:
-    """
-    Pull the display amount for row *i*. credit_sale_amount is the actual
-    cache column (verified against data/training_results/credit_sales_cache.pkl);
-    net_receivables/gross_receivables are kept as fallbacks in case the cache
-    schema changes. Handles numeric dtypes, NaN, and string values that may
-    contain currency symbols or commas (e.g. '₱1,234.56').
-    """
-    for col in ("credit_sale_amount", "net_receivables", "net_receivable",
-                "gross_receivables", "gross_receivable"):
-        if col not in df_full.columns:
-            continue
-        val = df_full[col].iloc[i]
-        if val is None:
-            continue
-        try:
-            fval = float(val)
-            if not pd.isna(fval):
-                return fval
-        except (TypeError, ValueError):
-            pass
-        if isinstance(val, str):
-            cleaned = val.replace("₱", "").replace(",", "").strip()
-            try:
-                fval = float(cleaned)
-                if not pd.isna(fval):
-                    return fval
-            except (TypeError, ValueError):
-                pass
-    return None
-
-
-def _run_predictions(
-    df_full: pd.DataFrame,
-    pipeline,
-    page: int = 1,
-    page_size: int = 15,
-    bracket_filter: str = "all",
-) -> tuple[list[dict], int]:
-    """
-    Run inference on the full cache DataFrame.
-
-    Returns (table_rows, total_count) for the requested page.
-    Rows include display columns + predicted bracket + top confidence %.
-    """
-    # Separate feature columns from metadata
-    X_raw = _select_feature_columns(df_full, pipeline)
-
-    labels = pipeline.predict(X_raw)
-    probas = pipeline.predict_proba(X_raw)
-
-    # Build display rows
-    rows = []
-    for i in range(len(df_full)):
-        pred    = labels[i]
-        conf    = float(probas.iloc[i][pred]) * 100
-        actual  = df_full["dtp_bracket"].iloc[i] if "dtp_bracket" in df_full.columns else "—"
-        due     = df_full["due_date"].iloc[i]     if "due_date"    in df_full.columns else "—"
-
-        amount_raw = _extract_amount(df_full, i)
-
-        # Format
-        try:
-            due_str = pd.to_datetime(due).strftime("%Y-%m-%d") if pd.notna(due) else "—"
-        except Exception:
-            due_str = str(due)
-        amt_str = f"₱{amount_raw:,.2f}" if amount_raw is not None else "—"
-
-        rows.append({
-            "invoice_no":  i + 1,
-            "due_date":    due_str,
-            "amount":      amt_str,
-            "pred_conf":   f"{_BRACKET_LABELS.get(pred, pred)} ({conf:.1f}%)",
-            "actual":      _BRACKET_LABELS.get(actual, actual),
-            "_pred_key":   pred,
-            "_amount_raw": amount_raw,
-        })
-
-    # Filter
-    if bracket_filter != "all":
-        rows = [r for r in rows if r["_pred_key"] == bracket_filter]
-
-    total   = len(rows)
-    start   = (page - 1) * page_size
-    visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
-               for r in rows[start : start + page_size]]
-    return visible, total
 
 
 # ── Component builders ────────────────────────────────────────────────────────
@@ -273,6 +143,53 @@ def _kpi_card(label: str, value: float, sub: str = "", variant: str = "primary")
     ])
 
 
+def _build_load_outputs(pipeline, df: pd.DataFrame | None, *, invalidate_cache: bool = False):
+    """
+    Shared body for the mount-load and refresh callbacks: runs (or reuses
+    the cached) predictions for the full invoice set and derives every
+    output those callbacks need — table rows, page count, the store
+    payload, and the per-bracket chip count labels.
+    """
+    empty_labels = ("On Time · 0", "1–30 Days · 0", "31–60 Days · 0", "61+ Days · 0")
+
+    if pipeline is None or df is None:
+        return [], 0, None, *empty_labels
+
+    try:
+        all_rows = pipeline.predict_all_invoices(
+            df, use_cache=True, invalidate_cache=invalidate_cache
+        )
+
+        log_event(
+            "prediction_run",
+            f"model={getattr(pipeline, 'model_key', 'unknown')}, "
+            f"n_invoices={len(df)}",
+        )
+        PAGE_SIZE = 15
+        visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
+                   for r in all_rows[:PAGE_SIZE]]
+        page_count = (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE
+
+        pred_counts = Counter(r["_pred_key"] for r in all_rows)
+        _total      = len(all_rows) or 1
+
+        def _fmt(key: str, label: str) -> str:
+            n = pred_counts.get(key, 0)
+            return f"{label} · {n:,} ({n / _total:.0%})"
+
+        label_on_time = _fmt("on_time", "On Time")
+        label_30      = _fmt("30_days", "1–30 Days")
+        label_60      = _fmt("60_days", "31–60 Days")
+        label_90      = _fmt("90_days", "61+ Days")
+
+        return (visible, page_count, all_rows,
+                label_on_time, label_30, label_60, label_90)
+
+    except Exception:
+        _logger.exception("Invoice drilldown prediction failed")
+        return [], 0, None, *empty_labels
+
+
 # ── Screen class ──────────────────────────────────────────────────────────────
 
 class InvoiceDrilldownScreen:
@@ -306,6 +223,12 @@ class InvoiceDrilldownScreen:
                         # Filter chips + export controls
                         html.Div(className="flex-center gap-1 flex-wrap", children=[
                             _filter_bar(),
+                            html.Button(
+                                "Refresh",
+                                id="drilldown-refresh-btn",
+                                className="btn btn-outline",
+                                n_clicks=0,
+                            ),
                             html.Button(
                                 "Export CSV",
                                 id="drilldown-export-btn",
@@ -356,73 +279,26 @@ class InvoiceDrilldownScreen:
         def _initial_load(_n):
             pipeline = _load_pipeline()
             df       = _load_cache()
+            return _build_load_outputs(pipeline, df)
 
-            empty_labels = ("On Time · 0", "1–30 Days · 0", "31–60 Days · 0", "61+ Days · 0")
-
-            if pipeline is None:
-                return [], 0, None, *empty_labels
-            if df is None:
-                return [], 0, None, *empty_labels
-
-            try:
-                X_raw  = _select_feature_columns(df, pipeline)
-                labels = pipeline.predict(X_raw)
-                probas = pipeline.predict_proba(X_raw)
-
-                # Build all rows for the store (no pagination here)
-                all_rows = []
-                for i in range(len(df)):
-                    pred   = labels[i]
-                    conf   = float(probas.iloc[i][pred]) * 100
-                    actual = df["dtp_bracket"].iloc[i] if "dtp_bracket" in df.columns else "—"
-                    due    = df["due_date"].iloc[i]     if "due_date"    in df.columns else "—"
-
-                    amount_raw = _extract_amount(df, i)
-
-                    try:
-                        due_str = pd.to_datetime(due).strftime("%Y-%m-%d") if pd.notna(due) else "—"
-                    except Exception:
-                        due_str = str(due)
-                    amt_str = f"₱{amount_raw:,.2f}" if amount_raw is not None else "—"
-
-                    all_rows.append({
-                        "invoice_no":  i + 1,
-                        "due_date":    due_str,
-                        "amount":      amt_str,
-                        "pred_conf":   f"{_BRACKET_LABELS.get(pred, pred)} ({conf:.1f}%)",
-                        "actual":      _BRACKET_LABELS.get(str(actual), str(actual)),
-                        "_pred_key":   pred,
-                        "_amount_raw": amount_raw,
-                    })
-
-                log_event(
-                    "prediction_run",
-                    f"model={getattr(pipeline, 'model_key', 'unknown')}, "
-                    f"n_invoices={len(df)}",
-                )
-                PAGE_SIZE = 15
-                visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
-                           for r in all_rows[:PAGE_SIZE]]
-                page_count = (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE
-
-                pred_counts = Counter(r["_pred_key"] for r in all_rows)
-                _total      = len(all_rows) or 1
-
-                def _fmt(key: str, label: str) -> str:
-                    n = pred_counts.get(key, 0)
-                    return f"{label} · {n:,} ({n / _total:.0%})"
-
-                label_on_time = _fmt("on_time", "On Time")
-                label_30      = _fmt("30_days", "1–30 Days")
-                label_60      = _fmt("60_days", "31–60 Days")
-                label_90      = _fmt("90_days", "61+ Days")
-
-                return (visible, page_count, all_rows,
-                        label_on_time, label_30, label_60, label_90)
-
-            except Exception as exc:
-                _logger.exception("Invoice drilldown prediction failed")
-                return [], 0, None, *empty_labels
+        # ── Manual refresh — bypasses the cache to pick up new data/model ───────
+        @dash_app.callback(
+            Output("drilldown-table",             "data",       allow_duplicate=True),
+            Output("drilldown-table",             "page_count", allow_duplicate=True),
+            Output("drilldown-predictions-store", "data",       allow_duplicate=True),
+            Output("drilldown-filter-on-time",    "children",   allow_duplicate=True),
+            Output("drilldown-filter-30",         "children",   allow_duplicate=True),
+            Output("drilldown-filter-60",         "children",   allow_duplicate=True),
+            Output("drilldown-filter-90",         "children",   allow_duplicate=True),
+            Input("drilldown-refresh-btn",        "n_clicks"),
+            prevent_initial_call=True,
+        )
+        def _refresh(n_clicks):
+            if not n_clicks:
+                raise PreventUpdate
+            pipeline = _load_pipeline()
+            df       = _load_cache()
+            return _build_load_outputs(pipeline, df, invalidate_cache=True)
 
         # ── Bracket filter toggle logic ──────────────────────────────────────
         @dash_app.callback(
@@ -770,32 +646,44 @@ class InvoiceDrilldownScreen:
 # ── Data helpers ──────────────────────────────────────────────────────────────
 
 def _load_pipeline() -> object | None:
-    """Load the deployed InferencePipeline pickle."""
+    """Load the deployed InferencePipeline artifact."""
     try:
         settings = read_settings_json()
         deployed_dir = settings.get("Training", {}).get("DEPLOYED_MODELS", "")
-        candidates = [
-            p for p in glob.glob(os.path.join(deployed_dir, "finalized_*.pkl"))
-            if not p.endswith("finalized_survival_model.pkl")
-        ]
-        if not candidates:
-            return None
-        with open(candidates[0], "rb") as fh:
-            return pickle.load(fh)
+        return load_inference_pipeline(deployed_dir)
     except Exception:
         return None
 
 
 def _load_cache() -> pd.DataFrame | None:
-    """Load the credit_sales_cache.pkl feature DataFrame."""
+    """
+    Build the invoice feature DataFrame via CreditSalesProcessor, reading the
+    raw revenue/enrollees Excel files configured in settings.json directly
+    from disk — the same source files step_3.clean_datasets processes during
+    training — using the identical CreditSalesProcessor parameters so this
+    screen sees the exact feature set the deployed model expects.
+    """
     try:
-        settings   = read_settings_json()
-        cache_path = os.path.join(
-            settings.get("Training", {}).get("RESULTS_ROOT", ""),
-            "credit_sales_cache.pkl",
+        settings = read_settings_json()
+        df_revenues  = pd.read_excel(settings["TrainingInput"]["REVENUES"],  engine="calamine")
+        df_enrollees = pd.read_excel(settings["TrainingInput"]["ENROLLEES"], engine="calamine")
+
+        class _Config:
+            observation_end = datetime.strptime(
+                settings["Training"]["observation_end"], "%Y/%m/%d"
+            )
+
+        processor = CreditSalesProcessor(
+            df_revenues, df_enrollees, _Config(),
+            drop_helper_columns=True,
+            drop_demographic_columns=True,
+            drop_plan_type_columns=False,
+            drop_missing_dtp=True,
+            drop_back_account_transactions=True,
+            exclude_school_years=[2016, 2017, 2018],
+            winsorise_dtp=True,
         )
-        if not os.path.exists(cache_path):
-            return None
-        return pd.read_pickle(cache_path)
+        return processor.show_data()
     except Exception:
+        _logger.exception("Failed to build invoice cache via CreditSalesProcessor")
         return None
