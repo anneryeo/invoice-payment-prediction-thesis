@@ -3,9 +3,34 @@ import io
 import logging
 import os
 import pickle
+import shutil
+import sys
+import warnings
 import pandas as pd
 from datetime import datetime
+from pathlib import Path
 from time import time
+from types import SimpleNamespace
+
+# Prevent loky (joblib's process backend) from spawning a wmic/powershell
+# subprocess to count physical cores, which fails under Dash's restricted
+# stdout environment. Must be set before any sklearn/sksurv/joblib import.
+os.environ["LOKY_MAX_CPU_COUNT"] = str(os.cpu_count())
+# Configure threading limits to prevent memory exhaustion and OpenBLAS warnings.
+# OPENBLAS_NUM_THREADS=1 per worker: Pool provides process-level parallelism;
+# >1 OpenBLAS threads per worker causes oversubscription and the
+# "precompiled NUM_THREADS exceeded" warning on machines with >24 cores.
+os.environ["OPENBLAS_NUM_THREADS"] = "1"
+os.environ["MKL_NUM_THREADS"] = "1"
+os.environ["NUMEXPR_NUM_THREADS"] = "1"
+os.environ["OMP_NUM_THREADS"] = "1"
+# PYTHONWARNINGS is an OS-level env var read at interpreter startup by every
+# spawned child process (including multiprocessing Pool workers on Windows),
+# unlike warnings.filterwarnings() which only affects the current process.
+os.environ["PYTHONWARNINGS"] = "ignore::UserWarning:sklearn.utils.parallel"
+
+warnings.filterwarnings("ignore", category=UserWarning, module="sklearn.utils.parallel")
+warnings.filterwarnings("ignore", message=".*sklearn.utils.parallel.delayed.*")
 
 from src.app import dash_app
 import dash_bootstrap_components as dbc
@@ -34,11 +59,22 @@ from src.modules.machine_learning.utils.training.tune_cox_hyperparameters import
 from src.modules.machine_learning.utils.training.run_models_parallel import SurvivalExperimentRunner, progress_state
 from src.modules.machine_learning.utils.io.save_results_to_folder import save_training_results
 
-# Prevent loky (joblib's process backend) from spawning a wmic/powershell
-# subprocess to count physical cores, which fails under Dash's restricted
-# stdout environment. Must be set before any sklearn/sksurv/joblib import.
-os.environ["LOKY_MAX_CPU_COUNT"] = str(os.cpu_count())
 logger = logging.getLogger(__name__)
+
+
+class _Tee:
+    """Writes to both the terminal and the log file simultaneously."""
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, data):
+        for s in self.streams:
+            s.write(data)
+            s.flush()
+
+    def flush(self):
+        for s in self.streams:
+            s.flush()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -176,16 +212,18 @@ def clean_datasets(revenues_content, enrollees_content):
     return df_data, df_data_surv, df_credit_sales
 
 
-def tune_cox_model(df_data_surv):
+def tune_cox_model(df_data_surv, results_root):
     X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
     T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
     E      = df_data_surv["censor"]
 
-    # Focused grid based on empirical results — high l1_ratio wins consistently
+    # Staged at RESULTS_ROOT (not yet in a dated run folder, since that
+    # folder isn't created until save_training_results() runs later). It
+    # gets moved alongside results.db once the run folder path is known.
     tuner = CoxHyperparameterTuner(
         alpha_grid       = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0],
         l1_ratios        = [0.5, 0.75, 1.0],
-        save_report_path = "results/",
+        save_report_path = results_root,
     )
     tuner.fit(X_surv, T, E)
     progress_state["survival_done"] = True
@@ -238,12 +276,12 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         balance_strategies=balancing_data,
         args=args,
         best_parameters=best_parameters,
-        thresholds=None,
+        thresholds=[0.5, 0.7, 0.9],
         n_jobs=-1,
         do_not_parallel_compute=do_not_parallel_compute,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
-        use_lda=True,
+        use_lda=False,
     )
 
     json_results = runner.run()
@@ -272,109 +310,134 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
     if current_step != "progress-3":
         return no_update, no_update
 
-    progress_state["extraction_done"] = False
-    progress_state["survival_done"]   = False
-    progress_state["training_done"]   = False
-    progress_state["saving_done"]     = False
-    start_time = datetime.now()
+    settings = read_settings_json()
+    log_dir  = Path(settings["Training"]["LOGS"])
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / f"training_log_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+    print(f"Training log: {log_file}")
 
-    settings   = read_settings_json()
-    debug_mode = settings["Config"].get("debug_mode", "False").strip().lower() == "true"
-    temp_cache = settings["Config"].get("TEMP_CACHE", "temp_cache")
-    cache_path = os.path.join(temp_cache, "step3_debug_cache.pkl")
+    try:
+        with open(log_file, "w", encoding="utf-8") as log_f:
+            original_stdout = sys.stdout
+            sys.stdout = _Tee(sys.stdout, log_f)
+            try:
+                progress_state["extraction_done"] = False
+                progress_state["survival_done"]   = False
+                progress_state["training_done"]   = False
+                progress_state["saving_done"]     = False
+                start_time = datetime.now()
 
-    # ── PROFILER ─────────────────────────────────────────────────────────────
-    _t_total = time()
+                debug_mode = settings["Config"].get("debug_mode", "False").strip().lower() == "true"
+                temp_cache = settings["Config"].get("TEMP_CACHE", "temp_cache")
+                cache_path = os.path.join(temp_cache, "step3_debug_cache.pkl")
 
-    if debug_mode and os.path.exists(cache_path):
-        logger.debug("Loading cached data from %s ...", cache_path)
-        with open(cache_path, "rb") as f:
-            cache = pickle.load(f)
-        df_credit_sales       = cache["df_credit_sales"]
-        df_data               = cache["df_data"]
-        df_data_surv          = cache["df_data_surv"]
-        survival_results_dict = cache["survival_results_dict"]
-        stored_credit_sales   = df_credit_sales.to_json(date_format='iso', orient='split')
-        _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
-        import pickle as _pkl
-        with open(_cs_path, 'wb') as _fh:
-            _pkl.dump(df_credit_sales, _fh)
-        print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
-        progress_state["extraction_done"] = True
-        progress_state["survival_done"]   = True
-        logger.debug("Cache loaded successfully; skipping extraction and Cox tuning.")
-        print(f"[TIMING] cache_load: {time() - _t_total:.1f}s")
-    else:
-        print("Running training...")
+                # ── PROFILER ─────────────────────────────────────────────────────────────
+                _t_total = time()
 
-        _t = time()
-        df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
-        stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
-        _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
-        import pickle as _pkl
-        with open(_cs_path, 'wb') as _fh:
-            _pkl.dump(df_credit_sales, _fh)
-        print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
-        print(f"[TIMING] clean_datasets: {time() - _t:.1f}s")
+                if debug_mode and os.path.exists(cache_path):
+                    logger.debug("Loading cached data from %s ...", cache_path)
+                    with open(cache_path, "rb") as f:
+                        cache = pickle.load(f)
+                    df_credit_sales       = cache["df_credit_sales"]
+                    df_data               = cache["df_data"]
+                    df_data_surv          = cache["df_data_surv"]
+                    survival_results_dict = cache["survival_results_dict"]
+                    stored_credit_sales   = df_credit_sales.to_json(date_format='iso', orient='split')
+                    _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
+                    import pickle as _pkl
+                    with open(_cs_path, 'wb') as _fh:
+                        _pkl.dump(df_credit_sales, _fh)
+                    print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
+                    progress_state["extraction_done"] = True
+                    progress_state["survival_done"]   = True
+                    logger.debug("Cache loaded successfully; skipping extraction and Cox tuning.")
+                    print(f"[TIMING] cache_load: {time() - _t_total:.1f}s")
+                else:
+                    print("Running training...")
 
-        _t = time()
-        survival_results_dict = tune_cox_model(df_data_surv)
-        print(f"[TIMING] tune_cox_model: {time() - _t:.1f}s")
+                    _t = time()
+                    df_data, df_data_surv, df_credit_sales = clean_datasets(revenue_data, enrollees_data)
+                    stored_credit_sales = df_credit_sales.to_json(date_format='iso', orient='split')
+                    _cs_path = os.path.join(settings['Training']['RESULTS_ROOT'], 'credit_sales_cache.pkl')
+                    import pickle as _pkl
+                    with open(_cs_path, 'wb') as _fh:
+                        _pkl.dump(df_credit_sales, _fh)
+                    print(f'[step3] Saved credit_sales_cache.pkl to {_cs_path}')
+                    print(f"[TIMING] clean_datasets: {time() - _t:.1f}s")
 
-        if debug_mode:
-            os.makedirs(temp_cache, exist_ok=True)
-            logger.debug("Saving data to cache at %s ...", cache_path)
-            with open(cache_path, "wb") as f:
-                pickle.dump({
-                    "df_credit_sales":       df_credit_sales,
-                    "df_data":               df_data,
-                    "df_data_surv":          df_data_surv,
-                    "survival_results_dict": survival_results_dict,
-                }, f)
-            logger.debug("Cache saved successfully.")
+                    _t = time()
+                    survival_results_dict = tune_cox_model(df_data_surv, settings['Training']['RESULTS_ROOT'])
+                    print(f"[TIMING] tune_cox_model: {time() - _t:.1f}s")
 
-    best_surv_params = survival_results_dict['best_surv_parameters']
-    best_time_points = survival_results_dict['best_time_points']
+                    if debug_mode:
+                        os.makedirs(temp_cache, exist_ok=True)
+                        logger.debug("Saving data to cache at %s ...", cache_path)
+                        with open(cache_path, "wb") as f:
+                            pickle.dump({
+                                "df_credit_sales":       df_credit_sales,
+                                "df_data":               df_data,
+                                "df_data_surv":          df_data_surv,
+                                "survival_results_dict": survival_results_dict,
+                            }, f)
+                        logger.debug("Cache saved successfully.")
 
-    print("Proceeding to model training...")
+                best_surv_params = survival_results_dict['best_surv_parameters']
+                best_time_points = survival_results_dict['best_time_points']
 
-    class Config:
-        parameters_dir = settings["Training"]["MODEL_PARAMETERS"]
-        target_feature = settings["Training"]["target_feature"]
-        test_size      = float(settings["Training"]["test_size"])
-        time_points    = best_time_points
-    args = Config()
-    print(f"Using timepoints: {best_time_points}")
+                print("Proceeding to model training...")
 
-    _t = time()
-    model_results_df, class_mappings_dict = run_model_training(
-        df_data, df_data_surv, models_data, balancing_data, args, best_surv_params
-    )
-    print(f"[TIMING] run_model_training: {time() - _t:.1f}s")
-    progress_state["training_done"] = True
+                args = SimpleNamespace(
+                    parameters_dir  = settings["Training"]["MODEL_PARAMETERS"],
+                    target_feature  = settings["Training"]["target_feature"],
+                    test_size       = float(settings["Training"]["test_size"]),
+                    time_points     = best_time_points,
+                    observation_end = datetime.strptime(settings["Training"]["observation_end"], "%Y/%m/%d"),
+                )
+                print(f"Using timepoints: {best_time_points}")
 
-    end_time            = datetime.now()
-    total_training_time = end_time - start_time
+                _t = time()
+                model_results_df, class_mappings_dict = run_model_training(
+                    df_data, df_data_surv, models_data, balancing_data, args, best_surv_params
+                )
+                print(f"[TIMING] run_model_training: {time() - _t:.1f}s")
+                progress_state["training_done"] = True
 
-    _t = time()
-    save_training_results(
-        model_results_df,
-        survival_results_dict,
-        class_mappings_dict,
-        settings['Training']['RESULTS_ROOT'],
-        models_data,
-        start_time.isoformat(),
-        end_time.isoformat(),
-        str(total_training_time),
-        format="sqlite",
-    )
-    print(f"[TIMING] save_training_results: {time() - _t:.1f}s")
-    progress_state["saving_done"] = True
+                end_time            = datetime.now()
+                total_training_time = end_time - start_time
 
-    print(f"[TIMING] total run_training: {time() - _t_total:.1f}s")
-    # ── END PROFILER ──────────────────────────────────────────────────────────
+                _t = time()
+                _, run_folder_path = save_training_results(
+                    model_results_df,
+                    survival_results_dict,
+                    class_mappings_dict,
+                    settings['Training']['RESULTS_ROOT'],
+                    models_data,
+                    start_time.isoformat(),
+                    end_time.isoformat(),
+                    str(total_training_time),
+                    format="sqlite",
+                )
+                print(f"[TIMING] save_training_results: {time() - _t:.1f}s")
+                progress_state["saving_done"] = True
 
-    return "done", stored_credit_sales
+                # Move the Cox tuning report out of RESULTS_ROOT (where it was
+                # staged before the dated run folder existed) so it lives
+                # next to results.db.
+                _cox_report_src = os.path.join(settings['Training']['RESULTS_ROOT'], "cox_tuning_report.xlsx")
+                if os.path.exists(_cox_report_src):
+                    shutil.move(_cox_report_src, os.path.join(run_folder_path, "cox_tuning_report.xlsx"))
+                    print(f"[step3] Moved cox_tuning_report.xlsx to {run_folder_path}")
+
+                print(f"[TIMING] total run_training: {time() - _t_total:.1f}s")
+                # ── END PROFILER ──────────────────────────────────────────────────────────
+
+                return "done", stored_credit_sales
+            finally:
+                sys.stdout = original_stdout
+    except Exception as e:
+        with open(log_file, "a", encoding="utf-8") as f:
+            f.write(f"\nTraining failed: {e}\n")
+        raise
 
 
 # ── Circle colors ─────────────────────────────────────────────────────────────

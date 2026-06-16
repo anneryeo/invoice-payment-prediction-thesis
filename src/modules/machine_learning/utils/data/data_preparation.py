@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 from sklearn.preprocessing import LabelEncoder
 
@@ -115,8 +116,14 @@ class DataPreparer:
             ordered=True,
         ).codes  # assigns 0, 1, 2, 3 in defined order
 
+        # FIX: LabelEncoder.fit() re-sorts its input alphabetically, which
+        # silently discards ORDINAL_ORDER (classes_ would come out as
+        # ['30_days', '60_days', '90_days', 'on_time'] instead of severity
+        # order) and desyncs every decode_labels()/inverse_transform() call
+        # from the 0/1/2/3 codes the classifier was actually trained on.
+        # Setting classes_ directly bypasses the re-sort.
         self.label_encoder = LabelEncoder()
-        self.label_encoder.fit(ORDINAL_ORDER)  # keeps decode_labels() functional
+        self.label_encoder.classes_ = np.array(ORDINAL_ORDER)
 
         self.class_mapping = {cat: i for i, cat in enumerate(ORDINAL_ORDER)}
 
