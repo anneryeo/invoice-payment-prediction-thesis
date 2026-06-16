@@ -9,6 +9,7 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 from time import time
+from types import SimpleNamespace
 
 # Prevent loky (joblib's process backend) from spawning a wmic/powershell
 # subprocess to count physical cores, which fails under Dash's restricted
@@ -382,12 +383,13 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
 
                 print("Proceeding to model training...")
 
-                class Config:
-                    parameters_dir = settings["Training"]["MODEL_PARAMETERS"]
-                    target_feature = settings["Training"]["target_feature"]
-                    test_size      = float(settings["Training"]["test_size"])
-                    time_points    = best_time_points
-                args = Config()
+                args = SimpleNamespace(
+                    parameters_dir  = settings["Training"]["MODEL_PARAMETERS"],
+                    target_feature  = settings["Training"]["target_feature"],
+                    test_size       = float(settings["Training"]["test_size"]),
+                    time_points     = best_time_points,
+                    observation_end = settings["Training"]["observation_end"],
+                )
                 print(f"Using timepoints: {best_time_points}")
 
                 _t = time()
