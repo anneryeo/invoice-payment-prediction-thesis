@@ -476,6 +476,14 @@ class ResultsRepository:
 
         Returns ``{}`` when recovery fails.
         """
+        # _from_json may have already parsed the string into a list of tuples
+        # (e.g. ast.literal_eval of a bare Python repr that wasn't JSON-wrapped).
+        # Convert directly rather than returning {} from the string guard below.
+        if isinstance(raw, (list, tuple)):
+            try:
+                return dict(raw)
+            except (TypeError, ValueError):
+                return {}
         if not isinstance(raw, str) or not raw:
             return {}
         import ast, re as _re
