@@ -3,6 +3,7 @@ import io
 import logging
 import os
 import pickle
+import shutil
 import sys
 import warnings
 import pandas as pd
@@ -211,16 +212,18 @@ def clean_datasets(revenues_content, enrollees_content):
     return df_data, df_data_surv, df_credit_sales
 
 
-def tune_cox_model(df_data_surv):
+def tune_cox_model(df_data_surv, results_root):
     X_surv = df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
     T      = adjust_payment_period(df_data_surv["days_elapsed_until_fully_paid"])
     E      = df_data_surv["censor"]
 
-    # Focused grid based on empirical results — high l1_ratio wins consistently
+    # Staged at RESULTS_ROOT (not yet in a dated run folder, since that
+    # folder isn't created until save_training_results() runs later). It
+    # gets moved alongside results.db once the run folder path is known.
     tuner = CoxHyperparameterTuner(
         alpha_grid       = [0.001, 0.01, 0.05, 0.1, 0.5, 1.0],
         l1_ratios        = [0.5, 0.75, 1.0],
-        save_report_path = "results/",
+        save_report_path = results_root,
     )
     tuner.fit(X_surv, T, E)
     progress_state["survival_done"] = True
@@ -363,7 +366,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
                     print(f"[TIMING] clean_datasets: {time() - _t:.1f}s")
 
                     _t = time()
-                    survival_results_dict = tune_cox_model(df_data_surv)
+                    survival_results_dict = tune_cox_model(df_data_surv, settings['Training']['RESULTS_ROOT'])
                     print(f"[TIMING] tune_cox_model: {time() - _t:.1f}s")
 
                     if debug_mode:
@@ -403,7 +406,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
                 total_training_time = end_time - start_time
 
                 _t = time()
-                save_training_results(
+                _, run_folder_path = save_training_results(
                     model_results_df,
                     survival_results_dict,
                     class_mappings_dict,
@@ -416,6 +419,14 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
                 )
                 print(f"[TIMING] save_training_results: {time() - _t:.1f}s")
                 progress_state["saving_done"] = True
+
+                # Move the Cox tuning report out of RESULTS_ROOT (where it was
+                # staged before the dated run folder existed) so it lives
+                # next to results.db.
+                _cox_report_src = os.path.join(settings['Training']['RESULTS_ROOT'], "cox_tuning_report.xlsx")
+                if os.path.exists(_cox_report_src):
+                    shutil.move(_cox_report_src, os.path.join(run_folder_path, "cox_tuning_report.xlsx"))
+                    print(f"[step3] Moved cox_tuning_report.xlsx to {run_folder_path}")
 
                 print(f"[TIMING] total run_training: {time() - _t_total:.1f}s")
                 # ── END PROFILER ──────────────────────────────────────────────────────────
