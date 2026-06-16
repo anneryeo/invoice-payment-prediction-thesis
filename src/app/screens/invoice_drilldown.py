@@ -37,11 +37,39 @@ _BRACKET_OPTIONS = [{"label": "All Brackets", "value": "all"}] + [
     {"label": v, "value": k} for k, v in _BRACKET_LABELS.items()
 ]
 
-# Columns that are metadata / target — not passed to the model
-_NON_FEATURE_COLS = {"dtp_bracket", "due_date", "date_fully_paid"}
+# Columns that are metadata / target — not passed to the model.
+# Used only as a fallback when the pipeline's fitted scaler doesn't expose
+# feature_names_in_ (e.g. a legacy artifact); the normal path below derives
+# the real feature list from the pipeline itself.
+_NON_FEATURE_COLS = {"dtp_bracket", "due_date", "date_fully_paid",
+                     "censor", "days_elapsed_until_fully_paid"}
 # Columns we want to show as display info when present
 _DISPLAY_COLS     = ["due_date", "gross_receivables", "net_receivables",
                      "school_year", "category_name", "student_id_pseudonimized"]
+
+
+def _select_feature_columns(df_full: pd.DataFrame, pipeline) -> pd.DataFrame:
+    """
+    Build the raw feature matrix the pipeline expects.
+
+    Prefers the fitted scaler's feature_names_in_ (the actual columns seen
+    at training time — see DataPreparer.normalize()) over the hand-maintained
+    _NON_FEATURE_COLS exclusion list, since the latter can silently drift out
+    of sync with what the model was trained on.
+    """
+    scaler   = getattr(pipeline, "scaler", None)
+    expected = list(getattr(scaler, "feature_names_in_", []))
+    if expected:
+        missing = [c for c in expected if c not in df_full.columns]
+        if missing:
+            raise ValueError(
+                f"Invoice cache is missing {len(missing)} column(s) required "
+                f"by the deployed model: {missing}"
+            )
+        return df_full[expected].copy()
+
+    feature_cols = [c for c in df_full.columns if c not in _NON_FEATURE_COLS]
+    return df_full[feature_cols].copy()
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
@@ -92,8 +120,7 @@ def _run_predictions(
     Rows include display columns + predicted bracket + top confidence %.
     """
     # Separate feature columns from metadata
-    feature_cols = [c for c in df_full.columns if c not in _NON_FEATURE_COLS]
-    X_raw        = df_full[feature_cols].copy()
+    X_raw = _select_feature_columns(df_full, pipeline)
 
     labels = pipeline.predict(X_raw)
     probas = pipeline.predict_proba(X_raw)
@@ -307,10 +334,9 @@ class InvoiceDrilldownScreen:
                 return msg, [], 0, None
 
             try:
-                feature_cols = [c for c in df.columns if c not in _NON_FEATURE_COLS]
-                X_raw        = df[feature_cols].copy()
-                labels       = pipeline.predict(X_raw)
-                probas       = pipeline.predict_proba(X_raw)
+                X_raw  = _select_feature_columns(df, pipeline)
+                labels = pipeline.predict(X_raw)
+                probas = pipeline.predict_proba(X_raw)
 
                 # Build all rows for the store (no pagination here)
                 all_rows = []
