@@ -390,6 +390,34 @@ def find_deployed_model(
     return candidates[0]
 
 
+def _remap_xgb_estimators_to_cpu(pipeline: InferencePipeline) -> None:
+    """
+    Force any XGBoost estimators inside a loaded pipeline onto the CPU.
+
+    Models are sometimes finalized with device="cuda:0". At inference time
+    the input is CPU-side numpy/pandas data, so leaving the estimator's
+    device set to a GPU makes XGBoost silently fall back to the slower
+    DMatrix path on every predict call. Remapping once here at load time
+    avoids paying that cost on every ``predict``/``predict_proba`` call.
+    """
+    model = getattr(pipeline.classifier_pipeline, "model", None)
+    if model is None:
+        return
+
+    candidates = [model]
+    for attr in ("stage1_estimator_", "stage2_estimator_"):
+        est = getattr(model, attr, None)
+        if est is not None:
+            candidates.append(est)
+
+    for est in candidates:
+        if type(est).__module__.startswith("xgboost"):
+            try:
+                est.set_params(device="cpu")
+            except Exception:
+                pass
+
+
 def load_inference_pipeline(
     model_dir: Union[str, Path],
     model_key: str | None = None,
@@ -439,6 +467,7 @@ def load_inference_pipeline(
         ) from exc
 
     if isinstance(obj, InferencePipeline):
+        _remap_xgb_estimators_to_cpu(obj)
         _logger.info("Loaded %r", obj)
         return obj
 
