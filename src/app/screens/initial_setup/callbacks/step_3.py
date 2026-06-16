@@ -276,12 +276,12 @@ def run_model_training(df_data, df_data_surv, models_data, balancing_data, args,
         balance_strategies=balancing_data,
         args=args,
         best_parameters=best_parameters,
-        thresholds=None,
+        thresholds=[0.5, 0.7, 0.9],
         n_jobs=-1,
         do_not_parallel_compute=do_not_parallel_compute,
         feature_selection_baseline=True,
         feature_selection_enhanced=True,
-        use_lda=True,
+        use_lda=False,
     )
 
     json_results = runner.run()
@@ -391,7 +391,7 @@ def run_training(current_step, revenue_data, enrollees_data, models_data, balanc
                     target_feature  = settings["Training"]["target_feature"],
                     test_size       = float(settings["Training"]["test_size"]),
                     time_points     = best_time_points,
-                    observation_end = settings["Training"]["observation_end"],
+                    observation_end = datetime.strptime(settings["Training"]["observation_end"], "%Y/%m/%d"),
                 )
                 print(f"Using timepoints: {best_time_points}")
 

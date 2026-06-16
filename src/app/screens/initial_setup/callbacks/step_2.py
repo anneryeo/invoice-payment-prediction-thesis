@@ -88,8 +88,9 @@ html_step_2 = (
                 {"label": "Borderline SMOTE", "value": "borderline_smote"},
                 {"label": "SMOTE-ENN (Edited Nearest Neighbors)", "value": "smote_enn"},
                 {"label": "SMOTE Tomek (Tomek Links)", "value": "smote_tomek"},
+                {"label": "Hybrid (SMOTE Tomek + decision threshold sweep)", "value": "hybrid"},
             ],
-            value=["none", "smote", "borderline_smote", "smote_enn", "smote_tomek"],
+            value=["none", "smote", "borderline_smote", "smote_tomek", "hybrid"],
             className="checklist"
         ),
 
