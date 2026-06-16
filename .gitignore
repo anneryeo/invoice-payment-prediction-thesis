@@ -79,7 +79,7 @@ logs/
 *.sqlite3
 
 settings.json
-data/cache/
+data/training_cache/
 *.pyc
 convert_notebooks.py
 # docx revision tooling dumps

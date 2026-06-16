@@ -26,7 +26,7 @@ def setup_dev_env():
     ignored_items = [
         "settings.json",
         ".env",
-        "data/cache/",
+        "data/training_cache/",
         "__pycache__/",
         "*.pyc",
         "convert_notebooks.py",

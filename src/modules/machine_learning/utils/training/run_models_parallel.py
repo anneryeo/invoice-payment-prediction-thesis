@@ -318,7 +318,7 @@ class SurvivalExperimentRunner:
         self, df_data, df_data_surv, models, balance_strategies, args,
         best_parameters, thresholds=None, n_jobs=4, do_not_parallel_compute=None,
         feature_selection_baseline=True, feature_selection_enhanced=True,
-        use_lda=False, lda_mode="append", checkpoint_path=None, cache_dir="data/cache",
+        use_lda=False, lda_mode="append", checkpoint_path=None, cache_dir="data/training_cache",
     ):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
