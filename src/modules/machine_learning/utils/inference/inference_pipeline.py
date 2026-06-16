@@ -65,6 +65,10 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+from src.modules.machine_learning.utils.training.data_evaluation import (
+    data_evaluation as _data_evaluation,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -277,6 +281,73 @@ class InferencePipeline:
         probas = self.classifier_pipeline.predict_proba(X)
         classes = self.label_encoder.classes_   # ["on_time", "30_days", …]
         return pd.DataFrame(probas, columns=classes, index=X_raw.index)
+
+    def evaluate_predictions(
+        self,
+        y_true: Union[pd.Series, np.ndarray, list],
+        y_pred: Union[pd.Series, np.ndarray, list],
+        y_proba: Union[pd.DataFrame, np.ndarray, None] = None,
+        *,
+        labels: list[str] | None = None,
+    ) -> dict:
+        """
+        Compute classification metrics by delegating to ``data_evaluation``.
+
+        Both ``y_true`` and ``y_pred`` must contain *decoded* class label
+        strings (e.g. ``"on_time"``, ``"30_days"``), not integer codes —
+        i.e. the output of ``predict()``, not raw classifier integers.
+
+        Parameters
+        ----------
+        y_true : array-like of str
+            Ground-truth class labels.
+        y_pred : array-like of str
+            Predicted class labels (output of ``predict()``).
+        y_proba : pd.DataFrame, np.ndarray, or None
+            Per-class probability matrix of shape (n_samples, n_classes),
+            with columns/column-order matching ``self.label_encoder.classes_``
+            (the order returned by ``predict_proba()``). When supplied,
+            ``roc_auc_macro``, ``roc_curve``, and ``pr_curve`` are also
+            populated in the returned dict. When ``None``, those three keys
+            are ``None``.
+        labels : list of str or None
+            Ordered class names used for the confusion matrix rows/columns.
+            Defaults to ``self.label_encoder.classes_`` (training-time order).
+
+        Returns
+        -------
+        dict
+            All keys returned by ``data_evaluation``, plus
+            ``"confusion_matrix_df"`` — a labelled ``pd.DataFrame`` version
+            of ``"confusion_matrix"`` (which remains a list[list[int]] for
+            back-compat).
+        """
+        y_true_arr = np.asarray(y_true)
+        y_pred_arr = np.asarray(y_pred)
+
+        y_proba_arr: np.ndarray | None = None
+        if y_proba is not None:
+            y_proba_arr = y_proba.values if isinstance(y_proba, pd.DataFrame) else np.asarray(y_proba)
+
+        # NOTE: data_evaluation signature is (y_pred, y_test, y_proba).
+        metrics = _data_evaluation(y_pred_arr, y_true_arr, y_proba_arr)
+
+        if labels is None:
+            labels = list(self.label_encoder.classes_)
+
+        # sklearn's confusion_matrix (called inside data_evaluation) orders
+        # rows/cols by classes seen in EITHER y_true or y_pred, sorted — not
+        # just y_true. Using only y_true's classes here would silently
+        # misalign the labelled DataFrame whenever y_pred contains a class
+        # y_true doesn't (entirely plausible on a small eval batch).
+        cm_labels = sorted(set(y_true_arr) | set(y_pred_arr))
+        metrics["confusion_matrix_df"] = pd.DataFrame(
+            metrics["confusion_matrix"],
+            index=pd.Index(cm_labels, name="actual"),
+            columns=pd.Index(cm_labels, name="predicted"),
+        ).reindex(index=labels, columns=labels, fill_value=0)
+
+        return metrics
 
     def __repr__(self) -> str:
         lda_info = (
