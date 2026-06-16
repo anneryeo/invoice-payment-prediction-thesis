@@ -155,6 +155,7 @@ def _train_selected_model(
     model_key, balance_strategy,
     args, best_surv_params,
     fitted_cph=None,
+    cox_scaler=None,
     use_lda: bool = False,
     lda_mode: str = "append",
     feature_metadata: dict | None = None,
@@ -182,6 +183,10 @@ def _train_selected_model(
         Best Cox hyperparameters from step 3.
     fitted_cph : sksurv estimator or None
         Pre-fitted Cox model.  Skips Cox refit when supplied.
+    cox_scaler : StandardScaler or None
+        The scaler ``fitted_cph`` was fit on (from ``_train_survival_model``).
+        Bundled into the resulting InferencePipeline so inference reuses the
+        exact training-time transform instead of re-deriving one per batch.
     use_lda : bool, default False
         Whether to apply the 4-class LDA projection after survival feature
         generation.  LDA is applied AFTER Cox so the Cox scaler never sees
@@ -205,6 +210,7 @@ def _train_selected_model(
         args=args,
         best_surv_params=best_surv_params,
         fitted_cph=fitted_cph,
+        cox_scaler=cox_scaler,
         use_lda=use_lda,
         lda_mode=lda_mode,
         feature_metadata=feature_metadata,
@@ -269,6 +275,7 @@ def _train_survival_model(df_data_surv, results_root: str) -> dict:
     fin_progress_state["survival_done"] = True
     return {
         "cph":                  cox,
+        "cox_scaler":           scaler,
         "best_c_index":         c_index,
         "best_surv_parameters": best_params,
         "best_time_points":     best_time_points,
@@ -492,6 +499,7 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
             # ── everything below is UNCHANGED from your original step_5.py ──
             survival_info    = _train_survival_model(df_data_surv, results_root)
             fitted_cph       = survival_info["cph"]
+            cox_scaler       = survival_info["cox_scaler"]
             best_surv_params = survival_info["best_surv_parameters"]
             best_time_points = survival_info["best_time_points"]
 
@@ -516,6 +524,7 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
                 model_key, balance_strategy,
                 args, best_surv_params,
                 fitted_cph=fitted_cph,
+                cox_scaler=cox_scaler,
                 use_lda=use_lda,
                 lda_mode=lda_mode,
                 feature_metadata=_feature_meta,

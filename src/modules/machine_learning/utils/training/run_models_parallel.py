@@ -484,7 +484,7 @@ class SurvivalExperimentRunner:
 
 
 class FinalizationRunner:
-    def __init__(self, df_data, df_data_surv, model_key, balance_strategy, args, best_surv_params, fitted_cph=None, use_lda=False, lda_mode="append", feature_metadata=None):
+    def __init__(self, df_data, df_data_surv, model_key, balance_strategy, args, best_surv_params, fitted_cph=None, cox_scaler=None, use_lda=False, lda_mode="append", feature_metadata=None):
         self.df_data = df_data
         self.df_data_surv = df_data_surv
         self.model_key = model_key
@@ -492,6 +492,7 @@ class FinalizationRunner:
         self.args = args
         self.best_surv_params = best_surv_params
         self.fitted_cph = fitted_cph
+        self.cox_scaler = cox_scaler
         self.use_lda = use_lda
         self.lda_mode = lda_mode
         self.feature_metadata = feature_metadata or {}
@@ -520,7 +521,7 @@ class FinalizationRunner:
         X_surv = self.df_data_surv.drop(columns=["days_elapsed_until_fully_paid", "censor"])
         T = adjust_payment_period(self.df_data_surv["days_elapsed_until_fully_paid"])
         E = self.df_data_surv["censor"]
-        X_enhanced = generate_survival_features(X_surv, T, E, X_full, None, self.best_surv_params, self.args.time_points, self.fitted_cph)
+        X_enhanced = generate_survival_features(X_surv, T, E, X_full, None, self.best_surv_params, self.args.time_points, self.fitted_cph, cox_scaler=self.cox_scaler)
 
         lda = None
         if self.use_lda:
@@ -578,4 +579,4 @@ class FinalizationRunner:
             pipeline = MAP[self.model_key](X_enhanced, X_enhanced, y_full, y_full, self.args, model_params)
 
         pipeline.initialize_model().fit(use_feature_selection=True)
-        return InferencePipeline(preparer.scaler_, self.fitted_cph, self.args.time_points, pipeline, preparer.label_encoder, lda, self.model_key, pipeline.features, model_params, self.feature_metadata), preparer.label_encoder
+        return InferencePipeline(preparer.scaler_, self.fitted_cph, self.args.time_points, pipeline, preparer.label_encoder, lda, self.model_key, pipeline.features, model_params, self.feature_metadata, cox_scaler=self.cox_scaler), preparer.label_encoder
