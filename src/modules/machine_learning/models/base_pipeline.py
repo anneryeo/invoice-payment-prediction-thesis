@@ -192,6 +192,10 @@ class BasePipeline(ABC):
         """Generate predictions for new data."""
         return self.model.predict(np.array(X))
 
+    def predict_proba(self, X):
+        """Generate class probability estimates for new data."""
+        return self.model.predict_proba(np.array(X))
+
     def evaluate(self):
         """Evaluate the model using data_evaluation."""
         y_pred  = self.predict(self.X_test)
@@ -205,7 +209,7 @@ class BasePipeline(ABC):
 
     def _predict_proba(self, X):
         """Generate class probability estimates for new data."""
-        return self.model.predict_proba(np.array(X))
+        return self.predict_proba(X)
 
     def get_selected_features(self):
         """Return selected feature names, falling back to all originals."""
