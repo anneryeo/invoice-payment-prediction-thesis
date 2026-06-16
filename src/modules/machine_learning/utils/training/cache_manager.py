@@ -7,7 +7,7 @@ from pathlib import Path
 class CacheManager:
     """Manages disk-based caching for prepared datasets and models."""
     
-    def __init__(self, cache_root="data/cache"):
+    def __init__(self, cache_root="data/training_cache"):
         self.cache_root = Path(cache_root)
         self.dataset_dir = self.cache_root / "datasets"
         self.model_dir = self.cache_root / "models"
