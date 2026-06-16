@@ -2,6 +2,15 @@ import pickle
 import threading
 import traceback
 import os
+
+# Tell loky/joblib to skip the wmic physical-core probe on Windows.
+# Without this, joblib throws WinError 2 on Windows 11 where wmic is
+# deprecated, and falls back to logical-core count anyway — which is
+# exactly what we want.  Setting this explicitly silences the warning.
+if "LOKY_MAX_CPU_COUNT" not in os.environ:
+    import multiprocessing
+    os.environ["LOKY_MAX_CPU_COUNT"] = str(multiprocessing.cpu_count())
+
 import io
 from time import time
 
@@ -252,10 +261,15 @@ def _train_survival_model(df_data_surv, results_root: str) -> dict:
     ).astype(float)
 
     # Apply the same standardisation as generate_survival_features._safe_scale
-    scaler  = StandardScaler()
-    X_scaled = scaler.fit_transform(X_raw)
+    scaler   = StandardScaler()
+    X_scaled_arr = scaler.fit_transform(X_raw)
     import numpy as np
-    X_scaled = np.clip(X_scaled, -10, 10)
+    import pandas as pd
+    X_scaled_arr = np.clip(X_scaled_arr, -10, 10)
+    # Wrap back into a DataFrame so CoxnetSurvivalAnalysis stores
+    # feature_names_in_ and inference calls with a named DataFrame do
+    # not emit "X has feature names, but model was fitted without feature names".
+    X_scaled = pd.DataFrame(X_scaled_arr, columns=X_raw.columns, index=X_raw.index)
 
     y = Surv.from_arrays(
         event=E.astype(bool).values,
@@ -670,13 +684,15 @@ def update_fin_step_statuses(n, status):
     Output("fin-progress-text",        "children"),
     Output("finalize_btn",             "disabled"),
     Output("finalization-complete",    "data"),
+    Output("fin-progress-interval",    "disabled", allow_duplicate=True),
     Input("fin-progress-interval",     "n_intervals"),
     State("fin-training_status",       "data"),
+    State("finalization-complete",     "data"),
     prevent_initial_call=True,
 )
-def update_fin_progress(n, status):
+def update_fin_progress(n, status, already_complete):
     if status != "running":
-        return no_update, no_update, no_update, no_update, no_update, no_update
+        return no_update, no_update, no_update, no_update, no_update, no_update, no_update
 
     start_time = fin_progress_state.get("start_time")
     milestones = [
@@ -690,7 +706,11 @@ def update_fin_progress(n, status):
     percent   = int((completed / total) * 100)
 
     if completed >= total:
-        return 100, False, "success", "Finalization complete. Model is ready.", False, True
+        # Write finalization-complete only once and disable the interval so
+        # it stops ticking — otherwise it keeps re-writing True forever and
+        # re-triggering the router on every tick.
+        fin_complete_out = no_update if already_complete else True
+        return 100, False, "success", "Finalization complete. Model is ready.", False, fin_complete_out, True
 
     if completed > 0 and start_time:
         elapsed      = time() - start_time
@@ -702,6 +722,6 @@ def update_fin_progress(n, status):
             eta_str = f"~{int(remaining / 60)}m remaining"
         else:
             eta_str = f"~{int(remaining / 3600)}h remaining"
-        return percent, True, "primary", f"{completed}/{total} steps completed ({percent}%) — {eta_str}", True, no_update
+        return percent, True, "primary", f"{completed}/{total} steps completed ({percent}%) — {eta_str}", True, no_update, no_update
 
-    return 0, True, "primary", "Waiting for finalization to start...", True, no_update
+    return 0, True, "primary", "Waiting for finalization to start...", True, no_update, no_update

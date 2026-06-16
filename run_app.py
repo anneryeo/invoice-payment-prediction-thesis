@@ -1,4 +1,4 @@
-from dash import dcc, html, Input, Output, State, no_update
+from dash import dcc, html, Input, Output, State, no_update, ctx
 import dash_bootstrap_components as dbc
 
 from src.app.utils.model_manager import has_trained_models
@@ -98,8 +98,12 @@ def display_page(pathname, finalization_complete):
     shell_hidden    = {"display": "none"}
     models_ready    = has_trained_models()
 
-    # Post-finalization: training just completed → go to dashboard
-    if finalization_complete:
+    # Post-finalization: training just completed → go to dashboard.
+    # Only act on the actual finalization-complete trigger — once the URL is
+    # set to /dashboard below, that pathname change re-fires this callback,
+    # and without this guard it would re-enter this branch (and call
+    # dashboard.layout() again) on every subsequent re-trigger.
+    if finalization_complete and ctx.triggered_id == "finalization-complete":
         return (
             dashboard.layout(),
             setup_hidden,
