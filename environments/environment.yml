@@ -23,9 +23,10 @@ dependencies:
   - bottleneck=1.4.2=py312h540bb41_1
   - brotli-python=1.2.0=py312hc6d9e41_1
   - bzip2=1.0.8=h2bbff1b_6
-  - ca-certificates=2026.5.14=haa95532_0
+  - c-ares=1.34.6=h2c209ce_0
+  - ca-certificates=2026.5.20=h4c7d964_0
   - cairo=1.18.4=he9e932c_0
-  - certifi=2026.5.20=py312haa95532_0
+  - certifi=2026.5.20=pyhd8ed1ab_0
   - charset-normalizer=3.4.4=pyhd8ed1ab_0
   - click=8.3.1=pyha7b4d00_1
   - cloudpickle=3.1.2=pyhcf101f3_1
@@ -138,6 +139,7 @@ dependencies:
   - pyparsing=3.2.5=py312haa95532_0
   - pysocks=1.7.1=pyh09c184e_7
   - python=3.12.12=h716150d_1
+  - python-calamine=0.6.1=py312hb0142fd_0
   - python-dateutil=2.9.0.post0=pyhe01879c_2
   - python-gil=3.12.12=hd8ed1ab_2
   - python-tzdata=2025.3=pyhd3eb1b0_0
@@ -147,6 +149,7 @@ dependencies:
   - pyyaml=6.0.3=py312h05f76fc_1
   - pyzmq=27.1.0=py312h343a6d4_2
   - qdldl-python=0.1.7.post5=np2py312ha76dc74_3
+  - re2=2025.11.05=hca2749c_1
   - regex=2026.2.19=py312he06e257_0
   - requests=2.32.5=pyhcf101f3_1
   - retrying=1.3.3=pyhd3eb1b0_2
