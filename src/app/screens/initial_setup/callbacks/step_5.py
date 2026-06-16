@@ -567,6 +567,14 @@ def run_finalization(current_step, selected_model_data, credit_sales_json,
             _save_pickle(pipeline, selected_model_path)
             fin_progress_state["selected_saved"] = True
 
+            # Invalidate the invoice-drilldown prediction cache so the next
+            # screen load re-runs inference against the newly deployed model
+            # instead of serving stale predictions from the old one.
+            from src.modules.machine_learning.utils.inference.inference_pipeline import (
+                InvoicePredictionHelper,
+            )
+            InvoicePredictionHelper.CACHE_PATH.unlink(missing_ok=True)
+
             # ── Save survival model separately ────────────────────────────────
             # The Cox model is also embedded inside the InferencePipeline, but
             # we keep a separate survival pickle for step_4 result inspection

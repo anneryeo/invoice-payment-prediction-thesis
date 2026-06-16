@@ -72,6 +72,384 @@ from src.modules.machine_learning.utils.training.data_evaluation import (
 _logger = logging.getLogger(__name__)
 
 
+# Metadata/target columns — not passed to the model. Used only as a fallback
+# when the fitted scaler doesn't expose feature_names_in_ (e.g. a legacy
+# artifact); the normal path derives the real feature list from the scaler.
+_NON_FEATURE_COLS = {"dtp_bracket", "due_date", "date_fully_paid",
+                     "censor", "days_elapsed_until_fully_paid"}
+
+# Internal keys carried on invoice-prediction rows that must never reach a
+# visible table or export — see InvoicePredictionHelper.run_invoice_predictions.
+_INTERNAL_KEYS = {"_pred_key", "_amount_raw", "prediction", "confidence"}
+
+_BRACKET_LABELS = {
+    "on_time": "On Time",
+    "30_days": "1–30 Days",
+    "60_days": "31–60 Days",
+    "90_days": "61+ Days",
+}
+
+
+class InferencePipelinePreprocessor:
+    """
+    Reproduces the training-time preprocessing chain (scale → survival
+    features → optional LDA) for a raw feature DataFrame at inference time.
+    """
+
+    def __init__(self, scaler, cox_model, cox_scaler, time_points, lda_transformer=None):
+        self.scaler          = scaler
+        self.cox_model       = cox_model
+        self.cox_scaler      = cox_scaler
+        self.time_points     = time_points
+        self.lda_transformer = lda_transformer
+
+    def transform(self, X_raw: pd.DataFrame) -> pd.DataFrame:
+        """
+        Apply the full preprocessing chain to a raw feature DataFrame.
+
+        Steps
+        -----
+        1. Cast to float64 and align columns to those seen during training.
+        2. StandardScaler transform (same scaler fitted at training time).
+        3. generate_survival_features — appends Cox hazard/survival columns.
+        4. LDATransformer.transform — appends LD components (optional).
+
+        Parameters
+        ----------
+        X_raw : pd.DataFrame
+            Raw features, same columns as the original training DataFrame
+            (before any preprocessing).  Extra columns are silently dropped;
+            missing columns raise a ``ValueError``.
+
+        Returns
+        -------
+        np.ndarray
+            Preprocessed feature matrix ready for the classifier.
+        """
+        from src.modules.machine_learning.utils.features.generate_survival_features import (
+            generate_survival_features,
+        )
+
+        # ── 1. Scale ─────────────────────────────────────────────────────────
+        # Align to the columns the scaler was fitted on, then transform.
+        # Using a DataFrame preserves column names for LDATransformer.
+        X = X_raw.copy().astype(float)
+        X_scaled_arr = self.scaler.transform(X)
+        X_scaled = pd.DataFrame(
+            X_scaled_arr, columns=X.columns, index=X.index
+        )
+
+        # ── 2. Survival features ──────────────────────────────────────────────
+        # generate_survival_features returns X_train_enhanced (and optionally
+        # X_test_enhanced).  We pass X_test=None to get the single-set path.
+        #
+        # NOTE on X_train=X_scaled: this looks suspicious at a glance — X_scaled
+        # is the live inference batch, not the historical training set — but it
+        # is correct. When fitted_cph+cox_scaler are both supplied,
+        # generate_survival_features takes the "reuse" branch (see its source):
+        # it never refits anything from X_surv/T/E, and the X_train argument is
+        # simply "the data to run the fitted cox model over" — i.e. whatever
+        # batch needs survival columns appended. This mirrors exactly what
+        # FinalizationRunner.train() does at training/finalization time: it
+        # passes its own already-scaled X_full (post DataPreparer.normalize(),
+        # i.e. post the *same* StandardScaler that becomes self.scaler here) as
+        # the X_train argument, while cox_scaler was fit on the raw (pre-scaler)
+        # survival columns in step_5._train_survival_model. So the classifier
+        # was trained on cox-features derived by double-scaling
+        # (self.scaler then cox_scaler) — passing X_scaled here reproduces that
+        # exact chain. Passing None or a stashed "real" training set would
+        # desync inference preprocessing from what the model was actually
+        # fit on and silently degrade predictions.
+        X_enhanced = generate_survival_features(
+            X_surv=X_scaled,
+            T=None,             # T and E are not needed: fitted_cph *and*
+            E=None,             # cox_scaler are both supplied, so
+            X_train=X_scaled,   # generate_survival_features never calls
+            X_test=None,        # clean_survival_inputs (which requires real
+            best_params=None,   # T/E) to re-derive a scaler.
+            time_points=self.time_points,
+            fitted_cph=self.cox_model,
+            cox_scaler=self.cox_scaler,
+        )
+
+        # ── 3. LDA ───────────────────────────────────────────────────────────
+        # Applied only when a 4-class LDA transformer was fitted at training.
+        # Stage-2 delinquent LDA (inside TwoStageClassifier) is handled
+        # automatically by the classifier's predict_proba — no action needed.
+        if self.lda_transformer is not None:
+            X_enhanced = self.lda_transformer.transform(X_enhanced)
+
+        return X_enhanced
+
+
+class InferencePipelinePredictor:
+    """Decoded predict / predict_proba over an already-preprocessed matrix."""
+
+    def __init__(self, classifier_pipeline, label_encoder):
+        self.classifier_pipeline = classifier_pipeline
+        self.label_encoder       = label_encoder
+
+    def predict(self, X_preprocessed) -> np.ndarray:
+        y_encoded = self.classifier_pipeline.predict(X_preprocessed)
+        return self.label_encoder.inverse_transform(y_encoded.astype(int))
+
+    def predict_proba(self, X_preprocessed, index=None) -> pd.DataFrame:
+        """
+        ``index`` defaults to ``X_preprocessed``'s own index, but callers
+        should pass the *raw* (pre-preprocessing) index explicitly when the
+        two differ — preprocessing never reorders/drops rows, so the raw
+        index is always the semantically correct one to attach to the
+        positionally-aligned probability rows returned by the classifier.
+        """
+        probas  = self.classifier_pipeline.predict_proba(X_preprocessed)
+        classes = self.label_encoder.classes_   # ["on_time", "30_days", …]
+        if index is None:
+            index = getattr(X_preprocessed, "index", None)
+        return pd.DataFrame(probas, columns=classes, index=index)
+
+
+class InferencePipelineEvaluator:
+    """Classification metrics for decoded predictions, via data_evaluation."""
+
+    def __init__(self, label_encoder):
+        self.label_encoder = label_encoder
+
+    def evaluate(
+        self,
+        y_true: Union[pd.Series, np.ndarray, list],
+        y_pred: Union[pd.Series, np.ndarray, list],
+        y_proba: Union[pd.DataFrame, np.ndarray, None] = None,
+        *,
+        labels: list[str] | None = None,
+    ) -> dict:
+        """
+        Compute classification metrics by delegating to ``data_evaluation``.
+
+        Both ``y_true`` and ``y_pred`` must contain *decoded* class label
+        strings (e.g. ``"on_time"``, ``"30_days"``), not integer codes —
+        i.e. the output of ``predict()``, not raw classifier integers.
+
+        Parameters
+        ----------
+        y_true : array-like of str
+            Ground-truth class labels.
+        y_pred : array-like of str
+            Predicted class labels (output of ``predict()``).
+        y_proba : pd.DataFrame, np.ndarray, or None
+            Per-class probability matrix of shape (n_samples, n_classes),
+            with columns/column-order matching ``self.label_encoder.classes_``
+            (the order returned by ``predict_proba()``). When supplied,
+            ``roc_auc_macro``, ``roc_curve``, and ``pr_curve`` are also
+            populated in the returned dict. When ``None``, those three keys
+            are ``None``.
+        labels : list of str or None
+            Ordered class names used for the confusion matrix rows/columns.
+            Defaults to ``self.label_encoder.classes_`` (training-time order).
+
+        Returns
+        -------
+        dict
+            All keys returned by ``data_evaluation``, plus
+            ``"confusion_matrix_df"`` — a labelled ``pd.DataFrame`` version
+            of ``"confusion_matrix"`` (which remains a list[list[int]] for
+            back-compat).
+        """
+        y_true_arr = np.asarray(y_true)
+        y_pred_arr = np.asarray(y_pred)
+
+        y_proba_arr: np.ndarray | None = None
+        if y_proba is not None:
+            y_proba_arr = y_proba.values if isinstance(y_proba, pd.DataFrame) else np.asarray(y_proba)
+
+        # NOTE: data_evaluation signature is (y_pred, y_test, y_proba).
+        metrics = _data_evaluation(y_pred_arr, y_true_arr, y_proba_arr)
+
+        if labels is None:
+            labels = list(self.label_encoder.classes_)
+
+        # sklearn's confusion_matrix (called inside data_evaluation) orders
+        # rows/cols by classes seen in EITHER y_true or y_pred, sorted — not
+        # just y_true. Using only y_true's classes here would silently
+        # misalign the labelled DataFrame whenever y_pred contains a class
+        # y_true doesn't (entirely plausible on a small eval batch).
+        cm_labels = sorted(set(y_true_arr) | set(y_pred_arr))
+        metrics["confusion_matrix_df"] = pd.DataFrame(
+            metrics["confusion_matrix"],
+            index=pd.Index(cm_labels, name="actual"),
+            columns=pd.Index(cm_labels, name="predicted"),
+        ).reindex(index=labels, columns=labels, fill_value=0)
+
+        return metrics
+
+
+class InvoicePredictionHelper:
+    """
+    Backend logic for the Invoice Prediction Drilldown screen: feature
+    selection, display-amount extraction, and cached batch inference over
+    the full invoice cache DataFrame. No Dash/plotly dependency — the UI
+    layer is src/app/screens/invoice_drilldown.py.
+    """
+
+    CACHE_PATH = Path("data") / "app_cache" / "invoice_predictions.pkl"
+
+    def __init__(self, scaler, predict_fn, predict_proba_fn):
+        """
+        ``predict_fn``/``predict_proba_fn`` are the orchestrator's own bound
+        ``predict``/``predict_proba`` methods (raw-DataFrame in, decoded
+        labels / indexed probabilities out) — not the bare
+        InferencePipelinePreprocessor/Predictor pair. Routing through the
+        orchestrator instance means a subclass override of
+        InferencePipeline._preprocess (see tests/test_inference_pipeline.py's
+        _SyntheticInferencePipeline, which skips the sksurv-dependent
+        survival-feature step) is respected here too, instead of silently
+        bypassed by calling the preprocessor directly.
+        """
+        self.scaler              = scaler
+        self._predict_fn         = predict_fn
+        self._predict_proba_fn   = predict_proba_fn
+
+    @staticmethod
+    def extract_amount(df_full: pd.DataFrame, i: int) -> float | None:
+        """
+        Pull the display amount for row *i*. credit_sale_amount is the actual
+        cache column (verified against data/training_results/credit_sales_cache.pkl);
+        net_receivables/gross_receivables are kept as fallbacks in case the cache
+        schema changes. Handles numeric dtypes, NaN, and string values that may
+        contain currency symbols or commas (e.g. '₱1,234.56').
+        """
+        for col in ("credit_sale_amount", "net_receivables", "net_receivable",
+                    "gross_receivables", "gross_receivable"):
+            if col not in df_full.columns:
+                continue
+            val = df_full[col].iloc[i]
+            if val is None:
+                continue
+            try:
+                fval = float(val)
+                if not pd.isna(fval):
+                    return fval
+            except (TypeError, ValueError):
+                pass
+            if isinstance(val, str):
+                cleaned = val.replace("₱", "").replace(",", "").strip()
+                try:
+                    fval = float(cleaned)
+                    if not pd.isna(fval):
+                        return fval
+                except (TypeError, ValueError):
+                    pass
+        return None
+
+    def select_feature_columns(self, df_full: pd.DataFrame) -> pd.DataFrame:
+        """
+        Build the raw feature matrix the pipeline expects.
+
+        Prefers the fitted scaler's feature_names_in_ (the actual columns seen
+        at training time) over the hand-maintained _NON_FEATURE_COLS exclusion
+        list, since the latter can silently drift out of sync with what the
+        model was trained on.
+        """
+        expected = list(getattr(self.scaler, "feature_names_in_", []))
+        if expected:
+            missing = [c for c in expected if c not in df_full.columns]
+            if missing:
+                raise ValueError(
+                    f"Invoice cache is missing {len(missing)} column(s) required "
+                    f"by the deployed model: {missing}"
+                )
+            return df_full[expected].copy()
+
+        feature_cols = [c for c in df_full.columns if c not in _NON_FEATURE_COLS]
+        return df_full[feature_cols].copy()
+
+    def _predict_all_rows(self, df_full: pd.DataFrame) -> list[dict]:
+        X_raw  = self.select_feature_columns(df_full)
+        labels = self._predict_fn(X_raw)
+        probas = self._predict_proba_fn(X_raw)
+
+        rows = []
+        for i in range(len(df_full)):
+            pred   = labels[i]
+            conf   = float(probas.iloc[i][pred]) * 100
+            actual = df_full["dtp_bracket"].iloc[i] if "dtp_bracket" in df_full.columns else "—"
+            due    = df_full["due_date"].iloc[i]     if "due_date"    in df_full.columns else "—"
+
+            amount_raw = self.extract_amount(df_full, i)
+
+            try:
+                due_str = pd.to_datetime(due).strftime("%Y-%m-%d") if pd.notna(due) else "—"
+            except Exception:
+                due_str = str(due)
+            amt_str = f"₱{amount_raw:,.2f}" if amount_raw is not None else "—"
+
+            rows.append({
+                "invoice_no":  i + 1,
+                "due_date":    due_str,
+                "amount":      amt_str,
+                "pred_conf":   f"{_BRACKET_LABELS.get(pred, pred)} ({conf:.1f}%)",
+                "actual":      _BRACKET_LABELS.get(str(actual), str(actual)),
+                "_pred_key":   pred,
+                "_amount_raw": amount_raw,
+            })
+        return rows
+
+    def predict_all(
+        self,
+        df_full: pd.DataFrame,
+        use_cache: bool = True,
+        invalidate_cache: bool = False,
+    ) -> list[dict]:
+        """
+        Return every invoice row (unfiltered, unpaginated), reusing the
+        on-disk cache at CACHE_PATH when available. Callers that need the
+        full set — the Dash predictions-store, cash-flow chart, CSV export —
+        should use this directly; run_invoice_predictions below layers
+        bracket filtering and pagination on top of it for the table view.
+
+        The cache is invalidated automatically whenever a new model is
+        deployed (see step_5.run_finalization, which unlinks CACHE_PATH
+        right after writing a new finalized_*.pkl), so callers normally
+        don't need to pass invalidate_cache themselves — it's exposed mainly
+        for an explicit "Refresh" action in the UI.
+        """
+        if invalidate_cache and self.CACHE_PATH.exists():
+            self.CACHE_PATH.unlink(missing_ok=True)
+
+        if use_cache and not invalidate_cache and self.CACHE_PATH.exists():
+            return pd.read_pickle(self.CACHE_PATH)
+
+        all_rows = self._predict_all_rows(df_full)
+        self.CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        pd.to_pickle(all_rows, self.CACHE_PATH)
+        return all_rows
+
+    def run_invoice_predictions(
+        self,
+        df_full: pd.DataFrame,
+        page: int = 1,
+        page_size: int = 15,
+        bracket_filter: str = "all",
+        use_cache: bool = True,
+        invalidate_cache: bool = False,
+    ) -> tuple[list[dict], int]:
+        """
+        Run (or reuse cached) inference on the full cache DataFrame.
+
+        Returns (table_rows, total_count) for the requested page.
+        Rows include display columns + predicted bracket + top confidence %.
+        """
+        rows = self.predict_all(df_full, use_cache=use_cache, invalidate_cache=invalidate_cache)
+
+        if bracket_filter != "all":
+            rows = [r for r in rows if r["_pred_key"] == bracket_filter]
+
+        total   = len(rows)
+        start   = (page - 1) * page_size
+        visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
+                   for r in rows[start : start + page_size]]
+        return visible, total
+
+
 class InferencePipeline:
     """
     Single-object inference bundle for the deployed payment-delay classifier.
@@ -80,6 +458,17 @@ class InferencePipeline:
     and the classifier at training time, so that ``predict`` and
     ``predict_proba`` can reproduce the full preprocessing chain from raw
     input at inference time.
+
+    Internally this is a thin orchestrator: preprocessing, decoded
+    prediction, evaluation, and the invoice-drilldown helpers each live in
+    their own composed class (InferencePipelinePreprocessor /
+    InferencePipelinePredictor / InferencePipelineEvaluator /
+    InvoicePredictionHelper, all defined above). Components are built lazily
+    by property on every access rather than once in __init__, because
+    existing finalized_*.pkl artifacts pickled before this split only have
+    the flat attributes below in their __dict__ — unpickling restores
+    __dict__ directly without calling __init__, so anything assigned only
+    inside __init__ would be silently missing on those older objects.
 
     Parameters
     ----------
@@ -160,85 +549,43 @@ class InferencePipeline:
         # batches are scored using the exact distribution seen at fit time.
         self.feature_metadata     = feature_metadata or {}
 
+    # ── composed components (see class docstring for why these are
+    #    properties rather than attributes set in __init__) ────────────────
+
+    @property
+    def _preprocessor(self) -> InferencePipelinePreprocessor:
+        return InferencePipelinePreprocessor(
+            self.scaler, self.cox_model, self.cox_scaler,
+            self.time_points, self.lda_transformer,
+        )
+
+    @property
+    def _predictor(self) -> InferencePipelinePredictor:
+        return InferencePipelinePredictor(self.classifier_pipeline, self.label_encoder)
+
+    @property
+    def _evaluator(self) -> InferencePipelineEvaluator:
+        return InferencePipelineEvaluator(self.label_encoder)
+
+    @property
+    def _invoice_helper(self) -> InvoicePredictionHelper:
+        # Passes self.predict/self.predict_proba (not the bare preprocessor/
+        # predictor pair) so a subclass override of _preprocess is honoured
+        # here exactly as it is for direct predict()/predict_proba() calls.
+        return InvoicePredictionHelper(self.scaler, self.predict, self.predict_proba)
+
     # ── internal preprocessing chain ─────────────────────────────────────────
 
     def _preprocess(self, X_raw: pd.DataFrame) -> np.ndarray:
         """
-        Apply the full preprocessing chain to a raw feature DataFrame.
-
-        Steps
-        -----
-        1. Cast to float64 and align columns to those seen during training.
-        2. StandardScaler transform (same scaler fitted at training time).
-        3. generate_survival_features — appends Cox hazard/survival columns.
-        4. LDATransformer.transform — appends LD components (optional).
-
-        Parameters
-        ----------
-        X_raw : pd.DataFrame
-            Raw features, same columns as the original training DataFrame
-            (before any preprocessing).  Extra columns are silently dropped;
-            missing columns raise a ``ValueError``.
-
-        Returns
-        -------
-        np.ndarray
-            Preprocessed feature matrix ready for the classifier.
+        Delegates to InferencePipelinePreprocessor.transform. Kept as an
+        overridable instance method (rather than calling self._preprocessor
+        directly from predict/predict_proba) because
+        tests/test_inference_pipeline.py's _SyntheticInferencePipeline
+        subclasses InferencePipeline and overrides this method to skip the
+        sksurv-dependent survival-feature step.
         """
-        from src.modules.machine_learning.utils.features.generate_survival_features import (
-            generate_survival_features,
-        )
-
-        # ── 1. Scale ─────────────────────────────────────────────────────────
-        # Align to the columns the scaler was fitted on, then transform.
-        # Using a DataFrame preserves column names for LDATransformer.
-        X = X_raw.copy().astype(float)
-        X_scaled_arr = self.scaler.transform(X)
-        X_scaled = pd.DataFrame(
-            X_scaled_arr, columns=X.columns, index=X.index
-        )
-
-        # ── 2. Survival features ──────────────────────────────────────────────
-        # generate_survival_features returns X_train_enhanced (and optionally
-        # X_test_enhanced).  We pass X_test=None to get the single-set path.
-        #
-        # NOTE on X_train=X_scaled: this looks suspicious at a glance — X_scaled
-        # is the live inference batch, not the historical training set — but it
-        # is correct. When fitted_cph+cox_scaler are both supplied,
-        # generate_survival_features takes the "reuse" branch (see its source):
-        # it never refits anything from X_surv/T/E, and the X_train argument is
-        # simply "the data to run the fitted cox model over" — i.e. whatever
-        # batch needs survival columns appended. This mirrors exactly what
-        # FinalizationRunner.train() does at training/finalization time: it
-        # passes its own already-scaled X_full (post DataPreparer.normalize(),
-        # i.e. post the *same* StandardScaler that becomes self.scaler here) as
-        # the X_train argument, while cox_scaler was fit on the raw (pre-scaler)
-        # survival columns in step_5._train_survival_model. So the classifier
-        # was trained on cox-features derived by double-scaling
-        # (self.scaler then cox_scaler) — passing X_scaled here reproduces that
-        # exact chain. Passing None or a stashed "real" training set would
-        # desync inference preprocessing from what the model was actually
-        # fit on and silently degrade predictions.
-        X_enhanced = generate_survival_features(
-            X_surv=X_scaled,
-            T=None,             # T and E are not needed: fitted_cph *and*
-            E=None,             # cox_scaler are both supplied, so
-            X_train=X_scaled,   # generate_survival_features never calls
-            X_test=None,        # clean_survival_inputs (which requires real
-            best_params=None,   # T/E) to re-derive a scaler.
-            time_points=self.time_points,
-            fitted_cph=self.cox_model,
-            cox_scaler=self.cox_scaler,
-        )
-
-        # ── 3. LDA ───────────────────────────────────────────────────────────
-        # Applied only when a 4-class LDA transformer was fitted at training.
-        # Stage-2 delinquent LDA (inside TwoStageClassifier) is handled
-        # automatically by the classifier's predict_proba — no action needed.
-        if self.lda_transformer is not None:
-            X_enhanced = self.lda_transformer.transform(X_enhanced)
-
-        return X_enhanced
+        return self._preprocessor.transform(X_raw)
 
     # ── public API ────────────────────────────────────────────────────────────
 
@@ -259,8 +606,7 @@ class InferencePipeline:
             ``"60_days"``, or ``"90_days"``.
         """
         X = self._preprocess(X_raw)
-        y_encoded = self.classifier_pipeline.predict(X)
-        return self.label_encoder.inverse_transform(y_encoded.astype(int))
+        return self._predictor.predict(X)
 
     def predict_proba(self, X_raw: pd.DataFrame) -> pd.DataFrame:
         """
@@ -277,10 +623,8 @@ class InferencePipeline:
             Columns: ``"on_time"``, ``"30_days"``, ``"60_days"``,
             ``"90_days"``.  Each row sums to 1.0.
         """
-        X      = self._preprocess(X_raw)
-        probas = self.classifier_pipeline.predict_proba(X)
-        classes = self.label_encoder.classes_   # ["on_time", "30_days", …]
-        return pd.DataFrame(probas, columns=classes, index=X_raw.index)
+        X = self._preprocess(X_raw)
+        return self._predictor.predict_proba(X, index=X_raw.index)
 
     def evaluate_predictions(
         self,
@@ -290,64 +634,43 @@ class InferencePipeline:
         *,
         labels: list[str] | None = None,
     ) -> dict:
-        """
-        Compute classification metrics by delegating to ``data_evaluation``.
+        """Computes classification metrics — see InferencePipelineEvaluator.evaluate."""
+        return self._evaluator.evaluate(y_true, y_pred, y_proba, labels=labels)
 
-        Both ``y_true`` and ``y_pred`` must contain *decoded* class label
-        strings (e.g. ``"on_time"``, ``"30_days"``), not integer codes —
-        i.e. the output of ``predict()``, not raw classifier integers.
+    def select_feature_columns(self, df_full: pd.DataFrame) -> pd.DataFrame:
+        """Builds the raw feature matrix this pipeline expects — see InvoicePredictionHelper."""
+        return self._invoice_helper.select_feature_columns(df_full)
 
-        Parameters
-        ----------
-        y_true : array-like of str
-            Ground-truth class labels.
-        y_pred : array-like of str
-            Predicted class labels (output of ``predict()``).
-        y_proba : pd.DataFrame, np.ndarray, or None
-            Per-class probability matrix of shape (n_samples, n_classes),
-            with columns/column-order matching ``self.label_encoder.classes_``
-            (the order returned by ``predict_proba()``). When supplied,
-            ``roc_auc_macro``, ``roc_curve``, and ``pr_curve`` are also
-            populated in the returned dict. When ``None``, those three keys
-            are ``None``.
-        labels : list of str or None
-            Ordered class names used for the confusion matrix rows/columns.
-            Defaults to ``self.label_encoder.classes_`` (training-time order).
+    @staticmethod
+    def extract_amount(df_full: pd.DataFrame, i: int) -> float | None:
+        """Pulls the display amount for row *i* — see InvoicePredictionHelper.extract_amount."""
+        return InvoicePredictionHelper.extract_amount(df_full, i)
 
-        Returns
-        -------
-        dict
-            All keys returned by ``data_evaluation``, plus
-            ``"confusion_matrix_df"`` — a labelled ``pd.DataFrame`` version
-            of ``"confusion_matrix"`` (which remains a list[list[int]] for
-            back-compat).
-        """
-        y_true_arr = np.asarray(y_true)
-        y_pred_arr = np.asarray(y_pred)
+    def predict_all_invoices(
+        self,
+        df_full: pd.DataFrame,
+        use_cache: bool = True,
+        invalidate_cache: bool = False,
+    ) -> list[dict]:
+        """Returns every invoice row, unfiltered/unpaginated — see InvoicePredictionHelper.predict_all."""
+        return self._invoice_helper.predict_all(
+            df_full, use_cache=use_cache, invalidate_cache=invalidate_cache,
+        )
 
-        y_proba_arr: np.ndarray | None = None
-        if y_proba is not None:
-            y_proba_arr = y_proba.values if isinstance(y_proba, pd.DataFrame) else np.asarray(y_proba)
-
-        # NOTE: data_evaluation signature is (y_pred, y_test, y_proba).
-        metrics = _data_evaluation(y_pred_arr, y_true_arr, y_proba_arr)
-
-        if labels is None:
-            labels = list(self.label_encoder.classes_)
-
-        # sklearn's confusion_matrix (called inside data_evaluation) orders
-        # rows/cols by classes seen in EITHER y_true or y_pred, sorted — not
-        # just y_true. Using only y_true's classes here would silently
-        # misalign the labelled DataFrame whenever y_pred contains a class
-        # y_true doesn't (entirely plausible on a small eval batch).
-        cm_labels = sorted(set(y_true_arr) | set(y_pred_arr))
-        metrics["confusion_matrix_df"] = pd.DataFrame(
-            metrics["confusion_matrix"],
-            index=pd.Index(cm_labels, name="actual"),
-            columns=pd.Index(cm_labels, name="predicted"),
-        ).reindex(index=labels, columns=labels, fill_value=0)
-
-        return metrics
+    def run_invoice_predictions(
+        self,
+        df_full: pd.DataFrame,
+        page: int = 1,
+        page_size: int = 15,
+        bracket_filter: str = "all",
+        use_cache: bool = True,
+        invalidate_cache: bool = False,
+    ) -> tuple[list[dict], int]:
+        """Runs paginated/filtered invoice inference — see InvoicePredictionHelper.run_invoice_predictions."""
+        return self._invoice_helper.run_invoice_predictions(
+            df_full, page=page, page_size=page_size, bracket_filter=bracket_filter,
+            use_cache=use_cache, invalidate_cache=invalidate_cache,
+        )
 
     def __repr__(self) -> str:
         lda_info = (

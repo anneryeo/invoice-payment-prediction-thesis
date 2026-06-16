@@ -159,7 +159,7 @@ def setup_dev_env():
         "Training": {
             "MODEL_PARAMETERS": "src/modules/machine_learning/parameters.json",
             "RESULTS_ROOT": "results",
-            "LOGS": "data/logs",
+            "LOGS": "data/app_logs",
             "DEPLOYED_MODELS": "results/deployed_models",
             "observation_end": "2026/04/24",
             "target_feature": "dtp_bracket",
