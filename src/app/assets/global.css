@@ -300,6 +300,45 @@ a:hover { color: var(--accent); }
   color:     var(--text-muted);
 }
 
+/* ── Mini KPI cards (compact stat row, e.g. cash flow summary) ───────────────── */
+.mini-kpi-row {
+  display:       flex;
+  gap:           12px;
+  margin-bottom: 16px;
+  flex-wrap:     wrap;
+}
+
+.mini-kpi-card {
+  background:    #f9f8f6;
+  border-radius: 10px;
+  padding:       12px 20px;
+  min-width:     160px;
+  flex:          1;
+  border-left:   4px solid var(--primary);
+}
+
+.mini-kpi-card-success { border-left-color: var(--on-time); }
+.mini-kpi-card-danger  { border-left-color: var(--90-days); }
+
+.mini-kpi-label {
+  font-size: 11px;
+  color:     #6b7280;
+  margin:    0 0 4px;
+}
+
+.mini-kpi-value {
+  font-size:   18px;
+  font-weight: 700;
+  color:       var(--primary);
+  margin:      0;
+}
+
+.mini-kpi-sub {
+  font-size: 11px;
+  color:     #6b7280;
+  margin:    4px 0 0;
+}
+
 /* ── Chart/section row ─────────────────────────────────────────────────────── */
 .section-row {
   display:   grid;
@@ -330,6 +369,19 @@ a:hover { color: var(--accent); }
   margin:      0;
 }
 
+.section-subtext {
+  font-size: 12px;
+  color:     #6b7280;
+  margin:    0;
+}
+
+.chart-footnote {
+  font-size:   11px;
+  color:       #9ca3af;
+  margin-top:  8px;
+  font-style:  italic;
+}
+
 /* ── Payment bracket badges ────────────────────────────────────────────────── */
 .bracket-badge {
   display:       inline-flex;
@@ -345,6 +397,42 @@ a:hover { color: var(--accent); }
 .bracket-badge.days-30   { background: var(--30-days-bg);  color: var(--30-days); }
 .bracket-badge.days-60   { background: var(--60-days-bg);  color: var(--60-days); }
 .bracket-badge.days-90   { background: var(--90-days-bg);  color: var(--90-days); }
+
+/* ── Bracket filter chips (toggleable bracket buttons) ───────────────────────── */
+.bracket-filter-bar {
+  display: inline-flex;
+}
+
+.filter-chip {
+  display:        inline-flex;
+  align-items:    center;
+  gap:            6px;
+  padding:        5px 14px;
+  border-radius:  20px;
+  font-size:      0.78rem;
+  font-weight:    600;
+  cursor:         pointer;
+  transition:     all var(--transition);
+  font-family:    var(--font);
+  letter-spacing: 0.01em;
+  border:         1.5px solid transparent;
+  background:     transparent;
+}
+
+.filter-chip-all          { border-color: var(--primary); color: var(--primary); background-color: #1b3a6b12; }
+.filter-chip-all.active   { background-color: var(--primary); color: #ffffff; }
+
+.filter-chip-on-time          { border-color: var(--on-time); color: var(--on-time); background-color: #2d6a4f12; }
+.filter-chip-on-time.active   { background-color: var(--on-time); color: #ffffff; }
+
+.filter-chip-30-days          { border-color: var(--30-days); color: var(--30-days); background-color: #d9770612; }
+.filter-chip-30-days.active   { background-color: var(--30-days); color: #ffffff; }
+
+.filter-chip-60-days          { border-color: var(--60-days); color: var(--60-days); background-color: #c2410c12; }
+.filter-chip-60-days.active   { background-color: var(--60-days); color: #ffffff; }
+
+.filter-chip-90-days          { border-color: var(--90-days); color: var(--90-days); background-color: #b91c1c12; }
+.filter-chip-90-days.active   { background-color: var(--90-days); color: #ffffff; }
 
 /* ── Buttons ───────────────────────────────────────────────────────────────── */
 .btn {
@@ -535,5 +623,8 @@ a:hover { color: var(--accent); }
 .mb-3 { margin-bottom: 24px; }
 .flex { display: flex; }
 .flex-center { display: flex; align-items: center; }
+.flex-wrap { flex-wrap: wrap; }
 .gap-1 { gap: 8px; }
 .gap-2 { gap: 16px; }
+.p-0 { padding: 0; }
+.p-2 { padding: 16px; }

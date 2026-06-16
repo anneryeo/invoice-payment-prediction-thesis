@@ -71,4 +71,4 @@ except Exception as e:
     sys.exit(1)
 
 #to run: python run_experiment.py
-#to monitor log while its running, in another terminal: Get-Content data/logs/experiment_log_*.txt -Wait
+#to monitor log while its running, in another terminal: Get-Content data/app_logs/experiment_log_*.txt -Wait
