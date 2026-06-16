@@ -114,7 +114,7 @@ initial_setup_layout = html.Div(
     Output("step-content",       "children"),
     Output("step4-content",      "style"),
     Output("progress-interval",  "disabled"),
-    Output("fin-progress-interval", "disabled"),
+    Output("fin-progress-interval", "disabled", allow_duplicate=True),
     Input("current_step",        "data"),
     prevent_initial_call='initial_duplicate',
 )
