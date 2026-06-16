@@ -151,4 +151,4 @@ def display_page(pathname, finalization_complete):
 
 
 if __name__ == "__main__":
-    dash_app.run(debug=True, use_reloader=False)
+    dash_app.run(debug=False, use_reloader=False)
