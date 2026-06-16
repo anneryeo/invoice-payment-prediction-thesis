@@ -85,6 +85,13 @@ class InferencePipeline:
     cox_model : sksurv CoxnetSurvivalAnalysis
         Fitted survival model used to compute hazard / survival columns.
         These columns are appended to the scaled feature matrix.
+    cox_scaler : StandardScaler
+        The scaler that produced the inputs ``cox_model`` was fit on
+        (distinct from ``scaler`` above, which normalises the raw feature
+        matrix). Required so inference can reuse the exact training-time
+        transform instead of re-deriving a new scaler from whatever batch
+        happens to be passed to ``predict`` — and so it never needs the
+        true ``T``/``E`` survival targets, which don't exist at inference.
     time_points : list of float
         Time points at which survival / hazard functions are evaluated.
         Must match those used during ``generate_survival_features`` at
@@ -133,9 +140,11 @@ class InferencePipeline:
         features=None,
         parameters: dict | None = None,
         feature_metadata: dict | None = None,
+        cox_scaler: StandardScaler | None = None,
     ):
         self.scaler               = scaler
         self.cox_model            = cox_model
+        self.cox_scaler           = cox_scaler
         self.time_points          = time_points
         self.classifier_pipeline  = classifier_pipeline
         self.label_encoder        = label_encoder
@@ -190,13 +199,14 @@ class InferencePipeline:
         # X_test_enhanced).  We pass X_test=None to get the single-set path.
         X_enhanced = generate_survival_features(
             X_surv=X_scaled,
-            T=None,             # T and E are not needed when using a pre-fitted
-            E=None,             # Cox model — the function uses fitted_cph directly
-            X_train=X_scaled,
-            X_test=None,
-            best_params=None,   # not needed when fitted_cph is supplied
+            T=None,             # T and E are not needed: fitted_cph *and*
+            E=None,             # cox_scaler are both supplied, so
+            X_train=X_scaled,   # generate_survival_features never calls
+            X_test=None,        # clean_survival_inputs (which requires real
+            best_params=None,   # T/E) to re-derive a scaler.
             time_points=self.time_points,
             fitted_cph=self.cox_model,
+            cox_scaler=self.cox_scaler,
         )
 
         # ── 3. LDA ───────────────────────────────────────────────────────────

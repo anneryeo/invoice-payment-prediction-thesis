@@ -10,6 +10,7 @@ from __future__ import annotations
 import io
 import os
 import glob
+import logging
 import pickle
 
 import pandas as pd
@@ -19,6 +20,8 @@ from dash.exceptions import PreventUpdate
 from src.app import dash_app
 from src.utils.data_loaders.read_settings_json import read_settings_json
 from src.app.utils.audit_logger import log_event
+
+_logger = logging.getLogger(__name__)
 
 # Bracket display
 _BRACKET_LABELS = {
@@ -384,6 +387,7 @@ class InvoiceDrilldownScreen:
                 return summary, visible, page_count, all_rows
 
             except Exception as exc:
+                _logger.exception("Invoice drilldown prediction failed")
                 return (
                     html.Div(f"⚠️ Prediction error: {exc}",
                              className="alert alert-error"),
