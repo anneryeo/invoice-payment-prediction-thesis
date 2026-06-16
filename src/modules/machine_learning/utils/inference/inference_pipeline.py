@@ -65,6 +65,10 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+from src.modules.machine_learning.utils.training.data_evaluation import (
+    data_evaluation as _data_evaluation,
+)
+
 _logger = logging.getLogger(__name__)
 
 
@@ -85,6 +89,13 @@ class InferencePipeline:
     cox_model : sksurv CoxnetSurvivalAnalysis
         Fitted survival model used to compute hazard / survival columns.
         These columns are appended to the scaled feature matrix.
+    cox_scaler : StandardScaler
+        The scaler that produced the inputs ``cox_model`` was fit on
+        (distinct from ``scaler`` above, which normalises the raw feature
+        matrix). Required so inference can reuse the exact training-time
+        transform instead of re-deriving a new scaler from whatever batch
+        happens to be passed to ``predict`` — and so it never needs the
+        true ``T``/``E`` survival targets, which don't exist at inference.
     time_points : list of float
         Time points at which survival / hazard functions are evaluated.
         Must match those used during ``generate_survival_features`` at
@@ -133,9 +144,11 @@ class InferencePipeline:
         features=None,
         parameters: dict | None = None,
         feature_metadata: dict | None = None,
+        cox_scaler: StandardScaler | None = None,
     ):
         self.scaler               = scaler
         self.cox_model            = cox_model
+        self.cox_scaler           = cox_scaler
         self.time_points          = time_points
         self.classifier_pipeline  = classifier_pipeline
         self.label_encoder        = label_encoder
@@ -188,15 +201,34 @@ class InferencePipeline:
         # ── 2. Survival features ──────────────────────────────────────────────
         # generate_survival_features returns X_train_enhanced (and optionally
         # X_test_enhanced).  We pass X_test=None to get the single-set path.
+        #
+        # NOTE on X_train=X_scaled: this looks suspicious at a glance — X_scaled
+        # is the live inference batch, not the historical training set — but it
+        # is correct. When fitted_cph+cox_scaler are both supplied,
+        # generate_survival_features takes the "reuse" branch (see its source):
+        # it never refits anything from X_surv/T/E, and the X_train argument is
+        # simply "the data to run the fitted cox model over" — i.e. whatever
+        # batch needs survival columns appended. This mirrors exactly what
+        # FinalizationRunner.train() does at training/finalization time: it
+        # passes its own already-scaled X_full (post DataPreparer.normalize(),
+        # i.e. post the *same* StandardScaler that becomes self.scaler here) as
+        # the X_train argument, while cox_scaler was fit on the raw (pre-scaler)
+        # survival columns in step_5._train_survival_model. So the classifier
+        # was trained on cox-features derived by double-scaling
+        # (self.scaler then cox_scaler) — passing X_scaled here reproduces that
+        # exact chain. Passing None or a stashed "real" training set would
+        # desync inference preprocessing from what the model was actually
+        # fit on and silently degrade predictions.
         X_enhanced = generate_survival_features(
             X_surv=X_scaled,
-            T=None,             # T and E are not needed when using a pre-fitted
-            E=None,             # Cox model — the function uses fitted_cph directly
-            X_train=X_scaled,
-            X_test=None,
-            best_params=None,   # not needed when fitted_cph is supplied
+            T=None,             # T and E are not needed: fitted_cph *and*
+            E=None,             # cox_scaler are both supplied, so
+            X_train=X_scaled,   # generate_survival_features never calls
+            X_test=None,        # clean_survival_inputs (which requires real
+            best_params=None,   # T/E) to re-derive a scaler.
             time_points=self.time_points,
             fitted_cph=self.cox_model,
+            cox_scaler=self.cox_scaler,
         )
 
         # ── 3. LDA ───────────────────────────────────────────────────────────
@@ -249,6 +281,73 @@ class InferencePipeline:
         probas = self.classifier_pipeline.predict_proba(X)
         classes = self.label_encoder.classes_   # ["on_time", "30_days", …]
         return pd.DataFrame(probas, columns=classes, index=X_raw.index)
+
+    def evaluate_predictions(
+        self,
+        y_true: Union[pd.Series, np.ndarray, list],
+        y_pred: Union[pd.Series, np.ndarray, list],
+        y_proba: Union[pd.DataFrame, np.ndarray, None] = None,
+        *,
+        labels: list[str] | None = None,
+    ) -> dict:
+        """
+        Compute classification metrics by delegating to ``data_evaluation``.
+
+        Both ``y_true`` and ``y_pred`` must contain *decoded* class label
+        strings (e.g. ``"on_time"``, ``"30_days"``), not integer codes —
+        i.e. the output of ``predict()``, not raw classifier integers.
+
+        Parameters
+        ----------
+        y_true : array-like of str
+            Ground-truth class labels.
+        y_pred : array-like of str
+            Predicted class labels (output of ``predict()``).
+        y_proba : pd.DataFrame, np.ndarray, or None
+            Per-class probability matrix of shape (n_samples, n_classes),
+            with columns/column-order matching ``self.label_encoder.classes_``
+            (the order returned by ``predict_proba()``). When supplied,
+            ``roc_auc_macro``, ``roc_curve``, and ``pr_curve`` are also
+            populated in the returned dict. When ``None``, those three keys
+            are ``None``.
+        labels : list of str or None
+            Ordered class names used for the confusion matrix rows/columns.
+            Defaults to ``self.label_encoder.classes_`` (training-time order).
+
+        Returns
+        -------
+        dict
+            All keys returned by ``data_evaluation``, plus
+            ``"confusion_matrix_df"`` — a labelled ``pd.DataFrame`` version
+            of ``"confusion_matrix"`` (which remains a list[list[int]] for
+            back-compat).
+        """
+        y_true_arr = np.asarray(y_true)
+        y_pred_arr = np.asarray(y_pred)
+
+        y_proba_arr: np.ndarray | None = None
+        if y_proba is not None:
+            y_proba_arr = y_proba.values if isinstance(y_proba, pd.DataFrame) else np.asarray(y_proba)
+
+        # NOTE: data_evaluation signature is (y_pred, y_test, y_proba).
+        metrics = _data_evaluation(y_pred_arr, y_true_arr, y_proba_arr)
+
+        if labels is None:
+            labels = list(self.label_encoder.classes_)
+
+        # sklearn's confusion_matrix (called inside data_evaluation) orders
+        # rows/cols by classes seen in EITHER y_true or y_pred, sorted — not
+        # just y_true. Using only y_true's classes here would silently
+        # misalign the labelled DataFrame whenever y_pred contains a class
+        # y_true doesn't (entirely plausible on a small eval batch).
+        cm_labels = sorted(set(y_true_arr) | set(y_pred_arr))
+        metrics["confusion_matrix_df"] = pd.DataFrame(
+            metrics["confusion_matrix"],
+            index=pd.Index(cm_labels, name="actual"),
+            columns=pd.Index(cm_labels, name="predicted"),
+        ).reindex(index=labels, columns=labels, fill_value=0)
+
+        return metrics
 
     def __repr__(self) -> str:
         lda_info = (
@@ -380,6 +479,34 @@ def find_deployed_model(
     return candidates[0]
 
 
+def _remap_xgb_estimators_to_cpu(pipeline: InferencePipeline) -> None:
+    """
+    Force any XGBoost estimators inside a loaded pipeline onto the CPU.
+
+    Models are sometimes finalized with device="cuda:0". At inference time
+    the input is CPU-side numpy/pandas data, so leaving the estimator's
+    device set to a GPU makes XGBoost silently fall back to the slower
+    DMatrix path on every predict call. Remapping once here at load time
+    avoids paying that cost on every ``predict``/``predict_proba`` call.
+    """
+    model = getattr(pipeline.classifier_pipeline, "model", None)
+    if model is None:
+        return
+
+    candidates = [model]
+    for attr in ("stage1_estimator_", "stage2_estimator_"):
+        est = getattr(model, attr, None)
+        if est is not None:
+            candidates.append(est)
+
+    for est in candidates:
+        if type(est).__module__.startswith("xgboost"):
+            try:
+                est.set_params(device="cpu")
+            except Exception:
+                pass
+
+
 def load_inference_pipeline(
     model_dir: Union[str, Path],
     model_key: str | None = None,
@@ -429,6 +556,12 @@ def load_inference_pipeline(
         ) from exc
 
     if isinstance(obj, InferencePipeline):
+        _remap_xgb_estimators_to_cpu(obj)
+        # FIX: stash the resolved path on the instance so callers (e.g.
+        # run_batch_inference) don't need a second find_deployed_model() call,
+        # which would re-stat the directory and could resolve to a different
+        # file if the artifact changed between the two calls.
+        obj._artifact_path = artifact_path
         _logger.info("Loaded %r", obj)
         return obj
 
@@ -510,7 +643,10 @@ def run_batch_inference(
     """
     # ── Load pipeline ─────────────────────────────────────────────────────────
     pipeline = load_inference_pipeline(model_dir, model_key=model_key)
-    artifact_path = find_deployed_model(model_dir, model_key=model_key)
+    # FIX: reuse the path load_inference_pipeline already resolved instead of
+    # calling find_deployed_model a second time (avoids a redundant directory
+    # stat and a race if the artifact changes between the two calls).
+    artifact_path = pipeline._artifact_path
     run_ts = datetime.now(timezone.utc).isoformat()
 
     # ── Parse input ──────────────────────────────────────────────────────────

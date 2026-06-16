@@ -402,9 +402,9 @@ print(f"\nTotal training time: {_elapsed_str}")
 
 # Save results to a new dated folder under Results/
 survival_results_dict = {
-    "best_c_index":         tuner.best_c_index_,
-    "best_surv_parameters": best_surv_parameters,
-    "best_time_points":     best_time_points,
+    "best_c_index":      tuner.best_c_index_,
+    "best_parameters":   best_surv_parameters,
+    "time_points":       best_time_points,
 }
 
 metadata, run_folder = save_training_results(
