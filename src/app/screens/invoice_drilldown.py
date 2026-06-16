@@ -34,12 +34,6 @@ _BRACKET_LABELS = {
     "60_days": "31–60 Days",
     "90_days": "61+ Days",
 }
-_BRACKET_COLORS = {
-    "on_time": "#2d6a4f",
-    "30_days": "#d97706",
-    "60_days": "#c2410c",
-    "90_days": "#b91c1c",
-}
 _BRACKET_OPTIONS = [{"label": "All Brackets", "value": "all"}] + [
     {"label": v, "value": k} for k, v in _BRACKET_LABELS.items()
 ]
@@ -86,20 +80,33 @@ def _select_feature_columns(df_full: pd.DataFrame, pipeline) -> pd.DataFrame:
 
 def _extract_amount(df_full: pd.DataFrame, i: int) -> float | None:
     """
-    Pull the display amount for row *i*, preferring net_receivables over
-    gross_receivables. Values may be stored as object dtype or contain
-    edge cases that make a plain pd.notna() check fail, so each candidate
-    is coerced through float() and validated with pd.isna() instead.
+    Pull the display amount for row *i*. credit_sale_amount is the actual
+    cache column (verified against data/training_results/credit_sales_cache.pkl);
+    net_receivables/gross_receivables are kept as fallbacks in case the cache
+    schema changes. Handles numeric dtypes, NaN, and string values that may
+    contain currency symbols or commas (e.g. '₱1,234.56').
     """
-    for col in ("net_receivables", "gross_receivables"):
-        if col in df_full.columns:
-            val = df_full[col].iloc[i]
+    for col in ("credit_sale_amount", "net_receivables", "net_receivable",
+                "gross_receivables", "gross_receivable"):
+        if col not in df_full.columns:
+            continue
+        val = df_full[col].iloc[i]
+        if val is None:
+            continue
+        try:
+            fval = float(val)
+            if not pd.isna(fval):
+                return fval
+        except (TypeError, ValueError):
+            pass
+        if isinstance(val, str):
+            cleaned = val.replace("₱", "").replace(",", "").strip()
             try:
-                fval = float(val)
+                fval = float(cleaned)
                 if not pd.isna(fval):
                     return fval
             except (TypeError, ValueError):
-                continue
+                pass
     return None
 
 
@@ -162,77 +169,20 @@ def _run_predictions(
 
 # ── Component builders ────────────────────────────────────────────────────────
 
-def _empty(icon: str, title: str, body: str = "") -> html.Div:
-    return html.Div(className="empty-state", children=[
-        html.Span(icon,  className="empty-state-icon"),
-        html.P(title,    className="empty-state-title"),
-        html.P(body,     className="empty-state-text") if body else None,
-    ])
-
-
-def _summary_badges(labels: list[str]) -> html.Div:
-    counts = Counter(labels)
-    total  = len(labels) or 1
-    chips  = []
-    for key in ["on_time", "30_days", "60_days", "90_days"]:
-        n     = counts.get(key, 0)
-        label = _BRACKET_LABELS[key]
-        color = _BRACKET_COLORS[key]
-        chips.append(html.Span(
-            f"{label}: {n:,} ({n/total:.0%})",
-            style={
-                "backgroundColor": f"{color}18",
-                "color":           color,
-                "border":          f"1px solid {color}40",
-                "borderRadius":    "20px",
-                "padding":         "4px 12px",
-                "fontSize":        "12px",
-                "fontWeight":      "600",
-                "marginRight":     "8px",
-                "display":         "inline-block",
-            },
-        ))
-    return html.Div(chips, style={"marginTop": "8px", "marginBottom": "4px"})
-
-
-def _chip_style(color: str, active: bool) -> dict:
-    base = {
-        "display":       "inline-flex",
-        "alignItems":    "center",
-        "gap":           "6px",
-        "padding":       "5px 14px",
-        "borderRadius":  "20px",
-        "fontSize":      "12px",
-        "fontWeight":    "600",
-        "cursor":        "pointer",
-        "border":        f"1.5px solid {color}",
-        "transition":    "all 0.15s ease",
-        "fontFamily":    "-apple-system, 'Segoe UI', sans-serif",
-        "letterSpacing": "0.01em",
-    }
-    if active:
-        base.update({"backgroundColor": color, "color": "white"})
-    else:
-        base.update({"backgroundColor": f"{color}12", "color": color})
-    return base
-
-
 def _filter_bar() -> html.Div:
     return html.Div(id="drilldown-filter-bar", className="bracket-filter-bar", children=[
-        html.Div(style={"display": "flex", "gap": "8px", "alignItems": "center",
-                        "flexWrap": "wrap"}, children=[
+        html.Div(className="flex-center gap-1 flex-wrap", children=[
             html.Button("Select All", id="drilldown-filter-all-btn",
                         className="filter-chip filter-chip-all active",
-                        style=_chip_style("#1b3a6b", True),
                         n_clicks=0),
             html.Button("On Time",     id="drilldown-filter-on-time",  n_clicks=0,
-                        className="filter-chip", style=_chip_style("#2d6a4f", True)),
+                        className="filter-chip filter-chip-on-time active"),
             html.Button("1–30 Days",   id="drilldown-filter-30",       n_clicks=0,
-                        className="filter-chip", style=_chip_style("#d97706", True)),
+                        className="filter-chip filter-chip-30-days active"),
             html.Button("31–60 Days",  id="drilldown-filter-60",       n_clicks=0,
-                        className="filter-chip", style=_chip_style("#c2410c", True)),
+                        className="filter-chip filter-chip-60-days active"),
             html.Button("61+ Days",    id="drilldown-filter-90",       n_clicks=0,
-                        className="filter-chip", style=_chip_style("#b91c1c", True)),
+                        className="filter-chip filter-chip-90-days active"),
         ])
     ])
 
@@ -311,16 +261,15 @@ def _table() -> dash_table.DataTable:
     )
 
 
-def _kpi_card(label: str, value: float, sub: str = "", color: str = "#1b3a6b") -> html.Div:
-    return html.Div(style={
-        "background": "#f9f8f6", "borderRadius": "10px",
-        "padding": "12px 20px", "minWidth": "160px", "flex": "1",
-        "borderLeft": f"4px solid {color}",
-    }, children=[
-        html.P(label, style={"fontSize": "11px", "color": "#6b7280", "margin": "0 0 4px"}),
-        html.P(f"₱{value:,.2f}", style={"fontSize": "18px", "fontWeight": "700",
-                                         "color": "#1b3a6b", "margin": "0"}),
-        html.P(sub, style={"fontSize": "11px", "color": "#6b7280", "margin": "4px 0 0"}) if sub else None,
+_KPI_VARIANT_CLASS = {"primary": "", "success": "mini-kpi-card-success", "danger": "mini-kpi-card-danger"}
+
+
+def _kpi_card(label: str, value: float, sub: str = "", variant: str = "primary") -> html.Div:
+    card_class = " ".join(c for c in ("mini-kpi-card", _KPI_VARIANT_CLASS[variant]) if c)
+    return html.Div(className=card_class, children=[
+        html.P(label, className="mini-kpi-label"),
+        html.P(f"₱{value:,.2f}", className="mini-kpi-value"),
+        html.P(sub, className="mini-kpi-sub") if sub else None,
     ])
 
 
@@ -350,23 +299,12 @@ class InvoiceDrilldownScreen:
                     ),
                 ]),
 
-                # Summary row + controls
-                html.Div(className="card", style={"marginBottom": "16px"}, children=[
-                    html.Div(className="section-header", children=[
-                        html.H4("Prediction Summary", className="section-title"),
-                    ]),
-                    html.Div(id="drilldown-summary",
-                             className="card-body",
-                             children=[html.Div("Loading…", className="loading-state")]),
-                ]),
-
                 # Table card
                 html.Div(className="card", children=[
                     html.Div(className="section-header", children=[
                         html.H4("Invoice Results", className="section-title"),
                         # Filter chips + export controls
-                        html.Div(style={"display": "flex", "gap": "8px",
-                                        "alignItems": "center", "flexWrap": "wrap"}, children=[
+                        html.Div(className="flex-center gap-1 flex-wrap", children=[
                             _filter_bar(),
                             html.Button(
                                 "Export CSV",
@@ -379,23 +317,23 @@ class InvoiceDrilldownScreen:
                     ]),
                     html.Div(
                         id="drilldown-table-wrapper",
-                        style={"padding": "0"},
+                        className="p-0",
                         children=[_table()],
                     ),
                 ]),
 
                 # Cash flow card
-                html.Div(className="card", style={"marginTop": "16px"}, children=[
+                html.Div(className="card mt-2", children=[
                     html.Div(className="section-header", children=[
                         html.H4("Expected Cash Flow", className="section-title"),
                         html.P(
                             "Projected receivables by expected payment month, based on predicted delay brackets.",
-                            style={"fontSize": "12px", "color": "#6b7280", "margin": "0"},
+                            className="section-subtext",
                         ),
                     ]),
                     html.Div(
                         id="drilldown-cashflow-wrapper",
-                        style={"padding": "16px"},
+                        className="p-2",
                         children=[html.Div("Loading cash flow…", className="loading-state")],
                     ),
                 ]),
@@ -405,7 +343,6 @@ class InvoiceDrilldownScreen:
     def _register_callbacks(self):
         # ── Load on mount ─────────────────────────────────────────────────────
         @dash_app.callback(
-            Output("drilldown-summary",           "children"),
             Output("drilldown-table",             "data"),
             Output("drilldown-table",             "page_count"),
             Output("drilldown-predictions-store", "data"),
@@ -423,13 +360,9 @@ class InvoiceDrilldownScreen:
             empty_labels = ("On Time · 0", "1–30 Days · 0", "31–60 Days · 0", "61+ Days · 0")
 
             if pipeline is None:
-                msg = _empty("🤖", "No deployed model found.",
-                             "Complete the Setup Wizard to train and finalize a model.")
-                return msg, [], 0, None, *empty_labels
+                return [], 0, None, *empty_labels
             if df is None:
-                msg = _empty("📂", "Invoice data not found.",
-                             "Complete the Setup Wizard to process the revenue dataset.")
-                return msg, [], 0, None, *empty_labels
+                return [], 0, None, *empty_labels
 
             try:
                 X_raw  = _select_feature_columns(df, pipeline)
@@ -467,28 +400,29 @@ class InvoiceDrilldownScreen:
                     f"model={getattr(pipeline, 'model_key', 'unknown')}, "
                     f"n_invoices={len(df)}",
                 )
-                summary = _summary_badges(list(labels))
                 PAGE_SIZE = 15
                 visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
                            for r in all_rows[:PAGE_SIZE]]
                 page_count = (len(all_rows) + PAGE_SIZE - 1) // PAGE_SIZE
 
-                pred_counts   = Counter(r["_pred_key"] for r in all_rows)
-                label_on_time = f"On Time · {pred_counts.get('on_time', 0):,}"
-                label_30      = f"1–30 Days · {pred_counts.get('30_days', 0):,}"
-                label_60      = f"31–60 Days · {pred_counts.get('60_days', 0):,}"
-                label_90      = f"61+ Days · {pred_counts.get('90_days', 0):,}"
+                pred_counts = Counter(r["_pred_key"] for r in all_rows)
+                _total      = len(all_rows) or 1
 
-                return (summary, visible, page_count, all_rows,
+                def _fmt(key: str, label: str) -> str:
+                    n = pred_counts.get(key, 0)
+                    return f"{label} · {n:,} ({n / _total:.0%})"
+
+                label_on_time = _fmt("on_time", "On Time")
+                label_30      = _fmt("30_days", "1–30 Days")
+                label_60      = _fmt("60_days", "31–60 Days")
+                label_90      = _fmt("90_days", "61+ Days")
+
+                return (visible, page_count, all_rows,
                         label_on_time, label_30, label_60, label_90)
 
             except Exception as exc:
                 _logger.exception("Invoice drilldown prediction failed")
-                return (
-                    html.Div(f"⚠️ Prediction error: {exc}",
-                             className="alert alert-error"),
-                    [], 0, None, *empty_labels,
-                )
+                return [], 0, None, *empty_labels
 
         # ── Bracket filter toggle logic ──────────────────────────────────────
         @dash_app.callback(
@@ -543,26 +477,6 @@ class InvoiceDrilldownScreen:
                 return f"{base} active" if key in active_set else base
 
             return all_active, chip("on_time"), chip("30_days"), chip("60_days"), chip("90_days")
-
-        # ── Chip visual state (inline style) ─────────────────────────────────
-        @dash_app.callback(
-            Output("drilldown-filter-all-btn", "style"),
-            Output("drilldown-filter-on-time", "style"),
-            Output("drilldown-filter-30",      "style"),
-            Output("drilldown-filter-60",      "style"),
-            Output("drilldown-filter-90",      "style"),
-            Input("drilldown-active-brackets", "data"),
-        )
-        def _update_chip_styles(active):
-            active_set = set(active or [])
-            all_active = active_set == set(_ALL_BRACKET_KEYS)
-            return (
-                _chip_style("#1b3a6b", all_active),
-                _chip_style("#2d6a4f", "on_time" in active_set),
-                _chip_style("#d97706", "30_days" in active_set),
-                _chip_style("#c2410c", "60_days" in active_set),
-                _chip_style("#b91c1c", "90_days" in active_set),
-            )
 
         # ── Pagination + filter + sort ────────────────────────────────────────
         @dash_app.callback(
@@ -736,15 +650,23 @@ class InvoiceDrilldownScreen:
             fig = go.Figure(data=traces)
 
             if today_x_label in month_labels:
-                fig.add_vline(
-                    x           = today_x_label,
-                    line_width  = 2,
-                    line_dash   = "dash",
-                    line_color  = "#6b7280",
-                    annotation_text = "Today",
-                    annotation_position = "top",
-                    annotation_font_size = 11,
-                    annotation_font_color = "#6b7280",
+                # add_vline's annotation auto-positioning calls _mean() on the axis
+                # values, which throws on a category x-axis (month labels are
+                # strings, not numbers) — add the shape/annotation directly instead.
+                fig.add_shape(
+                    type  = "line",
+                    x0    = today_x_label, x1 = today_x_label,
+                    y0    = 0, y1 = 1,
+                    xref  = "x", yref = "paper",
+                    line  = dict(width=2, dash="dash", color="#6b7280"),
+                )
+                fig.add_annotation(
+                    x = today_x_label, y = 1,
+                    xref = "x", yref = "paper",
+                    yanchor = "bottom",
+                    text = "Today",
+                    showarrow = False,
+                    font = dict(size=11, color="#6b7280"),
                 )
 
             fig.update_layout(
@@ -799,12 +721,10 @@ class InvoiceDrilldownScreen:
             ontime_amount  = total_amount - overdue_amount
             pct_overdue    = (overdue_amount / total_amount * 100) if total_amount else 0
 
-            kpi_row = html.Div(style={
-                "display": "flex", "gap": "12px", "marginBottom": "16px", "flexWrap": "wrap"
-            }, children=[
-                _kpi_card("Total Receivables", total_amount,  f"{len(all_rows):,} invoices", "#1b3a6b"),
-                _kpi_card("Expected On Time",  ontime_amount, f"{100 - pct_overdue:.1f}% of total", "#2d6a4f"),
-                _kpi_card("At Risk (Delayed)", overdue_amount, f"{pct_overdue:.1f}% of total", "#b91c1c"),
+            kpi_row = html.Div(className="mini-kpi-row", children=[
+                _kpi_card("Total Receivables", total_amount,  f"{len(all_rows):,} invoices", "primary"),
+                _kpi_card("Expected On Time",  ontime_amount, f"{100 - pct_overdue:.1f}% of total", "success"),
+                _kpi_card("At Risk (Delayed)", overdue_amount, f"{pct_overdue:.1f}% of total", "danger"),
             ])
 
             return html.Div([
@@ -819,8 +739,7 @@ class InvoiceDrilldownScreen:
                     f"Expected dates: On Time = due date; 1–30 Days = due + 30d; "
                     f"31–60 Days = due + 60d; 61+ Days = due + 91d. "
                     f"Today's marker is placed at {TODAY.strftime('%B %Y')}.",
-                    style={"fontSize": "11px", "color": "#9ca3af", "marginTop": "8px",
-                           "fontStyle": "italic"},
+                    className="chart-footnote",
                 ),
             ])
 
