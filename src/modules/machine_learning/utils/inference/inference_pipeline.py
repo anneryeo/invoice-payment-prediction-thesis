@@ -197,6 +197,24 @@ class InferencePipeline:
         # ── 2. Survival features ──────────────────────────────────────────────
         # generate_survival_features returns X_train_enhanced (and optionally
         # X_test_enhanced).  We pass X_test=None to get the single-set path.
+        #
+        # NOTE on X_train=X_scaled: this looks suspicious at a glance — X_scaled
+        # is the live inference batch, not the historical training set — but it
+        # is correct. When fitted_cph+cox_scaler are both supplied,
+        # generate_survival_features takes the "reuse" branch (see its source):
+        # it never refits anything from X_surv/T/E, and the X_train argument is
+        # simply "the data to run the fitted cox model over" — i.e. whatever
+        # batch needs survival columns appended. This mirrors exactly what
+        # FinalizationRunner.train() does at training/finalization time: it
+        # passes its own already-scaled X_full (post DataPreparer.normalize(),
+        # i.e. post the *same* StandardScaler that becomes self.scaler here) as
+        # the X_train argument, while cox_scaler was fit on the raw (pre-scaler)
+        # survival columns in step_5._train_survival_model. So the classifier
+        # was trained on cox-features derived by double-scaling
+        # (self.scaler then cox_scaler) — passing X_scaled here reproduces that
+        # exact chain. Passing None or a stashed "real" training set would
+        # desync inference preprocessing from what the model was actually
+        # fit on and silently degrade predictions.
         X_enhanced = generate_survival_features(
             X_surv=X_scaled,
             T=None,             # T and E are not needed: fitted_cph *and*
@@ -468,6 +486,11 @@ def load_inference_pipeline(
 
     if isinstance(obj, InferencePipeline):
         _remap_xgb_estimators_to_cpu(obj)
+        # FIX: stash the resolved path on the instance so callers (e.g.
+        # run_batch_inference) don't need a second find_deployed_model() call,
+        # which would re-stat the directory and could resolve to a different
+        # file if the artifact changed between the two calls.
+        obj._artifact_path = artifact_path
         _logger.info("Loaded %r", obj)
         return obj
 
@@ -549,7 +572,10 @@ def run_batch_inference(
     """
     # ── Load pipeline ─────────────────────────────────────────────────────────
     pipeline = load_inference_pipeline(model_dir, model_key=model_key)
-    artifact_path = find_deployed_model(model_dir, model_key=model_key)
+    # FIX: reuse the path load_inference_pipeline already resolved instead of
+    # calling find_deployed_model a second time (avoids a redundant directory
+    # stat and a race if the artifact changes between the two calls).
+    artifact_path = pipeline._artifact_path
     run_ts = datetime.now(timezone.utc).isoformat()
 
     # ── Parse input ──────────────────────────────────────────────────────────
