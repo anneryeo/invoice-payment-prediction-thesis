@@ -77,6 +77,7 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+~$*.docx
 
 settings.json
 data/training_cache/
