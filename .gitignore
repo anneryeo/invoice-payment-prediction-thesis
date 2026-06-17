@@ -77,9 +77,11 @@ logs/
 *.db
 *.sqlite
 *.sqlite3
+~$*.docx
 
 settings.json
 data/training_cache/
+data/app_cache/
 *.pyc
 convert_notebooks.py
 # docx revision tooling dumps
