@@ -109,6 +109,11 @@
     background-color: #e0e0e0;
 }
 
+/* Allow outside-axis bar labels to render without clipping */
+#dash-dist-card {
+    overflow: visible;
+}
+
 /* Audit Info */
 .audit-info {
     font-size: 14px;
