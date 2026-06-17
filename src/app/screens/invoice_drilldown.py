@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import logging
 import re
-from collections import Counter, defaultdict
+from collections import Counter
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -20,7 +20,7 @@ from dash.exceptions import PreventUpdate
 
 from src.app import dash_app
 from src.utils.data_loaders.read_settings_json import read_settings_json
-from src.app.utils.app_cache import load_credit_sales, load_predictions
+from src.app.utils.app_cache import load_credit_sales, load_predictions, CashFlowCache, BRACKET_DELAY
 from src.modules.machine_learning.utils.inference.inference_pipeline import (
     load_inference_pipeline,
     _BRACKET_LABELS,
@@ -33,6 +33,8 @@ _BRACKET_OPTIONS = [{"label": "All Brackets", "value": "all"}] + [
     {"label": v, "value": k} for k, v in _BRACKET_LABELS.items()
 ]
 _ALL_BRACKET_KEYS = ["on_time", "30_days", "60_days", "90_days"]
+
+_cashflow_cache = CashFlowCache()
 
 
 # ── Component builders ────────────────────────────────────────────────────────
@@ -84,6 +86,23 @@ def _table() -> dash_table.DataTable:
             "border":    "1px solid #e5e1d8",
             "fontFamily": "-apple-system, 'Segoe UI', sans-serif",
         },
+        style_cell_conditional=[
+            {
+                "if": {"column_id": "invoice_no"},
+                "minWidth": "72px",
+                "width":    "72px",
+                "maxWidth": "90px",
+                "paddingRight": "6px",
+                "textAlign": "center",
+            },
+        ],
+        style_header_conditional=[
+            {
+                "if": {"column_id": col},
+                "cursor": "pointer",
+            }
+            for col in ["invoice_no", "due_date", "amount", "actual", "pred_conf"]
+        ],
         style_data_conditional=[
             {"if": {"row_index": "odd"}, "backgroundColor": "#fafaf8"},
 
@@ -196,6 +215,8 @@ class InvoiceDrilldownScreen:
                 # Store predictions for CSV export / filtering / charting
                 dcc.Store(id="drilldown-predictions-store"),
                 dcc.Store(id="drilldown-active-brackets", data=list(_ALL_BRACKET_KEYS)),
+                dcc.Store(id="drilldown-layer2-meta-store"),
+                dcc.Store(id="drilldown-cashflow-months-store"),
 
                 html.Div(className="page-header", children=[
                     html.H2("Invoice Prediction", className="page-title"),
@@ -246,7 +267,13 @@ class InvoiceDrilldownScreen:
                     html.Div(
                         id="drilldown-cashflow-wrapper",
                         className="p-2",
-                        children=[html.Div("Loading cash flow…", className="loading-state")],
+                        children=[
+                            html.Div(id="drilldown-cashflow-kpi-wrapper"),
+                            html.Div(
+                                id="drilldown-cashflow-chart-wrapper",
+                                children=[html.Div("Loading cash flow…", className="loading-state")],
+                            ),
+                        ],
                     ),
                 ]),
             ],
@@ -262,6 +289,7 @@ class InvoiceDrilldownScreen:
             Output("drilldown-filter-30",         "children"),
             Output("drilldown-filter-60",         "children"),
             Output("drilldown-filter-90",         "children"),
+            Output("drilldown-layer2-meta-store", "data"),
             Input("drilldown-mount-interval",     "n_intervals"),
             prevent_initial_call=True,
         )
@@ -269,8 +297,8 @@ class InvoiceDrilldownScreen:
             pipeline = _load_pipeline()
             settings = read_settings_json()
             df, layer1_meta = load_credit_sales(settings)
-            all_rows = load_predictions(pipeline, df, layer1_meta)
-            return _build_load_outputs(all_rows)
+            all_rows, layer2_meta = load_predictions(pipeline, df, layer1_meta)
+            return *_build_load_outputs(all_rows), layer2_meta
 
         # ── Manual refresh — bypasses the cache to pick up new data/model ───────
         @dash_app.callback(
@@ -281,6 +309,7 @@ class InvoiceDrilldownScreen:
             Output("drilldown-filter-30",         "children",   allow_duplicate=True),
             Output("drilldown-filter-60",         "children",   allow_duplicate=True),
             Output("drilldown-filter-90",         "children",   allow_duplicate=True),
+            Output("drilldown-layer2-meta-store", "data",       allow_duplicate=True),
             Input("drilldown-refresh-btn",        "n_clicks"),
             prevent_initial_call=True,
         )
@@ -291,8 +320,8 @@ class InvoiceDrilldownScreen:
             pipeline = _load_pipeline()
             settings = read_settings_json()
             df, layer1_meta = load_credit_sales(settings, force_recompute=True)
-            all_rows = load_predictions(pipeline, df, layer1_meta, force_recompute=True)
-            return _build_load_outputs(all_rows)
+            all_rows, layer2_meta = load_predictions(pipeline, df, layer1_meta, force_recompute=True)
+            return *_build_load_outputs(all_rows), layer2_meta
 
         # ── Bracket filter toggle logic ──────────────────────────────────────
         @dash_app.callback(
@@ -407,22 +436,27 @@ class InvoiceDrilldownScreen:
 
         # ── Cash flow chart ───────────────────────────────────────────────────
         @dash_app.callback(
-            Output("drilldown-cashflow-wrapper", "children"),
+            Output("drilldown-cashflow-kpi-wrapper",   "children"),
+            Output("drilldown-cashflow-chart-wrapper", "children"),
+            Output("drilldown-cashflow-months-store",  "data"),
             Input("drilldown-predictions-store", "data"),
+            Input("drilldown-active-brackets",   "data"),
+            State("drilldown-layer2-meta-store", "data"),
             prevent_initial_call=True,
         )
-        def _build_cashflow(all_rows):
+        def _build_cashflow(all_rows, active_brackets, layer2_meta):
+            _no_data = html.Div("No data available.", className="loading-state")
+            _no_amt  = html.Div(
+                "No invoices with amount data available for the cash flow chart.",
+                className="loading-state",
+            )
             if not all_rows:
-                return html.Div("No data available.", className="loading-state")
+                return html.Div(), _no_data, []
+
+            active_set = set(active_brackets if active_brackets is not None else _ALL_BRACKET_KEYS)
 
             TODAY = pd.Timestamp.today().normalize()
 
-            BRACKET_DELAY = {
-                "on_time": 0,
-                "30_days": 30,
-                "60_days": 60,
-                "90_days": 91,
-            }
             BRACKET_COLORS_HEX = {
                 "on_time": "#2d6a4f",
                 "30_days": "#d97706",
@@ -436,61 +470,42 @@ class InvoiceDrilldownScreen:
                 "90_days": "61+ Days",
             }
 
-            # month_data[month_label][bracket_key] = total_amount
-            month_data = defaultdict(lambda: defaultdict(float))
-            skipped = 0
+            cache_result = _cashflow_cache.load(all_rows, layer2_meta or {})
+            if cache_result is None:
+                return html.Div(), _no_amt, []
 
-            for r in all_rows:
-                pred_key   = r.get("_pred_key", "on_time")
-                amount_raw = r.get("_amount_raw")
-                due_str    = r.get("due_date", "—")
+            full_month_data, skipped = cache_result
 
-                if amount_raw is None:
-                    skipped += 1
-                    continue
-                try:
-                    amount_val = float(amount_raw)
-                except (TypeError, ValueError):
-                    skipped += 1
-                    continue
-
-                try:
-                    due_dt = pd.to_datetime(due_str)
-                except Exception:
-                    skipped += 1
-                    continue
-                if pd.isna(due_dt):
-                    skipped += 1
-                    continue
-
-                delay_days    = BRACKET_DELAY.get(pred_key, 0)
-                expected_date = due_dt + pd.Timedelta(days=delay_days)
-                month_key     = expected_date.strftime("%Y-%m")
-                month_data[month_key][pred_key] += amount_val
+            # Filter to active brackets only
+            month_data = {}
+            for month, brackets in full_month_data.items():
+                filtered_brackets = {k: v for k, v in brackets.items() if k in active_set}
+                if filtered_brackets:
+                    month_data[month] = filtered_brackets
 
             if not month_data:
-                return html.Div(
-                    "No invoices with amount data available for the cash flow chart.",
-                    className="loading-state",
-                )
+                return html.Div(), _no_amt, []
 
             sorted_months = sorted(month_data.keys())
-            month_labels  = [pd.to_datetime(m + "-01").strftime("%b %Y") for m in sorted_months]
+            month_dates   = [pd.to_datetime(m + "-01") for m in sorted_months]
 
-            today_month   = TODAY.strftime("%Y-%m")
-            today_x_label = pd.to_datetime(today_month + "-01").strftime("%b %Y")
+            today_month = TODAY.strftime("%Y-%m")
+            today_date  = pd.to_datetime(today_month + "-01")
+            today_str   = today_date.strftime("%Y-%m-%d")
 
             traces = []
             for key in _ALL_BRACKET_KEYS:
+                if key not in active_set:
+                    continue
                 y_vals = [month_data[m].get(key, 0) for m in sorted_months]
                 traces.append(go.Bar(
                     name        = BRACKET_DISPLAY[key],
-                    x           = month_labels,
+                    x           = month_dates,
                     y           = y_vals,
                     marker_color= BRACKET_COLORS_HEX[key],
                     hovertemplate=(
                         f"<b>{BRACKET_DISPLAY[key]}</b><br>"
-                        "%{x}<br>"
+                        "%{x|%b %Y}<br>"
                         "Expected: ₱%{y:,.2f}<extra></extra>"
                     ),
                 ))
@@ -504,7 +519,7 @@ class InvoiceDrilldownScreen:
 
             traces.append(go.Scatter(
                 name        = "Cumulative",
-                x           = month_labels,
+                x           = month_dates,
                 y           = cumulative,
                 mode        = "lines+markers",
                 yaxis       = "y2",
@@ -512,26 +527,23 @@ class InvoiceDrilldownScreen:
                 marker      = dict(size=5, color="#1b3a6b"),
                 hovertemplate=(
                     "<b>Cumulative</b><br>"
-                    "%{x}<br>"
+                    "%{x|%b %Y}<br>"
                     "Total: ₱%{y:,.2f}<extra></extra>"
                 ),
             ))
 
             fig = go.Figure(data=traces)
 
-            if today_x_label in month_labels:
-                # add_vline's annotation auto-positioning calls _mean() on the axis
-                # values, which throws on a category x-axis (month labels are
-                # strings, not numbers) — add the shape/annotation directly instead.
+            if today_date in month_dates:
                 fig.add_shape(
                     type  = "line",
-                    x0    = today_x_label, x1 = today_x_label,
+                    x0    = today_str, x1 = today_str,
                     y0    = 0, y1 = 1,
                     xref  = "x", yref = "paper",
                     line  = dict(width=2, dash="dash", color="#6b7280"),
                 )
                 fig.add_annotation(
-                    x = today_x_label, y = 1,
+                    x = today_str, y = 1,
                     xref = "x", yref = "paper",
                     yanchor = "bottom",
                     text = "Today",
@@ -543,8 +555,8 @@ class InvoiceDrilldownScreen:
                 barmode       = "stack",
                 paper_bgcolor = "rgba(0,0,0,0)",
                 plot_bgcolor  = "rgba(0,0,0,0)",
-                margin        = dict(l=60, r=40, t=20, b=60),
-                height        = 340,
+                margin        = dict(l=60, r=40, t=50, b=60),
+                height        = 440,
                 legend        = dict(
                     orientation = "h",
                     yanchor     = "bottom",
@@ -558,6 +570,10 @@ class InvoiceDrilldownScreen:
                     tickfont    = dict(size=11),
                     showgrid    = False,
                     linecolor   = "#e5e1d8",
+                    type        = "date",
+                    tickformat  = "%b %Y",
+                    dtick       = "M1",
+                    rangeslider = dict(visible=False),
                 ),
                 yaxis = dict(
                     title       = "Amount (₱)",
@@ -577,29 +593,31 @@ class InvoiceDrilldownScreen:
                 font = dict(family="-apple-system, 'Segoe UI', sans-serif", size=12),
             )
 
+            # KPI amounts computed from the active-bracket subset only
+            chart_rows = [r for r in all_rows if r.get("_pred_key") in active_set]
             total_amount = sum(
                 r.get("_amount_raw", 0) or 0
-                for r in all_rows
+                for r in chart_rows
                 if r.get("_amount_raw") is not None
             )
             overdue_keys   = {"30_days", "60_days", "90_days"}
             overdue_amount = sum(
                 r.get("_amount_raw", 0) or 0
-                for r in all_rows
+                for r in chart_rows
                 if r.get("_pred_key") in overdue_keys and r.get("_amount_raw") is not None
             )
             ontime_amount  = total_amount - overdue_amount
             pct_overdue    = (overdue_amount / total_amount * 100) if total_amount else 0
 
             kpi_row = html.Div(className="mini-kpi-row", children=[
-                _kpi_card("Total Receivables", total_amount,  f"{len(all_rows):,} invoices", "primary"),
+                _kpi_card("Total Receivables", total_amount,  f"{len(chart_rows):,} invoices", "primary"),
                 _kpi_card("Expected On Time",  ontime_amount, f"{100 - pct_overdue:.1f}% of total", "success"),
                 _kpi_card("At Risk (Delayed)", overdue_amount, f"{pct_overdue:.1f}% of total", "danger"),
             ])
 
-            return html.Div([
-                kpi_row,
+            chart_div = html.Div([
                 dcc.Graph(
+                    id     = "drilldown-cashflow-graph",
                     figure = fig,
                     config = {"displayModeBar": False, "responsive": True},
                     style  = {"width": "100%"},
@@ -611,6 +629,98 @@ class InvoiceDrilldownScreen:
                     f"Today's marker is placed at {TODAY.strftime('%B %Y')}.",
                     className="chart-footnote",
                 ),
+            ])
+            return kpi_row, chart_div, sorted_months
+
+        # ── KPI update on chart zoom / pan ───────────────────────────────────
+        # Plotly handles axis zoom client-side (relayoutData fires but the
+        # server never sees the new axis range unless we hook into it here).
+        # This callback re-aggregates KPI amounts for only the months visible
+        # in the current zoomed x-axis window without touching the chart itself.
+        @dash_app.callback(
+            Output("drilldown-cashflow-kpi-wrapper", "children", allow_duplicate=True),
+            Input("drilldown-cashflow-graph",        "relayoutData"),
+            State("drilldown-predictions-store",     "data"),
+            State("drilldown-active-brackets",       "data"),
+            State("drilldown-cashflow-months-store", "data"),
+            prevent_initial_call=True,
+        )
+        def _zoom_filter_kpis(relayout_data, all_rows, active_brackets, sorted_months):
+            if not relayout_data or not all_rows or not sorted_months:
+                raise PreventUpdate
+
+            active_set = set(
+                active_brackets if active_brackets is not None else _ALL_BRACKET_KEYS
+            )
+
+            # Determine which months are currently in view
+            x0 = relayout_data.get("xaxis.range[0]")
+            x1 = relayout_data.get("xaxis.range[1]")
+            if x0 is None:
+                # Plotly sometimes packs the range as an array
+                rng = relayout_data.get("xaxis.range")
+                if rng and len(rng) == 2:
+                    x0, x1 = rng
+
+            if relayout_data.get("xaxis.autorange"):
+                # User double-clicked to zoom out — show all months
+                selected_month_keys = set(sorted_months)
+            elif x0 is not None and x1 is not None:
+                # The x-axis is type "date", so Plotly sends ISO date strings
+                # (e.g. "2025-01-15 00:00:00") for the range boundaries.
+                # Parse them and include every month whose 1st falls inside the window.
+                try:
+                    dt0 = pd.to_datetime(x0)
+                    dt1 = pd.to_datetime(x1)
+                except Exception:
+                    raise PreventUpdate
+                selected_month_keys = {
+                    mk for mk in sorted_months
+                    if dt0 <= pd.to_datetime(mk + "-01") <= dt1
+                }
+            else:
+                raise PreventUpdate  # resize or unrelated layout event
+
+            # Re-aggregate amounts for the visible months only
+            total_amount  = 0.0
+            overdue_amount = 0.0
+            row_count     = 0
+            overdue_keys  = {"30_days", "60_days", "90_days"}
+
+            for r in all_rows:
+                pred_key = r.get("_pred_key", "on_time")
+                if pred_key not in active_set:
+                    continue
+                amount_raw = r.get("_amount_raw")
+                if amount_raw is None:
+                    continue
+                try:
+                    amount_val = float(amount_raw)
+                except (TypeError, ValueError):
+                    continue
+                due_str = r.get("due_date", "—")
+                try:
+                    due_dt = pd.to_datetime(due_str)
+                except Exception:
+                    continue
+                if pd.isna(due_dt):
+                    continue
+                delay_days    = BRACKET_DELAY.get(pred_key, 0)
+                expected_date = due_dt + pd.Timedelta(days=delay_days)
+                if expected_date.strftime("%Y-%m") not in selected_month_keys:
+                    continue
+                total_amount  += amount_val
+                if pred_key in overdue_keys:
+                    overdue_amount += amount_val
+                row_count += 1
+
+            ontime_amount = total_amount - overdue_amount
+            pct_overdue   = (overdue_amount / total_amount * 100) if total_amount else 0
+
+            return html.Div(className="mini-kpi-row", children=[
+                _kpi_card("Total Receivables", total_amount,  f"{row_count:,} invoices",       "primary"),
+                _kpi_card("Expected On Time",  ontime_amount, f"{100 - pct_overdue:.1f}% of total", "success"),
+                _kpi_card("At Risk (Delayed)", overdue_amount, f"{pct_overdue:.1f}% of total",  "danger"),
             ])
 
         # ── CSV export ────────────────────────────────────────────────────────
@@ -635,6 +745,82 @@ class InvoiceDrilldownScreen:
                 filename="invoice_predictions.csv",
                 index=False,
             )
+
+        # ── Legend click → sync drilldown-active-brackets (clientside) ──────
+        # Plotly handles legend clicks client-side (no Dash callback fires).
+        # This callback reads restyleData, maps the toggled trace index back to
+        # a bracket key, and writes the new active set so the KPI cards and
+        # chip styles update in lock-step with what the chart is showing.
+        dash_app.clientside_callback(
+            """
+            function(restyleData, activeBrackets) {
+                if (!restyleData) return window.dash_clientside.no_update;
+                var props   = restyleData[0];
+                var indices = restyleData[1];
+                if (!('visible' in props)) return window.dash_clientside.no_update;
+
+                var ALL_KEYS = ["on_time", "30_days", "60_days", "90_days"];
+                var currentActive = activeBrackets ? activeBrackets.slice() : ALL_KEYS.slice();
+
+                // Bar traces are added in ALL_KEYS order, skipping inactive ones;
+                // Cumulative is always the last trace and has no bracket key.
+                var traceKeyMap = {};
+                var traceIdx = 0;
+                ALL_KEYS.forEach(function(key) {
+                    if (currentActive.indexOf(key) !== -1) {
+                        traceKeyMap[traceIdx] = key;
+                        traceIdx++;
+                    }
+                });
+
+                var newActive = currentActive.slice();
+                indices.forEach(function(ti, i) {
+                    var key = traceKeyMap[ti];
+                    if (!key) return;  // Cumulative trace — ignore
+                    var vis = Array.isArray(props.visible) ? props.visible[i] : props.visible;
+                    var nowVisible = (vis === true || vis === undefined || vis === null);
+                    var pos = newActive.indexOf(key);
+                    if (nowVisible && pos === -1) {
+                        newActive.push(key);
+                    } else if (!nowVisible && pos !== -1) {
+                        newActive.splice(pos, 1);
+                    }
+                });
+
+                return newActive;
+            }
+            """,
+            Output("drilldown-active-brackets", "data", allow_duplicate=True),
+            Input("drilldown-cashflow-graph",   "restyleData"),
+            State("drilldown-active-brackets",  "data"),
+            prevent_initial_call=True,
+        )
+
+        # ── Header click-to-sort (clientside) ────────────────────────────────
+        dash_app.clientside_callback(
+            """
+            function(id) {
+                const table = document.getElementById('drilldown-table');
+                if (!table) return window.dash_clientside.no_update;
+                table.querySelectorAll('th.dash-header').forEach(th => {
+                    if (th.dataset.sortBound) return;
+                    th.dataset.sortBound = '1';
+                    th.style.cursor = 'pointer';
+                    th.addEventListener('click', function(e) {
+                        // The DataTable's own sort arrow already handles clicks on
+                        // the arrow span; this catches clicks on the label text.
+                        const arrow = th.querySelector('.column-header--sort');
+                        if (arrow && !arrow.contains(e.target)) {
+                            arrow.click();
+                        }
+                    });
+                });
+                return window.dash_clientside.no_update;
+            }
+            """,
+            Output("drilldown-table", "id"),   # dummy output — side effect only
+            Input("drilldown-table",  "data"), # re-bind after each data update
+        )
 
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
