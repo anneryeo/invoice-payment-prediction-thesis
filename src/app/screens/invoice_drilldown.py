@@ -12,7 +12,6 @@ from __future__ import annotations
 import logging
 import re
 from collections import Counter, defaultdict
-from datetime import datetime
 
 import pandas as pd
 import plotly.graph_objects as go
@@ -21,8 +20,7 @@ from dash.exceptions import PreventUpdate
 
 from src.app import dash_app
 from src.utils.data_loaders.read_settings_json import read_settings_json
-from src.app.utils.audit_logger import log_event
-from src.modules.feature_engineering.credit_sales_machine_learning import CreditSalesProcessor
+from src.app.utils.app_cache import load_credit_sales, load_predictions
 from src.modules.machine_learning.utils.inference.inference_pipeline import (
     load_inference_pipeline,
     _BRACKET_LABELS,
@@ -143,28 +141,19 @@ def _kpi_card(label: str, value: float, sub: str = "", variant: str = "primary")
     ])
 
 
-def _build_load_outputs(pipeline, df: pd.DataFrame | None, *, invalidate_cache: bool = False):
+def _build_load_outputs(all_rows: list[dict] | None):
     """
-    Shared body for the mount-load and refresh callbacks: runs (or reuses
-    the cached) predictions for the full invoice set and derives every
-    output those callbacks need — table rows, page count, the store
-    payload, and the per-bracket chip count labels.
+    Shared body for the mount-load and refresh callbacks: derives every
+    output those callbacks need from the (already loaded/cached) full
+    invoice prediction set — table rows, page count, the store payload,
+    and the per-bracket chip count labels.
     """
     empty_labels = ("On Time · 0", "1–30 Days · 0", "31–60 Days · 0", "61+ Days · 0")
 
-    if pipeline is None or df is None:
+    if not all_rows:
         return [], 0, None, *empty_labels
 
     try:
-        all_rows = pipeline.predict_all_invoices(
-            df, use_cache=True, invalidate_cache=invalidate_cache
-        )
-
-        log_event(
-            "prediction_run",
-            f"model={getattr(pipeline, 'model_key', 'unknown')}, "
-            f"n_invoices={len(df)}",
-        )
         PAGE_SIZE = 15
         visible = [{k: v for k, v in r.items() if k not in _INTERNAL_KEYS}
                    for r in all_rows[:PAGE_SIZE]]
@@ -278,8 +267,10 @@ class InvoiceDrilldownScreen:
         )
         def _initial_load(_n):
             pipeline = _load_pipeline()
-            df       = _load_cache()
-            return _build_load_outputs(pipeline, df)
+            settings = read_settings_json()
+            df, layer1_meta = load_credit_sales(settings)
+            all_rows = load_predictions(pipeline, df, layer1_meta)
+            return _build_load_outputs(all_rows)
 
         # ── Manual refresh — bypasses the cache to pick up new data/model ───────
         @dash_app.callback(
@@ -296,9 +287,12 @@ class InvoiceDrilldownScreen:
         def _refresh(n_clicks):
             if not n_clicks:
                 raise PreventUpdate
+            _logger.info("[AppCache] Manual refresh: bypassing both cache layers and recomputing.")
             pipeline = _load_pipeline()
-            df       = _load_cache()
-            return _build_load_outputs(pipeline, df, invalidate_cache=True)
+            settings = read_settings_json()
+            df, layer1_meta = load_credit_sales(settings, force_recompute=True)
+            all_rows = load_predictions(pipeline, df, layer1_meta, force_recompute=True)
+            return _build_load_outputs(all_rows)
 
         # ── Bracket filter toggle logic ──────────────────────────────────────
         @dash_app.callback(
@@ -652,38 +646,4 @@ def _load_pipeline() -> object | None:
         deployed_dir = settings.get("Training", {}).get("DEPLOYED_MODELS", "")
         return load_inference_pipeline(deployed_dir)
     except Exception:
-        return None
-
-
-def _load_cache() -> pd.DataFrame | None:
-    """
-    Build the invoice feature DataFrame via CreditSalesProcessor, reading the
-    raw revenue/enrollees Excel files configured in settings.json directly
-    from disk — the same source files step_3.clean_datasets processes during
-    training — using the identical CreditSalesProcessor parameters so this
-    screen sees the exact feature set the deployed model expects.
-    """
-    try:
-        settings = read_settings_json()
-        df_revenues  = pd.read_excel(settings["TrainingInput"]["REVENUES"],  engine="calamine")
-        df_enrollees = pd.read_excel(settings["TrainingInput"]["ENROLLEES"], engine="calamine")
-
-        class _Config:
-            observation_end = datetime.strptime(
-                settings["Training"]["observation_end"], "%Y/%m/%d"
-            )
-
-        processor = CreditSalesProcessor(
-            df_revenues, df_enrollees, _Config(),
-            drop_helper_columns=True,
-            drop_demographic_columns=True,
-            drop_plan_type_columns=False,
-            drop_missing_dtp=True,
-            drop_back_account_transactions=True,
-            exclude_school_years=[2016, 2017, 2018],
-            winsorise_dtp=True,
-        )
-        return processor.show_data()
-    except Exception:
-        _logger.exception("Failed to build invoice cache via CreditSalesProcessor")
         return None
