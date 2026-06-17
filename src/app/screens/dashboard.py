@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import os
-import pickle
 import glob
 
 import plotly.graph_objects as go
@@ -28,18 +27,16 @@ _BRACKET_ORDER = ["on_time", "30_days", "60_days", "90_days"]
 
 # ── Data helpers ──────────────────────────────────────────────────────────────
 
-def _load_models_summary() -> dict:
+def _get_results_analyzer():
     try:
-        from src.app.screens.comparative_model_dashboard_template.constants import MODELS
-        if not MODELS:
-            from src.app.screens.comparative_model_dashboard_template.utils.session_loader import (
-                activate_session,
-            )
-            activate_session()
-        from src.app.screens.comparative_model_dashboard_template.constants import MODELS
-        return MODELS
+        from src.modules.machine_learning.utils.io.analysis.analyzer import ResultsAnalyzer
+        settings     = read_settings_json()
+        results_root = settings.get("Training", {}).get("RESULTS_ROOT", "")
+        if not results_root:
+            return None
+        return ResultsAnalyzer(results_root)
     except Exception:
-        return {}
+        return None
 
 
 def _get_deployed_model_name() -> str:
@@ -78,24 +75,20 @@ def _load_class_distribution() -> dict | None:
         return None
 
 
-def _best_model_stats(models: dict) -> dict:
-    if not models:
+def _best_model_stats_from_analyzer(ra) -> dict:
+    try:
+        df = ra.top(1).df
+        if df.empty:
+            return {}
+        row = df.iloc[0]
+        return {
+            "name":     str(row.get("model_display") or row.get("model", "—")),
+            "strategy": str(row.get("strategy_label") or row.get("balance_strategy", "—")),
+            "f1":       float(row.get("enhanced_f1_macro", row.get("f1_macro", 0.0))),
+            "auc":      float(row.get("enhanced_roc_auc_macro", row.get("roc_auc_macro", 0.0))),
+        }
+    except Exception:
         return {}
-    best_key = max(
-        models,
-        key=lambda k: (models[k].get("evaluation", {})
-                                .get("metrics", {})
-                                .get("enhanced", {})
-                                .get("f1_macro", 0.0)),
-    )
-    data    = models[best_key]
-    metrics = data.get("evaluation", {}).get("metrics", {}).get("enhanced", {})
-    return {
-        "name":     data.get("model", best_key).replace("_", " ").title(),
-        "strategy": data.get("balance_strategy", "").replace("_", " ").title(),
-        "f1":       metrics.get("f1_macro", 0.0),
-        "auc":      metrics.get("roc_auc_macro", 0.0),
-    }
 
 
 # ── Component builders ────────────────────────────────────────────────────────
@@ -122,13 +115,17 @@ def _bracket_bar(dist: dict) -> dcc.Graph:
         marker_color=colors,
         text=[f"{v:,}  ({v/total:.1%})" for v in values],
         textposition="outside",
+        cliponaxis=False,
         hovertemplate="%{y}: %{x:,} invoices<extra></extra>",
     ))
     fig.update_layout(
         paper_bgcolor="white", plot_bgcolor="white",
-        margin=dict(l=0, r=90, t=8, b=8),
-        xaxis=dict(showgrid=True, gridcolor="#f0ede6", zeroline=False,
-                   title="Invoice Count", title_font_size=11),
+        margin=dict(l=0, r=20, t=8, b=8),
+        xaxis=dict(
+            range=[0, max(values) * 1.35] if values else [0, 1],
+            showgrid=True, gridcolor="#f0ede6", zeroline=False,
+            title="Invoice Count", title_font_size=11,
+        ),
         yaxis=dict(showgrid=False, autorange="reversed"),
         font=dict(family="-apple-system, 'Segoe UI', sans-serif", size=12, color="#2b2b2b"),
         height=230,
@@ -136,22 +133,22 @@ def _bracket_bar(dist: dict) -> dcc.Graph:
     return dcc.Graph(figure=fig, config={"displayModeBar": False})
 
 
-def _top_models_tbl(models: dict, n: int = 8) -> dash_table.DataTable:
-    rows = []
-    for key, data in models.items():
-        m = data.get("evaluation", {}).get("metrics", {}).get("enhanced", {})
-        rows.append({
-            "Model":     data.get("model", key).replace("_", " ").title(),
-            "Strategy":  data.get("balance_strategy", "").replace("_", " ").title(),
-            "F1 ↑":      round(m.get("f1_macro", 0), 4),
-            "AUC":       round(m.get("roc_auc_macro", 0), 4),
-            "Accuracy":  round(m.get("accuracy", 0), 4),
-            "_sort":     m.get("f1_macro", 0),
-        })
-    rows.sort(key=lambda r: r["_sort"], reverse=True)
-    rows = [{k: v for k, v in r.items() if k != "_sort"} for r in rows[:n]]
-    cols = [{"name": c, "id": c} for c in ("Model", "Strategy", "F1 ↑", "AUC", "Accuracy")]
+def _top_models_tbl_from_analyzer(ra, n: int = 8) -> dash_table.DataTable:
+    try:
+        df   = ra.top(n).df
+        rows = []
+        for _, row in df.iterrows():
+            rows.append({
+                "Model":    str(row.get("model_display") or row.get("model", "—")),
+                "Strategy": str(row.get("strategy_label") or row.get("balance_strategy", "—")),
+                "F1 ↑":     round(float(row.get("enhanced_f1_macro",    row.get("f1_macro",    0))), 4),
+                "AUC":      round(float(row.get("enhanced_roc_auc_macro", row.get("roc_auc_macro", 0))), 4),
+                "Accuracy": round(float(row.get("enhanced_accuracy", row.get("accuracy", 0))), 4),
+            })
+    except Exception:
+        rows = []
 
+    cols = [{"name": c, "id": c} for c in ("Model", "Strategy", "F1 ↑", "AUC", "Accuracy")]
     return dash_table.DataTable(
         data=rows, columns=cols,
         page_size=n,
@@ -209,7 +206,7 @@ class DashboardScreen:
                 html.Div(id="dash-kpi-row",  className="kpi-grid"),
                 # Charts
                 html.Div(className="section-row cols-1-2", children=[
-                    html.Div(className="card", children=[
+                    html.Div(id="dash-dist-card", className="card", children=[
                         html.Div(className="section-header", children=[
                             html.H4("Payment Bracket Distribution", className="section-title"),
                         ]),
@@ -236,19 +233,24 @@ class DashboardScreen:
             prevent_initial_call=True,
         )
         def _load(_n):
-            models        = _load_models_summary()
-            best          = _best_model_stats(models)
+            ra            = _get_results_analyzer()
             dist          = _load_class_distribution()
             deployed_name = _get_deployed_model_name()
 
             # KPIs
+            if ra is not None:
+                best      = _best_model_stats_from_analyzer(ra)
+                total_exp = len(ra.df)
+            else:
+                best, total_exp = {}, 0
+
             if best:
                 kpi_row = [
                     _kpi_card("Best Model F1",      f"{best['f1']:.4f}",
                               best["name"], "accent-top"),
                     _kpi_card("Best Model AUC",     f"{best['auc']:.4f}",
                               f"Strategy: {best['strategy']}", "success-top"),
-                    _kpi_card("Total Experiments",  f"{len(models):,}",
+                    _kpi_card("Total Experiments",  f"{total_exp:,}",
                               "Configurations benchmarked"),
                     _kpi_card("Deployed Model",     deployed_name,
                               "Currently active", "accent-top"),
@@ -275,8 +277,8 @@ class DashboardScreen:
 
             # Top models table
             top_content = (
-                [_top_models_tbl(models)]
-                if models
+                [_top_models_tbl_from_analyzer(ra)]
+                if ra is not None
                 else [_empty("🔬", "No model results loaded.")]
             )
 
