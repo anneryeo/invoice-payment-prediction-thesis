@@ -16,8 +16,8 @@ Key IDs in Level-1 DFD - processing component.drawio:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
-from base_dfd_modifier import DrawioModifier
+sys.path.insert(0, str(Path(__file__).parents[2]))
+from shared.base_dfd_modifier import DrawioModifier
 
 DRAWIO_PATH = Path(__file__).parents[3] / "diagrams" / "Level-1 DFD - processing component.drawio"
 

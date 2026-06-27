@@ -7,11 +7,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 import pytest
 
-DIAGRAMS = Path(__file__).parents[2] / "diagrams"
-SCRIPTS  = Path(__file__).parents[1] / "scripts"
-
-sys.path.insert(0, str(SCRIPTS))
-sys.path.insert(0, str(SCRIPTS / "dfd_revisions"))
+DIAGRAMS = Path(__file__).parents[3] / "diagrams"
 
 MODELLING_DFD  = DIAGRAMS / "Level-1 DFD - modelling component.drawio"
 PROCESSING_DFD = DIAGRAMS / "Level-1 DFD - processing component.drawio"

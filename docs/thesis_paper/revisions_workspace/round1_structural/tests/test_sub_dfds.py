@@ -4,7 +4,7 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 import pytest
 
-DIAGRAMS = Path(__file__).parents[2] / "diagrams"
+DIAGRAMS = Path(__file__).parents[3] / "diagrams"
 
 
 def _parse(path: Path) -> ET.Element:

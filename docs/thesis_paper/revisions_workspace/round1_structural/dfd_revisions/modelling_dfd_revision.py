@@ -27,8 +27,8 @@ Key IDs in Level-1 DFD - modelling component.drawio:
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parents[1]))
-from base_dfd_modifier import DrawioModifier, _new_id, _swimlane_process_xml, _edge_xml
+sys.path.insert(0, str(Path(__file__).parents[2]))
+from shared.base_dfd_modifier import DrawioModifier, _new_id, _swimlane_process_xml, _edge_xml
 import xml.etree.ElementTree as ET
 
 DRAWIO_PATH = Path(__file__).parents[3] / "diagrams" / "Level-1 DFD - modelling component.drawio"

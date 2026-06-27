@@ -8,8 +8,8 @@ Three sub-processes:
 
 import sys
 from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parents[2]))
-from dfd_revisions.sub_dfds.base_sub_dfd_builder import SubDFDBuilder
+sys.path.insert(0, str(Path(__file__).parents[3]))
+from shared.base_sub_dfd_builder import SubDFDBuilder
 
 DIAGRAMS_DIR = Path(__file__).parents[4] / "diagrams"
 
