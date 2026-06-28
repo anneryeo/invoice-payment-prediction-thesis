@@ -154,43 +154,18 @@ The last docx revision pass (commit `3510afa`) inserted introductory sentences *
 
 ---
 
-## Part D — Noted-Only Discrepancies (Not Yet Implemented)
+## Part D — Noted-Only Discrepancies
 
-The following discrepancies were identified but are deferred to a
-separate revision pass.
+_N1 and N2 implemented: 2026-06-29_
 
-### N1 — 3.4 — Modelling Component Narrative
+### N1 — 3.4 — Modelling Component Narrative ✓ Implemented
 
-**Issue**: The narrative for processes 6.0–12.0 does not mention Cox Survival Analysis Tuning (7.5) as a dedicated step or explain the dual baseline/enhanced training paths.
+**Issue**: The narrative for processes 6.0–12.0 did not mention Cox Survival Analysis Tuning (7.5) as a dedicated step or explain the dual baseline/enhanced training paths.
 
-**Recommended action**: Update the introductory paragraph of Section 3.4 to state that the modelling component contains two concurrent pipelines: one baseline pipeline trained on the original feature set, and one enhanced pipeline trained on features augmented by survival analysis outputs. Reference processes 7.5 and 8.5 explicitly.
+**Resolution**: The paragraph immediately following Figure 3.3 caption was replaced to describe the two concurrent training pipelines (baseline and survival-augmented), with explicit references to Process 7.5 and Process 8.5.
 
-### N2 — 3.3 — Processing Component Narrative
+### N2 — 3.3 — Processing Component Narrative ✓ Implemented
 
-**Issue**: The narrative for Process 5.0 (Data Cleaning) does not describe the data stream split into ML training data and survival analysis data.
+**Issue**: The narrative for the Figure 3.2 (Processing Component Level-1 DFD) did not describe the data stream split into ML training data and survival analysis data.
 
-**Recommended action**: The replacement text provided under D3 above addresses this. When implementing docx edits, apply the D3 narrative to the relevant paragraph in Section 3.3.
-
-### N3 — 3.5 — Analysis Component DFD
-
-**Issue**: Step 5 finalisation (re-train on the full dataset and save finalized_*.pkl model files) is not reflected in the Analysis DFD or its narrative.
-
-**Recommended action**: Add a Process 17.0 'Finalise and export models' node to the Analysis DFD. Update Section 3.5 narrative to describe re-training on the combined train+test set and persisting the models.
-
-### N4 — 3.2 — Conceptual Framework
-
-**Issue**: The high-level Conceptual Framework diagram shows a 'Modelling' box but does not reflect Cox Survival Analysis as an internal sub-component.
-
-**Recommended action**: Revise the Conceptual Framework diagram to split the Modelling box into two visible sub-tracks: 'Baseline ML pipeline' and 'Survival-augmented ML pipeline', connected via the Cox tuning and feature generation nodes.
-
-### N5 — 3.4 — Individual Model Descriptions
-
-**Issue**: Descriptions for individual models (DT, RF, XGB, Ada, KNN, NB, Ordinal, Two-Stage) may not match the final implemented hyperparameter configurations stored in settings.json.
-
-**Recommended action**: Cross-reference the hyperparameter grids in settings.json with the Chapter 3 model description tables and update any mismatches. Pay particular attention to n_estimators, max_depth, and learning_rate values for tree-based models.
-
-### S_analysis — 3.5 — Analysis Component DFD
-
-**Issue**: The Analysis DFD (processes 13.0–16.0) has not been audited against the codebase in this revision cycle.
-
-**Recommended action**: Perform a targeted trace of the analysis/reporting code to verify that classify_transactions (13.0), generate_summaries (14.0), payment_analysis (15.0), and visualization (16.0) match the implemented logic. Update the DFD if discrepancies are found.
+**Resolution**: The paragraph immediately following the Figure 3.2 caption was updated to state that Process 5.0 writes records to the modeling cache as two distinct data streams — ML training data and survival analysis data — forwarded to separate downstream processes.
