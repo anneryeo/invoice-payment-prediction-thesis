@@ -3,7 +3,7 @@
 **Manuscript:** `Beley-Reyes_Thesis2-ACM.docx` · ACM format
 **Repo:** `invoice-payment-prediction-thesis` (branch `main`)
 **Prepared for:** Anne Reyes
-**Date:** June 23, 2026 · **Updated:** June 27, 2026 (formatting cleanup + adviser-revision verification; Appendix G resolved)
+**Date:** June 23, 2026 · **Updated:** June 29, 2026 (Chapter 3 architectural revision completed; em-dash cleanup)
 
 This document summarizes the revisions pulled from `remote/main` (primarily your thesis partner, **RJ Beley** / `RJbeley`), checks them against the original **Thesis Revision Implementation Plan** authored June 12, and notes the work that went **beyond** what the plan required.
 
@@ -34,7 +34,7 @@ We checked each adviser-requested revision against the current manuscript:
 | 4 | Include SDG in the paper | ✅ Implemented | **§1.6 Alignment with United Nations Sustainable Development Goals** — **p. 16** (SDG 10, 16, 17). | We added §1.6 explicitly mapping the study to SDG 10 (Reduced Inequalities), SDG 16 (Peace, Justice and Strong Institutions), and SDG 17 (Partnerships for the Goals). |
 | 5 | Make comparative analyses on other methods vs ours | ✅ Implemented | **§2.13 Comparative Analysis of Existing Technologies** — **p. 33**; **Table 2.2** — **p. 34**. | We added §2.13 with Table 2.2 directly comparing existing payment prediction approaches against our system across key dimensions (algorithm, dataset scale, feature type, and interpretability). |
 | 6 | Summarize Section 2.1 in a paragraph | ✅ Implemented | **§2.1 Introduction** — **p. 18**. | We wrote a concise summary paragraph at the opening of §2.1 to orient the reader before the detailed subsections, consolidating the section's scope into a single cohesive overview. |
-| 7 | Redefine the architecture (DFD update; in-depth modelling + data-prep / applied ethics) | ⚠️ Pending (co-author) | **§3.1 Research Design (p. 38)** and **§3.2 Data Acquisition and Preprocessing (p. 39)** exist, but the DFD diagram has not yet been updated — to be completed by RJ Beley. | Pending RJ Beley. The narrative sections exist but the DFD diagram needs to be redrawn to reflect the updated modelling pipeline, data preparation steps, and applied ethical considerations. |
+| 7 | Redefine the architecture (DFD update; in-depth modelling + data-prep / applied ethics) | ✅ Implemented | **§3.1–§3.6** throughout Chapter 3 (pp. 38–59). Level-1 DFD replaced with the updated 12-process pipeline; five Level-2 sub-DFDs added (Processes 1.0, 5.0, 7.5, 8.5, 8.0) with accompanying narrative paragraphs. N1 and N2 narrative overflow sections fixed. Data-prep detail expanded in §3.2; applied-ethics modelling reflected in §3.7. | Replaced the Level-1 DFD diagram with the revised 12-process pipeline. Added five Level-2 sub-DFD diagrams with post-figure narrative paragraphs each. Applied N1/N2 formatting and narrative fixes. Expanded §3.2 data-acquisition/preprocessing narrative and aligned §3.7 Ethical Considerations with the updated pipeline. |
 | 8 | Table title on top of tables | ✅ Implemented | Table captions are above each table (e.g., **Table 1.1, p. 11**; **Table 2.2, p. 34**). | We ensured all table captions are placed above their respective tables throughout the manuscript, consistent with ACM formatting requirements. |
 | 9 | Add conclusion to the manuscript | ✅ Implemented | **§5.5 Conclusion** (distinct from §5.1 Summary) — **p. 88**. | We added §5.5 as a standalone section separate from the Summary, synthesizing the study's contributions and closing the manuscript with forward-looking remarks. |
 | 10 | Add titles to results connecting to each research question | ✅ Implemented | **§4.1 RQ1 (p. 62)**, **§4.2 RQ2 (p. 65)**, **§4.3 RQ3 (p. 66)**, **§4.5 RQ4 (p. 75)** — formatted as "RQ_n: …" after the em-dash cleanup. | We retitled Chapter 4 subsections to explicitly reference each research question (e.g., "§4.1 RQ1: …"), making the mapping between results and research questions immediately visible. |
@@ -44,7 +44,11 @@ We checked each adviser-requested revision against the current manuscript:
 
 ### 0.3 Open items to resolve before final submission
 
-- **Revision #6 (architecture / DFD)** remains with the co-author, pending the updated DFD and the expanded modelling/data-prep narrative.
+All 13 adviser revisions are now implemented. The remaining pre-submission checks are:
+
+- **UN SDG (2015) citation.** Confirm a formal "Transforming our world / Sustainable Development" entry appears in the References list, or add it.
+- **Page count.** The plan targeted ~100 pages; the manuscript is currently **121 pages** — verify this is acceptable to the adviser.
+- **Refresh document fields.** After the Chapter 3 DFD and em-dash edits, update the Table of Contents, List of Figures, and List of Tables in Word and repaginate.
 
 ---
 
