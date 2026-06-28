@@ -136,6 +136,24 @@ TWO-STAGE ENSEMBLE CLASSIFIERS (8.3). Six two-stage ensemble classifiers are tra
 
 ARCHITECTURAL RESTRICTION ON ORDINAL AND TWO-STAGE MODELS. The ordinal (8.2) and two-stage (8.3) classifiers are restricted to tree-based estimators (XGBoost, Random Forest, AdaBoost) because the training pipeline applies feature selection via mean decrease in impurity (MDI) using scikit-learn's SelectFromModel. This requires each estimator to expose a feature_importances_ attribute, which is only available for tree-based models. K-Nearest Neighbours and Gaussian Naive Bayes do not expose this attribute and are therefore excluded from the ordinal and two-stage experimental conditions.
 
+## Part E — Post-Figure Narratives for Level-2 DFDs
+
+_Implemented: 2026-06-29_
+
+The last docx revision pass (commit `3510afa`) inserted introductory sentences **before** each Level-2 DFD figure but did not add explanatory prose **after** the figure caption. This part adds a narrative paragraph immediately following each of the five Level-2 DFD captions, explaining what each sub-process in the diagram does. Content is grounded in `code_pipeline_trace.md`.
+
+| DFD | Caption anchor keyword | Narrative added |
+|-----|------------------------|-----------------|
+| Level-2 DFD 1.0 Data Importation | "1.0 data importation" | Sub-processes 1.1–1.4: async load, type conversion, datetime parsing, due-date lookup update |
+| Level-2 DFD 5.0 Data Cleaning | "5.0 data cleaning" | Sub-processes 5.1–5.4: InvoiceBuilder, FeatureEngineer, PostProcessor, data stream split |
+| Level-2 DFD 7.5 Cox Survival Analysis Tuning | "7.5 cox survival" | Sub-processes 7.5.1–7.5.6: grid init, k-fold CV, model fit, C-index scoring, best selection, 9 time points |
+| Level-2 DFD 8.5 Survival Feature Generation | "8.5 survival feature" | Sub-processes 8.5.1–8.5.5: Cox fit, S(t), H(t), risk score/E[T], enhanced dataset concat |
+| Level-2 DFD 8.0 Model Building | "8.0 model building" | Sub-processes 8.1–8.3: base classifiers, ordinal (Frank & Hall), two-stage ensembles |
+
+`chapter3_methodology.md` was also updated to reflect these new sections as a reference document.
+
+---
+
 ## Part D — Noted-Only Discrepancies (Not Yet Implemented)
 
 The following discrepancies were identified but are deferred to a
