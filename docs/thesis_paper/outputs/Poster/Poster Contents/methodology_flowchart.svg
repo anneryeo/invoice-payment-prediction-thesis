@@ -1,0 +1,184 @@
+<svg viewBox="0 0 520 860" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <!-- Background -->
+  <rect width="520" height="860" fill="#f4f6fb" rx="10"/>
+
+  <!-- Title -->
+  <text x="260" y="34" text-anchor="middle" font-size="15" font-weight="bold" fill="#1a2e5a">IPPP Multi-Stage Pipeline</text>
+  <text x="260" y="52" text-anchor="middle" font-size="10.5" fill="#4a5a7a">1,092 experimental configurations</text>
+
+  <!-- ── STAGE 1: DATA ACQUISITION ── -->
+  <rect x="30" y="68" width="460" height="72" rx="8" fill="#1a2e5a"/>
+  <rect x="30" y="68" width="460" height="24" rx="8" fill="#1a2e5a"/>
+  <rect x="30" y="80" width="460" height="12" fill="#1a2e5a"/>
+  <text x="260" y="85" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">① DATA ACQUISITION</text>
+  <rect x="44" y="98" width="140" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="114" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Revenues File</text>
+  <text x="114" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Itemized receivables</text>
+  <rect x="194" y="98" width="140" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="264" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Enrollees File</text>
+  <text x="264" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Installment plans</text>
+  <rect x="344" y="98" width="132" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="410" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Chart of Accounts</text>
+  <text x="410" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Category mapping</text>
+  <!-- arrow -->
+  <line x1="260" y1="140" x2="260" y2="158" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 2: PRE-PROCESSING ── -->
+  <rect x="30" y="160" width="460" height="90" rx="8" fill="#163a6a"/>
+  <text x="260" y="177" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">② PRE-PROCESSING</text>
+  <!-- sub-boxes -->
+  <rect x="44" y="184" width="96" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="92" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">Pseudonymization</text>
+  <text x="92" y="213" text-anchor="middle" font-size="8" fill="#99bbee">Hash student IDs</text>
+  <text x="92" y="225" text-anchor="middle" font-size="8" fill="#99bbee">exclude raw files</text>
+
+  <rect x="148" y="184" width="90" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="193" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">ERP Merge</text>
+  <text x="193" y="213" text-anchor="middle" font-size="8" fill="#99bbee">Join 3 source</text>
+  <text x="193" y="225" text-anchor="middle" font-size="8" fill="#99bbee">files → Fact Table</text>
+
+  <rect x="246" y="184" width="100" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="296" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">DTP Computation</text>
+  <text x="296" y="213" text-anchor="middle" font-size="8" fill="#99bbee">due date → payment</text>
+  <text x="296" y="225" text-anchor="middle" font-size="8" fill="#99bbee">date gap (days)</text>
+
+  <rect x="354" y="184" width="132" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="420" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">Target Discretization</text>
+  <text x="420" y="213" text-anchor="middle" font-size="8" fill="#99bbee">4 ordinal brackets</text>
+  <text x="420" y="225" text-anchor="middle" font-size="8" fill="#99bbee">≤0 / 1–30 / 31–60 / 61+</text>
+  <!-- arrow -->
+  <line x1="260" y1="250" x2="260" y2="268" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 3: FEATURE ENGINEERING ── -->
+  <rect x="30" y="270" width="460" height="86" rx="8" fill="#0e4d3a"/>
+  <text x="260" y="287" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">③ FEATURE ENGINEERING  (Baseline — 40 features)</text>
+  <!-- 6 group chips -->
+  <rect x="40" y="294" width="72" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="76" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Raw Financial</text>
+  <text x="76" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">4 features</text>
+
+  <rect x="118" y="294" width="80" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="158" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">DTP Historical</text>
+  <text x="158" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">11 features</text>
+
+  <rect x="204" y="294" width="88" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="248" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Financial / Cumul.</text>
+  <text x="248" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">5 features</text>
+
+  <rect x="298" y="294" width="80" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="338" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Behavioral</text>
+  <text x="338" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">3 features</text>
+
+  <rect x="384" y="294" width="52" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="410" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Plan Type</text>
+  <text x="410" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">13 feats</text>
+
+  <rect x="442" y="294" width="42" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="463" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Temporal</text>
+  <text x="463" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">4 feats</text>
+
+  <!-- label row -->
+  <text x="260" y="347" text-anchor="middle" font-size="8" fill="#6adbb8" font-style="italic">All features engineered at line-item granularity (category-level, not aggregate student balances)</text>
+  <!-- arrow -->
+  <line x1="260" y1="356" x2="260" y2="374" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 4: SURVIVAL ANALYSIS ── -->
+  <rect x="30" y="376" width="460" height="76" rx="8" fill="#4a2070"/>
+  <text x="260" y="393" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">④ SURVIVAL ANALYSIS  (Enhanced — +5 features)</text>
+  <rect x="50" y="401" width="180" height="44" rx="5" fill="#5e2a8a" stroke="#a06cda" stroke-width="1"/>
+  <text x="140" y="416" text-anchor="middle" font-size="9" fill="#e0ccff" font-weight="bold">Cox PH Model (lifelines)</text>
+  <text x="140" y="429" text-anchor="middle" font-size="8" fill="#c0aaee">Fitted on censored train split</text>
+  <text x="140" y="441" text-anchor="middle" font-size="8" fill="#c0aaee">Event = full settlement</text>
+
+  <rect x="242" y="401" width="230" height="44" rx="5" fill="#5e2a8a" stroke="#a06cda" stroke-width="1"/>
+  <text x="357" y="414" text-anchor="middle" font-size="8.5" fill="#e0ccff" font-weight="bold">Derived Features</text>
+  <text x="357" y="426" text-anchor="middle" font-size="7.5" fill="#c0aaee">partial_hazard · log_partial_hazard</text>
+  <text x="357" y="438" text-anchor="middle" font-size="7.5" fill="#c0aaee">survival_prob · cumulative_hazard · expected_survival</text>
+  <!-- arrow -->
+  <line x1="260" y1="452" x2="260" y2="470" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 5: CLASS BALANCING ── -->
+  <rect x="30" y="472" width="460" height="76" rx="8" fill="#7a3010"/>
+  <text x="260" y="489" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑤ CLASS BALANCING  (7 strategies)</text>
+  <!-- chips -->
+  <rect x="42" y="497" width="62" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="73" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">None</text>
+  <text x="73" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">baseline</text>
+
+  <rect x="112" y="497" width="62" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="143" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">SMOTE</text>
+  <text x="143" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">oversample</text>
+
+  <rect x="182" y="497" width="82" height="44" rx="4" fill="#c04420" stroke="#f08050" stroke-width="1.5"/>
+  <text x="223" y="514" text-anchor="middle" font-size="8" fill="#ffffff" font-weight="bold">Borderline-SMOTE</text>
+  <text x="223" y="527" text-anchor="middle" font-size="7" fill="#ffddcc">★ best performer</text>
+  <text x="223" y="538" text-anchor="middle" font-size="7" fill="#ffddcc">focus on border pts</text>
+
+  <rect x="272" y="497" width="76" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="310" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">SMOTE+Tomek</text>
+  <text x="310" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">hybrid clean</text>
+
+  <rect x="356" y="497" width="126" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="419" y="511" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">Hybrid Undersample</text>
+  <text x="419" y="524" text-anchor="middle" font-size="7.5" fill="#ffcbaa">@0.5 / @0.7 / @0.9</text>
+  <text x="419" y="536" text-anchor="middle" font-size="7" fill="#ffcbaa">3 ratio variants</text>
+  <!-- arrow -->
+  <line x1="260" y1="548" x2="260" y2="566" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 6: MODEL TRAINING ── -->
+  <rect x="30" y="568" width="460" height="110" rx="8" fill="#1a2e5a"/>
+  <text x="260" y="585" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑥ MODEL TRAINING &amp; BENCHMARKING  (1,092 configs)</text>
+  <!-- 3 family boxes -->
+  <rect x="42" y="593" width="130" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="107" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Base Classifiers</text>
+  <text x="107" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">AdaBoost · RF · XGBoost</text>
+  <text x="107" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">Decision Tree · GNB · KNN</text>
+  <text x="107" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">6 models</text>
+  <text x="107" y="662" text-anchor="middle" font-size="7" fill="#6090cc">single-stage, standard</text>
+
+  <rect x="181" y="593" width="158" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="260" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Two-Stage Ensembles</text>
+  <text x="260" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">Stage 1 Binary (on-time vs late)</text>
+  <text x="260" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">Stage 2 Multi-class (severity)</text>
+  <text x="260" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">6 pipelines</text>
+  <text x="260" y="662" text-anchor="middle" font-size="7" fill="#6090cc">XGB→Ada · RF→Ada · RF→RF …</text>
+
+  <rect x="348" y="593" width="134" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="415" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Ordinal Classifiers</text>
+  <text x="415" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">Frank &amp; Hall decomposition</text>
+  <text x="415" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">ordered-bracket structure</text>
+  <text x="415" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">3 models</text>
+  <text x="415" y="662" text-anchor="middle" font-size="7" fill="#6090cc">Ord-Ada · Ord-RF · Ord-XGB</text>
+  <!-- arrow -->
+  <line x1="260" y1="678" x2="260" y2="696" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 7: EVALUATION & DEPLOYMENT ── -->
+  <rect x="30" y="698" width="460" height="96" rx="8" fill="#1a3a1a"/>
+  <text x="260" y="715" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑦ EVALUATION &amp; DEPLOYMENT</text>
+  <!-- eval box -->
+  <rect x="42" y="724" width="200" height="62" rx="5" fill="#254025" stroke="#4daa4d" stroke-width="1"/>
+  <text x="142" y="739" text-anchor="middle" font-size="9" fill="#b0ffb0" font-weight="bold">Evaluation Metrics</text>
+  <text x="142" y="752" text-anchor="middle" font-size="7.5" fill="#88dd88">Primary: Macro-F1</text>
+  <text x="142" y="764" text-anchor="middle" font-size="7.5" fill="#88dd88">Secondary: ROC-AUC · Confusion Matrix</text>
+  <text x="142" y="776" text-anchor="middle" font-size="7.5" fill="#88dd88">Spearman ρ (F1 vs AUC) = 0.732</text>
+
+  <!-- deploy box -->
+  <rect x="252" y="724" width="228" height="62" rx="5" fill="#254025" stroke="#4daa4d" stroke-width="1"/>
+  <text x="366" y="739" text-anchor="middle" font-size="9" fill="#b0ffb0" font-weight="bold">Dash Prototype (MVP)</text>
+  <text x="366" y="752" text-anchor="middle" font-size="7.5" fill="#88dd88">Setup Wizard · KPI Dashboard</text>
+  <text x="366" y="764" text-anchor="middle" font-size="7.5" fill="#88dd88">Prediction Drilldown · Model Compare</text>
+  <text x="366" y="776" text-anchor="middle" font-size="7.5" fill="#88dd88">Audit Logs · Settings</text>
+
+  <!-- Best result callout -->
+  <rect x="80" y="800" width="360" height="48" rx="8" fill="#c04420" stroke="#ff9966" stroke-width="1.5"/>
+  <text x="260" y="817" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">Best Configuration</text>
+  <text x="260" y="832" text-anchor="middle" font-size="9.5" fill="#ffe0cc">TS XGBoost→AdaBoost + Borderline-SMOTE</text>
+  <text x="260" y="844" text-anchor="middle" font-size="9" fill="#ffccaa">Macro-F1 = 0.6003  ·  ROC-AUC = 0.8919</text>
+
+  <!-- arrow marker -->
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#1a2e5a"/>
+    </marker>
+  </defs>
+</svg>
