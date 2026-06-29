@@ -19,8 +19,8 @@ class Revenues:
         self.root = root
         self.drop_columns = ['Level', 'PR#', 'Full Name', 'Prev PR#', 'Particulars',
                              'Check No.', 'ClaimStatus', 'Is Correct', 'Audit Notes']
-        settings_path = os.path.join(root, "settings.json") if root else "settings.json"
-        self.account_name_map = read_settings_json(settings_path).get("AccountNameMap", {})
+        map_path = os.path.join(root, "account_map.json") if root else "account_map.json"
+        self.account_name_map = read_settings_json(map_path)
 
     # Combine all xlsx files
     def _list_excel_files(self, directory):
