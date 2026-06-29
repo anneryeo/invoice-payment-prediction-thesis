@@ -1,0 +1,712 @@
+2
+
+4
+
+SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM (IPPP): 
+
+A MULTI-STAGE APPROACH
+
+A Thesis Project
+
+Presented to the
+
+School of Information Technology
+
+Mapúa University
+
+In Partial Fulfillment
+
+of the Requirements for the Degree
+
+Bachelor of Science in Data Science
+
+by
+
+Rafael Joseph T. Beley
+
+Christine Julliane L. Reyes
+
+June 2026
+
+TABLE OF CONTENTS
+
+TABLE OF CONTENTS	iii
+
+LIST OF FIGURES	vii
+
+LIST OF TABLES	ix
+
+CHAPTER 1: INTRODUCTION	10
+
+1.1	Context of the Study	13
+
+1.2	The Problem, Gap, or Opportunity	14
+
+1.3	Research Questions	15
+
+1.4 Research Objectives	15
+
+1.5 Significance of the Study	16
+
+1.6 Alignment with United Nations Sustainable Development Goals	17
+
+1.7 Scope and Limitations	18
+
+CHAPTER 2: REVIEW OF RELATED LITERATURE & STUDIES	19
+
+2.1 Introduction	19
+
+2.2 Global and Cross-Sector Practices in Receivables  and Debt Management	20
+
+2.3 Tuition Collection Strategies in Educational Institutions Worldwide	21
+
+2.4 Institutional Context: Philippine Schools and the Partner Institution	23
+
+2.5 Machine Learning in Credit Default Risk Forecasting	24
+
+2.6 Invoice Payment Prediction Models	26
+
+2.7 Granular Feature Modeling and Student-Specific Variables	27
+
+2.8 Socioeconomic and Behavioral Factors Affecting Payment	28
+
+2.9 Intervention Strategies and Justification	29
+
+2.9.1 Current Institutional Practices in Tuition Collection	29
+
+2.9.2 Structural and Policy Constraints on Enforcement	29
+
+2.9.3 Machine Learning as a Proactive Alternative	30
+
+2.10 Ordinal Classification and Two-Stage Architectures	31
+
+2.11 Survival Analysis in Accounts Receivable Prediction	32
+
+2.12 Synthesis of Methods, Findings, and Gaps in Literature	33
+
+2.13 Comparative Analysis of Existing Technologies	34
+
+2.14 Theoretical Framework	37
+
+CHAPTER 3: METHODOLOGY	39
+
+3.1 Research Design	39
+
+3.2 Data Acquisition and Preprocessing	40
+
+3.3 Granular Feature Engineering	50
+
+3.4 Survival-Analysis-Derived Features	51
+
+3.5 Model Architectures	52
+
+3.6 Experimental Design and Evaluation	65
+
+3.7 Ethical Considerations	68
+
+3.7.1 Data Privacy	68
+
+3.7.2 Ethical Use of Predictions	69
+
+CHAPTER 4: RESULTS AND DISCUSSION	70
+
+4.1 RQ1: Performance of Ensemble Architectures vs. Base Classifiers	71
+
+4.2 RQ2: Impact of Survival-Analysis-Derived Features	74
+
+4.3 RQ3: Effect of Class-Balancing Strategies on Model Performance	75
+
+4.4 Metric Convergence and Model Selection Criteria	80
+
+4.5 RQ4: Granular Feature Contribution	84
+
+4.6 Prototype Demonstration	88
+
+4.7 Benchmark Dataset Generalizability	94
+
+CHAPTER 5: CONCLUSION AND RECOMMENDATION	95
+
+5.1 Summary of Findings	95
+
+5.2 Implications for Practice	96
+
+5.3 Recommendation for Continuous Calibration	96
+
+5.4 Future Directions	96
+
+5.5 Conclusion	98
+
+APPENDICES	100
+
+APPENDIX A: Days Sales Outstanding per Plan Type (calendar year 2023)	100
+
+APPENDIX B: Days Sales Outstanding per Plan Type (calendar year 2024)	101
+
+APPENDIX C: Days Sales Outstanding per Plan Type (calendar year 2025)	102
+
+APPENDIX D: Feature importance from the paper titled “A MACHINE-LEARNING APPROACH TOWARDS SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM”	103
+
+APPENDIX E: Feature importance from the paper titled “A MACHINE-LEARNING APPROACH TOWARDS SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM”	104
+
+APPENDIX F: Correlation scores between features and the days to payment variable from the paper “A framework for modeling customer invoice payment prediction	105
+
+APPENDIX G: Institutional Communication and Authorization Letter	106
+
+APPENDIX H: Dataset Description and Variable Dictionary	111
+
+APPENDIX I: Curriculum Vitae of Rafael Joseph T. Beley	118
+
+APPENDIX J: Curriculum Vitae of Christine Julliane L. Reyes	120
+
+REFERENCES	126
+
+	
+
+LIST OF FIGURES
+
+Figure 2.1: Conceptual Framework.	37
+
+Figure 3.1: Entity-relationship diagram (ERD) of the institutional dataset.	42
+
+Figure 3.2: Level-1 DFD of the Pre-Processing component.	43
+
+Figure 3.3: Level-2 DFD of Process 1.0, Data Importation.	44
+
+Figure 3.4: Level-2 DFD of Process 5.0, Data Cleaning.	46
+
+Figure 3.5: Level-1 DFD of the Modeling component.	54
+
+Figure 3.6: Level-2 DFD of Process 7.5, Cox Survival Analysis Tuning.	55
+
+Figure 3.7: Level-2 DFD of Process 8.5, Survival Feature Generation.	56
+
+Figure 3.8: Level-2 DFD of Process 8.0, Model Building.	58
+
+Figure 3.9: Distribution of payment statuses.	66
+
+Figure 3.10: Level-1 DFD of the Analysis component.	67
+
+Figure 4.1: Ordinal & Two-Stage Variants vs. Base Classifiers (lift in F1 and AUC metrics).	72
+
+Figure 4.2: F1 Macro by Model & Balance Strategy (enhanced features).	75
+
+Figure 4.3: AUC Macro by Model & Balance Strategy (enhanced features).	77
+
+Figure 4.4: F1 Macro by Model & Balance Strategy (baseline features).	78
+
+Figure 4.5: ROC Curves for Top Models.	81
+
+Figure 4.6: Confusion Matrices for Top 3 Models.	82
+
+Figure 4.7: Feature Importance across Model Types (1 of 2).	84
+
+Figure 4.8: Feature Importance across Model Types (2 of 2).	86
+
+Figure 4.9: Multi-step initial setup wizard screen.	88
+
+Figure 4.10: Main KPI dashboard screen.	89
+
+Figure 4.11: Invoice prediction drilldown screen.	90
+
+Figure 4.12: Comparative model dashboard screen.	91
+
+Figure 4.13: Audit logs screen.	92
+
+Figure 4.14: Settings screen.	93
+
+LIST OF TABLES
+
+Table 1.1. Summary of existing machine learning approaches to invoice payment prediction.	12
+
+Table 2.1.  Trend of Bad Debts Expense (BDE), Student Balances, and Days Sales Outstanding (DSO), School Years 2019-2025.	23
+
+Table 2.2. Comparative analysis of existing invoice payment prediction and related studies.	35
+
+Table 3.1.  Entity data dictionary of the *Transactions* table.	47
+
+Table 3.2.  Entity data dictionary of the *Categories* table.	48
+
+Table 3.3.  Entity data dictionary of the *Credit Sales Fact Table (FT)*.	49
+
+Table 3.4.  Hyperparameters used (Base Models).	60
+
+Table 3.5.  Hyperparameters used (Ordinal Models).	61
+
+Table 3.6. Hyperparameters used (Two-Stage Models).	62
+
+Table 3.7.  List of the feature importance methods used per model.	63
+
+Table 4.1. Peak performance per model family (Enhanced Feature Regime).	71
+
+CHAPTER 1:
+INTRODUCTION
+
+Machine learning (ML), as a branch of artificial intelligence, enables systems to discover patterns from historical data without explicit programming. In financial management, ML has been widely applied to credit scoring, default prediction, accounts receivable optimization, and payment forecasting, consistently outperforming traditional statistical baselines [1, 2]. Its capacity to integrate heterogeneous, high-dimensional feature spaces makes it particularly suitable for the *Invoice Payment Prediction Problem (IPPP)*, the task of predicting when a customer will settle an outstanding invoice and into which payment-delay class a transaction will fall [3, 4].
+
+A substantial body of machine learning research has addressed the IPPP and adjacent receivables-prediction problems, employing models such as Logistic Regression, Random Forest, XGBoost, LightGBM, and neural networks. Schoonbee, Moore, and van Vuuren [5] applied a machine-learning decision-support approach to invoice payment prediction in an educational setting and reported classification accuracies of approximately 80–85% using tree-based ensembles, while Moore and van Vuuren [4] combined survival analysis with machine learning in their Modeling Invoice Payment Predictions (MIPP) framework to forecast the settlement timing of customer invoices. In the educational domain, Mugorobin et al. [3] developed an estimation system for late payment of school tuition fees, and Martikainen [6] demonstrated that statistical learning methods such as logistic regression can predict late payment of sales invoices with actionable discrimination. At the customer level, Cheong [7] and Appel et al. [8] showed that ensemble models trained on transaction histories can reduce unnecessary collection interventions, and Abbas and Hussein [9] confirmed that modern boosting algorithms such as XGBoost and LightGBM significantly outperform conventional statistical baselines in loan default prediction.
+
+Despite these advances, existing approaches share three limitations: first, they model payment behavior using aggregate customer- or student-level features, discarding the line-item granularity at which invoices are actually issued; second, they treat payment delay as a binary or nominal multi-class target, ignoring the inherent ordering of delay brackets; and third, they benchmark only a narrow set of five to eight standard classifiers, leaving ordinal decompositions, hierarchical two-stage architectures, and survival-analysis-derived features systematically untested. This study addresses these gaps by introducing a multi-stage pipeline across 1,092 experimental configurations.
+
+Table 1.1 summarizes the most directly comparable invoice payment prediction studies, the datasets and models they employed, their reported performance, and the principal limitation each leaves unaddressed.
+
+Table 1.1. Summary of existing machine learning approaches to invoice payment prediction.
+
+| Study | Dataset Type | Models Used | Best Accuracy / F1 | Key Limitation |
+| --- | --- | --- | --- | --- |
+| Moore & van Vuuren (2020) [4] | Corporate customer invoices | Survival analysis + ML (MIPP framework) | Time-to-payment estimates; bracket-level F1 not reported | Aggregate customer features; no ordinal target |
+| Schoonbee et al. (2021) [5] | Educational institution invoices (South Africa) | Logistic Regression, Random Forest, XGBoost, Neural Networks | Accuracy ≈ 80–85% | Broad student-level features; single-stage classifiers only |
+| Mugorobin et al. (2020) [3] | School tuition fee records | Rule-based estimation with classification | Not reported on standardized metrics | Heuristic system; no ensemble benchmarking |
+| Martikainen (2023) [6] | B2B sales invoices (Finland) | Logistic Regression, statistical learning | Moderate discrimination (AUC-based) | Few classifiers; no class-imbalance treatment |
+| Cheong (2022) [7] | Corporate accounts receivable | Customer-level gradient boosting | Reduced intervention actions; per-class F1 not reported | Customer-level aggregation; no line-item granularity |
+
+Two patterns emerge from Table 1.1. Across studies, predictive accuracy clusters around 80–85% for binary or coarse multi-class formulations, yet none of the cited works decomposes performance across ordered delay brackets, and none operates at the granularity of individual fee categories. These omissions motivate the granular, ordinal, and multi-stage design benchmarked in this study.
+
+Context of the Study
+
+Existing IPPP research has largely focused on corporate trade credit and retail contexts [4, 6, 10], where the primary signal is aggregate invoice history, customer size, and industry classification. Educational institutions present a structurally distinct setting that has received comparatively little attention. In the Philippine private school sector, invoicing is shaped by installment plan selection (annual, semi-annual, quarterly, monthly), category-level subcategory charges (tuition, miscellaneous fees, course materials), and strong regulatory constraints that prevent service denial. Notably, the No Permit, No Exam Prohibition Act (Republic Act 11984) [11] bars schools from withholding examination privileges for outstanding tuition, while DepEd and CHED memoranda further restrict the enforcement of collection. Schools must therefore continue instructional delivery regardless of receivable status, creating a structural vulnerability where cash flow management depends entirely on forecasting rather than enforcement.
+
+The Problem, Gap, or Opportunity
+
+Data from the partner institution, which is a private school in Montalban, Rizal, illustrate this challenge concretely. Over the 2019–2025 period, Bad Debts Expense rose from PHP 244,111 to PHP 469,102, the number of students in arrears climbed to 27, and Days Sales Outstanding reached 34 days. Despite flexible installment plans, reactive strategies like reminders, restructuring, and penalties have proven insufficient to preempt cash-flow shortfalls. 
+
+A proactive, predictive framework is operationally necessary. Prior work on IPPP in educational contexts has used broad student-level features without disaggregating by product or service category [3, 4, 5]. At the same time, methodological gaps persist in the general IPPP literature: existing benchmarks compare a small number of standard classifiers (typically 5–8 models) and rarely evaluate approaches that exploit the ordinal structure of payment-delay targets. Payment delays are ordered as: on time, 1–30 days late, 31–60 days late, and 61–90+ days late. Yet most classifiers treat it as a nominal multi-class problem, discarding the ranking information embedded in the label ordering. Ordinal classifiers [12] and two-stage ensemble architectures have demonstrated improvements in other ordered multi-class problems but have not been systematically evaluated in the IPPP context. Furthermore, the integration of survival analysis techniques for modeling time-to-payment has not been benchmarked against standard resampling methods in this domain.
+
+Research Questions
+
+This study seeks to answer the following questions: 
+
+(1) How do advanced ensemble architectures, specifically two-stage and ordinal classifiers, compare against traditional single-stage base models in predicting granular payment brackets within a private educational context? 
+
+(2) How do survival-analysis-derived features (hazard rates, survival probabilities) improve the predictive performance of classification models?
+
+(3) Which class-balancing strategies (SMOTE, hybrid undersampling, etc.) provide the most robust performance for educational accounts receivable data characterized by extreme class imbalance? 
+
+(4) How do granular line-item features (product types, specific fees) influence payment timing compared to aggregate student-level variables?
+
+1.4 Research Objectives
+
+The primary goal of this research is to develop and benchmark a high-performance machine learning pipeline for educational IPPP. Specifically, the study aims to: 
+
+(1) Conduct a large-scale benchmarking over 1,092 experimental configurations to identify the optimal model/preprocessing combination. 
+
+(2) Develop a two-stage ensemble architecture that separates delinquent from on-time invoices before classifying delay severity. 
+
+(3) Evaluate the impact of survival-feature engineering on classifier sensitivity and recall for late-payment brackets. 
+
+(4) Provide an empirically grounded framework for private schools to transition from reactive to proactive receivable management.
+
+1.5 Significance of the Study
+
+This study offers direct operational value to the partner institution. As shown in Table 2.1, bad debts expense rose from PHP 248,650 in school year 2019 to PHP 352,075 in 2025, with Days Sales Outstanding persisting between 36 and 49 days in recent years, indicating that reactive collection practices have not sufficiently contained receivable risk. By predicting the payment bracket for every invoice at issuance, the system enables finance officers to anticipate cash shortfalls, target reminders and restructuring offers before due dates lapse, and reduce bad-debt exposure by shifting from reactive to proactive cash-flow management. Beyond the partner school, the framework is transferable to Philippine private schools broadly: such institutions share substantially similar installment-billing structures and operate under the same enforcement constraints imposed by Republic Act 11984 [11], so any school capable of exporting standard revenue and enrollment records can retrain the pipeline on its own data without architectural modification.
+
+      For the academic community, this is the first study to benchmark ordinal classifiers and two-stage ensemble architectures specifically for the educational Invoice Payment Prediction Problem, directly addressing the methodological gaps identified in Schoonbee et al. [5] and Moore and van Vuuren [4]. For data science practice more generally, the study demonstrates that survival-analysis feature engineering has conditional rather than universal utility: Cox-derived hazard features improve distance-based and probabilistic learners while contributing redundant or noisy signal to high-capacity tree ensembles. This finding carries implications beyond the IPPP, suggesting that feature engineering effort should be allocated according to the inductive capacity of the downstream learner rather than applied uniformly across model families.
+
+1.6 Alignment with United Nations Sustainable Development Goals
+
+This research contributes to several of the United Nations Sustainable Development Goals (SDGs) articulated in the 2030 Agenda for Sustainable Development [13]. With respect to SDG 4 (Quality Education), the prediction system protects an institution's capacity to deliver quality education by helping it maintain financial sustainability: schools facing cash flow crises may be forced to cut staff, reduce learning resources, or close programs, so proactive receivables management directly protects educational continuity. With respect to SDG 8 (Decent Work and Economic Growth), predictive accounts receivable management reduces financial uncertainty for small and medium-sized private educational institutions, supporting their role as employers and contributors to local economic activity.
+
+The study likewise advances SDG 10 (Reduced Inequalities) because the model enables schools to identify at-risk families earlier and offer targeted payment assistance, installment restructuring, or referrals for social welfare certification, rather than punitive enforcement, consistent with the equity-oriented intent of Republic Act 11984 [11]. With respect to SDG 16 (Peace, Justice, and Strong Institutions), the use of pseudonymized data, compliance with the Data Privacy Act of 2012, and a transparent, fully logged machine learning methodology demonstrate responsible institutional governance and data stewardship. Finally, in support of SDG 17 (Partnerships for the Goals), the open benchmarking framework and accompanying web prototype are designed to be replicated 
+
+by other institutions, supporting knowledge sharing and institutional capacity building across the sector.
+
+1.7 Scope and Limitations
+
+This study focuses on the Invoice Payment Prediction Problem at a single private educational institution in the Philippines. The dataset comprises 6,527 unique invoice records spanning three academic years (2022–2025). The research evaluates 15 specific classifier types across 7 resampling strategies and 2 feature regimes. 
+
+Several limitations bound the interpretation of these results. The study draws on data from a single institution, which may limit generalizability to schools with significantly different demographic or socioeconomic profiles. The predictive models are trained on historical journal entries. They therefore cannot account for real-time external economic shocks, such as localized inflation or family-level crises, that are not captured in the pseudonymized financial records. Finally, the survival features are derived from a Cox Proportional Hazards model, which assumes a linear relationship between covariates and the log-hazard and may consequently miss non-linear temporal interactions.
+
+CHAPTER 2:
+REVIEW OF RELATED LITERATURE & STUDIES
+
+2.1 Introduction
+
+This chapter reviews the literature on predicting invoice payment behavior using machine learning (ML), with a focus on the unique challenges faced by educational institutions. It establishes the institutional and financial context of the partner school, compares invoicing and receivables practices across sectors, and examines the role of ML in financial forecasting and invoice payment prediction, highlighting the importance of granular, student- and product-specific variables in improving predictive accuracy.
+
+      The chapter subsequently discusses tuition debt collection in educational institutions, covering industry practices, school-level strategies, the operational consequences of unpaid fees, and the socioeconomic and behavioral factors that influence payment behavior. It then assesses existing intervention strategies and justifies the study’s chosen approach, reviews methodological advances in ordinal classification, two-stage ensemble architectures, and survival analysis that inform this study’s expanded model set, and concludes with a synthesis of findings and gaps to position this research within the academic discourse.
+
+      Through this structure, this chapter not only reviews existing knowledge but also clarifies the specific gaps this study addresses: the lack of granular, institution-specific features in predictive models; the absence of ordinal and two-stage classifiers in educational IPPP benchmarks; and the untested utility of survival-derived features as engineered inputs for payment-timing models.
+
+2.2 Global and Cross-Sector Practices in Receivables  and Debt Management
+
+Invoicing and managing receivables vary by sector, reflecting differences in service delivery, customer expectations, and regulations. Restaurants and the retail industry follow a full-payment model: customers pay upfront before receiving goods or services, which minimizes the risk of unpaid bills. The healthcare industry, meanwhile, typically handles emergency services upfront but depends on insurance or post-care billing to manage receivables. In the education sector, however, access to learning is considered crucial, and withholding it would breach both legal rights and policy commitments. These differences show how schools face a unique challenge, requiring the need to balance accessibility with financial sustainability.
+
+On the corporate finance side, companies often use smart, data-backed methods to manage their receivables. Peng and Tian [14] developed an intelligent optimization model that demonstrates how predictive analytics can reduce financial pressure by anticipating potential late payments. Similarly, Ramkumar and Karthick [15] found that machine learning techniques significantly outperform traditional methods for predicting when and how payments will be made. More recent studies, such as Abbas and Hussein [9], confirm that ML models like XGBoost and LightGBM significantly improve the accuracy of loan default prediction compared to conventional statistical approaches. These findings underscore the growing reliance on predictive modeling across industries to safeguard liquidity and reduce the accumulation of bad debt.
+
+This challenge has become more pronounced in the Philippine context with the enactment of the No Permit, No Exam Prohibition Act (RA 11984) [11], which bars schools from denying students access to examinations due to unpaid tuition. While the law promotes educational equity, it also removes one of the primary reinforcement mechanisms schools previously relied on to ensure timely payments. Respicio and Co. Law [16] warned that this shift may lead to higher accounts receivable balances, delayed cash inflows, and increased risk of bad debts unless schools adopt proactive financial management strategies. The implementing guidelines further introduce administrative steps. Requiring students to submit social welfare certifications and promissory documents lengthens collection cycles and extends credit exposure.
+
+These cross-sector practices reveal two insights relevant to this study. First, industries that minimize receivable risk do so by requiring upfront payment or leveraging external systems like insurance; options unavailable to schools. Second, sectors with higher receivable risk increasingly rely on predictive analytics and ML to anticipate defaults and prioritize interventions. These insights provide a foundation for examining how similar approaches can be adapted to the educational context, where financial sustainability must be balanced with accessibility. The following section examines how educational institutions worldwide have responded to this challenge through their tuition collection strategies.
+
+2.3 Tuition Collection Strategies in Educational Institutions Worldwide
+
+Educational institutions across the globe employ a variety of tuition collection strategies, shaped by their financial structures, regulatory environments, and commitments to accessibility. Unlike corporate sectors, where upfront payment is the norm, schools often extend credit to students and families through installment plans, deferred payments, or fee exemptions. These arrangements are designed to promote inclusivity but also expose institutions to heightened risks of delayed or non-payment.
+
+In South Africa, Mestry [17] emphasized that non-payment or partial payment of school fees disrupts budget execution and undermines institutional goals. At the same time, Naicker [18] found that fluctuating fee payments complicate financial planning and threaten sustainability. The Education Policy and Data Center [19] similarly documented implementation gaps in fee-collection policies, in which unclear guidelines led to inconsistent and delayed payments. MRI Software TPN [20] also noted that unpaid fees force reductions in staff and infrastructure investment. Broader reports by the Associated Press [21] and the World Bank [22] confirm that unpredictable school-fee systems across Sub-Saharan Africa have caused both increased arrears and higher dropout rates, further destabilizing education systems.
+
+In Asia, similar patterns emerge. Thuy et al. [23] compared machine learning and deep learning models in student credit scoring in Vietnam, highlighting the growing need for predictive approaches to manage tuition-related risks. Their findings suggest that data-driven models can help schools anticipate defaults and design targeted interventions. In the Philippines, Carvajal et al. [24] found that low levels of financial literacy contribute to poor debt management among students, while Mencias-Tabernilla [25] documented that teachers themselves often struggle with debt, which indirectly affects households' capacity to meet tuition obligations.
+
+These international experiences show two consistent themes. First, tuition-based institutions must balance their social mission of accessibility with the financial necessity of sustainability. Second, traditional collection mechanisms such as installment plans, promissory notes, or punitive restrictions are increasingly inadequate in volatile economic and policy environments. As a result, schools worldwide are beginning to explore more proactive and data-driven approaches to receivables management to anticipate defaults and mitigate their operational impact. These global pressures take a specific institutional form in the Philippines, where regulatory constraints further narrow the collection options available to private schools, as the next section details.
+
+2.4 Institutional Context: Philippine Schools and the Partner Institution
+
+The data for this study were drawn from a private Christian educational institution located in Montalban, Rizal, established in 2006. The school offers a comprehensive curriculum spanning pre-elementary (Nursery to Kinder 2), elementary (Grades 1-6), junior high school (Grades 7-10), and special education programs.
+
+Table 2.1 summarizes the institution's bad debts expense, student balances, and Days Sales Outstanding across school years 2019–2025, documenting the receivables trend that motivates this study.
+
+Table 2.1.  Trend of Bad Debts Expense (BDE), Student Balances, and Days Sales Outstanding (DSO), School Years 2019-2025.
+
+| School year | Amount of BDE (in PH₱) | % (Bad Debts vs Gross Accounts Receivable) | No. Of Enrolled | No. Of Students with Balance Left | Days Sales Outstanding |
+| --- | --- | --- | --- | --- | --- |
+| 2019 | 248,650 | 12.0% | 290 | 16 | 88 |
+| 2020 | 7,850 | 0.8% | 150 | 1 | 134 |
+| 2021 | 3,450 | 0.1% | 197 | 1 | 38 |
+| 2022 | 51,172 | 0.8% | 446 | 7 | 53 |
+| 2023 | 256,592 | 2.5% | 477 | 17 | 49 |
+| 2024 | 347,824 | 3.2% | 441 | 18 | 38 |
+| 2025 | 352,075 | 3.3% | 415 | 39 | 36 |
+
+These patterns reveal that, despite offering flexible payment options, schools remain at risk when families fail to pay on time. The upward trend in bad debt expense lowers an institution's liquidity, challenging its ability to fund operations, invest in resources, and maintain educational quality. In contrast with other businesses that can vet clients for creditworthiness, Philippine educational institutions operate under laws that emphasize accessibility. The 1987 Philippine Constitution (Art. XIV, Sec. 1-2) and various DepEd Orders make clear that schools cannot turn families away based on financial situation. Recent legislation, RA 11984, further ensures that students cannot be barred from exams over unpaid tuition [11, 16, 26]. While these regulations promote fairness, they amplify the financial challenges faced by private schools, making receivable predictions all the more critical.
+
+Taken together, the institutional record in Table 2.1 motivates the prediction problem at the center of this study. Bad debt expense has risen sharply since 2021; the number of students carrying unpaid balances has grown even as enrollment has stabilized; and Days Sales Outstanding has remained in the 36–49-day range despite the availability of installment plans. Because the school can neither screen enrollees for creditworthiness nor enforce payment through academic sanctions, the only remaining managerial lever is anticipation: knowing, at the moment an invoice is issued, how likely it is to be paid late and by how much. That is precisely the granular forecasting capability this study develops.
+
+2.5 Machine Learning in Credit Default Risk Forecasting
+
+Machine learning (ML) is increasingly redefining the industry's approach to financial forecasting. Research shows it can sift through complex datasets, uncovering patterns that improve decision-making accuracy [1, 2]. Its greatest strength lies in handling vast amounts of data and revealing nonlinear patterns that traditional statistical methods often miss, making ML an indispensable asset in fields like risk assessment, credit scoring, and payment prediction.
+
+Foundational research by Breiman (2001) [1] introduced random forests, an ensemble method that has become fundamental in risk assessment and payment prediction tasks. Lessman et al. (2015) [27] benchmarked leading classification algorithms for credit scoring. They found that ML models, such as gradient boosting and random forests, markedly improve predictive accuracy over traditional methods like logistic regression. Baesens et al. (2003) [28] highlighted the interpretability of neural networks when combined with rule extraction, bridging the gap between predictive power and decision transparency. Recent developments by Xu et al. (2024) [29] demonstrated how deep learning and big data can be leveraged to predict financial risk behaviors, underscoring the growing importance of contextual and behavioral variables in model performance.
+
+Despite these advances, challenges remain. Feature selection and interpretability remain critical issues, especially in institutional contexts where decision-makers require not only accurate predictions but also transparent justifications for interventions. As Tsai, Huang, and Chen (2017) [30] noted in their study on hybrid ML techniques for credit rating, combining multiple algorithms can improve accuracy but often at the cost of interpretability. This tension between predictive performance and explainability is particularly relevant in education finance, where stakeholders must balance technical sophistication with accountability and trust. While these studies address credit risk in general, the same algorithmic advances form the technical foundation for the more specific task at hand, predicting when individual invoices will be paid, which the next section reviews.
+
+2.6 Invoice Payment Prediction Models
+
+A central theme in the invoice payment prediction literature is the continuous effort to refine models through improved variable selection and methodological approaches. Early studies applied ML to accounts receivable and customer-level data, demonstrating the potential of predictive analytics in managing cash flow. Appel et al. [8] developed ML models to predict accounts receivable, emphasizing the importance of transaction histories and customer segmentation. Cheong [7] introduced customer-level predictive modeling for receivables, showing how individualized features could reduce unnecessary interventions.
+
+In the educational context, Moore and van Vuuren [4] proposed the Modeling Invoice Payment Predictions (MIPP) framework, which combines survival analysis with ML to forecast students' payment behavior. Their work demonstrated that historical payment patterns could improve accuracy, though the framework did not incorporate granular product or service categories. Extending this line of inquiry, Schoonbee, Moore, and van Vuuren [5] applied ML to South African educational data, to create a decision-support system that improved institutional forecasting. However, their models remained focused on broad student-level features rather than detailed, transaction-specific variables.
+
+Other studies have explored statistical and hybrid approaches. Martikainen [6] applied statistical learning methods to predict late payment of sales invoices, providing evidence that even relatively simple models can yield actionable insights when applied to institutional data. In parallel, Mugorobin et al. [3] developed an estimation system for late tuition payments, underscoring the operational importance of predictive tools in schools. Khedr and Sheeja [10] reviewed ML applications in supply chain management, highlighting the role of digitization and transaction-level granularity in improving payment behavior analysis.
+
+Across these studies, a specific methodological gap emerges: none of the cited works benchmarked ordinal classifiers or two-stage hierarchical architectures at scale for invoice payment prediction. Reported comparisons are limited to small sets of single-stage classifiers, typically five to eight models evaluated under one or two preprocessing regimes. This leaves open the question of whether architectures that explicitly exploit the ordered, heavily imbalanced structure of payment-delay targets can outperform conventional designs, a question this study answers across 1,092 experimental configurations.
+
+2.7 Granular Feature Modeling and Student-Specific Variables
+
+While existing invoice prediction models have demonstrated the value of historical payment data, recent research suggests that granularity (the inclusion of fine-grained, transaction-specific variables) can substantially improve predictive accuracy. In retail analytics, Wei et al. [31] introduced the Retail Product Checkout (RPC) dataset, which demonstrated that fine-grained product differentiation significantly improved model performance. 
+
+To address this gap, this study integrates student-product categories into invoice prediction. Features identified from the literature include: (a) Demographic and socioeconomic variables: family income, household debt, and financial literacy [24, 25]. (b) Academic and institutional variables: program type, year level, installment plan [11, 17, 18, 19, 20, 23]. (c) Behavioral and transactional variables: historical arrears, frequency of late payments [3, 11, 16]. (d) Policy and contextual variables: RA 11984 compliance, macroeconomic shocks [11, 21, 22, 26].
+
+2.8 Socioeconomic and Behavioral Factors Affecting Payment
+
+At the macro level, political and economic stressors directly affect household income and, consequently, tuition payment behavior. Voghouei et al. [32] demonstrated that political and economic instability can significantly affect financial development, thereby reducing households' capacity to meet recurring obligations. Legal and policy frameworks further shape payment dynamics. The 1987 Philippine Constitution (Art. XIV, Sec. 1-2) guarantees the right to education, while DepEd Orders prohibit schools from denying enrollment based on financial incapacity. Together, these factors explain why invoices in private schools often remain unpaid for extended periods, underscoring the need for predictive interventions.
+
+Philippine evidence sharpens this picture at the household level. Carvajal et al. [24] surveyed financial literacy and debt management practices and found that low financial literacy is associated with poor debt management, a mechanism that translates directly into erratic tuition payment: families that do not budget for recurring obligations accumulate school balances even when income is nominally sufficient. Mencias-Tabernilla [25] documented the expenditure patterns and debt profiles of Filipino teachers, showing that chronic indebtedness extends even to salaried education professionals; if the households of stable wage earners struggle with recurring debt, tuition-paying families with irregular incomes are plausibly at greater risk. Finally, the implementing context of RA 11984 [11, 16, 26] shapes behavior on both sides of the transaction: students cannot be barred from examinations over unpaid fees, while schools must channel hardship cases through social welfare certification and restructuring procedures. These local realities make payment-timing prediction more valuable in the Philippine setting than in jurisdictions where enforcement remains available.
+
+2.9 Intervention Strategies and Justification
+
+2.9.1 Current Institutional Practices in Tuition Collection
+
+Educational institutions typically employ a layered set of collection mechanisms. The most common first-line instrument is the administrative reminder campaign, ranging from printed statements of account to scheduled text-message and email reminders ahead of due dates, which practitioner literature identifies as the cheapest and most scalable intervention [33, 34]. When reminders fail, schools escalate to formal instruments: promissory notes that document a committed payment date, late-payment fees or surcharge schedules intended to price delinquency, and installment restructuring that converts an overdue lump sum into smaller scheduled payments [34, 35]. Some institutions complement these with incentives such as early-payment discounts or sibling rebates to reward timely settlement [33]. These practices, consistent with the tuition collection literature [33, 34, 35], remain the dominant standard operating procedures in many schools, including the partner institution. Their common weakness is that, aside from early-payment incentives, they are triggered only after an invoice has become delinquent.
+
+2.9.2 Structural and Policy Constraints on Enforcement
+
+The effectiveness of these strategies is procedurally constrained by RA 11984 [11, 16, 26]. The law categorically prohibits schools from denying students with outstanding balances access to examinations, removing the single strongest enforcement mechanism previously available to private institutions [11]. Its implementing guidelines add further procedural requirements: students invoking financial hardship must submit certifications from the Department of Social Welfare and Development (DSWD), and schools, in turn, are expected to provide installment restructuring or deferred payment arrangements rather than refuse service [16, 26]. Legal commentary has warned that this combination lengthens collection cycles, extends credit exposure, and may raise accounts receivable balances unless schools adopt proactive financial management [16]. As a result, institutions are structurally bound to continue providing instruction even as receivables accumulate, which converts collections from an enforcement problem into a forecasting problem.
+
+2.9.3 Machine Learning as a Proactive Alternative
+
+Given the limitations of traditional strategies, machine learning offers a fundamentally different alternative: rather than reacting to delinquency after a due date has passed, a predictive model assigns every invoice a payment-delay risk estimate when it is issued. Studies in credit scoring and receivables management [7, 10, 27, 36] demonstrate that predictive models trained on granular behavioral features consistently outperform reactive heuristics by converting historical payment patterns into forward-looking early-warning signals.
+
+The operational mechanism is straightforward. An invoice predicted to fall into a late bracket can be routed to a pre-due-date intervention, such as an earlier reminder, a proactive offer of installment restructuring, or a guidance conversation with the family, whereas invoices predicted to be paid on time require no action. This targeting matters under RA 11984: since post-due-date enforcement is legally restricted, the value of knowing which invoices are at risk before they become delinquent is amplified. Cheong [7] showed that customer-level prediction reduces unnecessary intervention actions, and Schoonbee et al. [5] demonstrated decision-support value in an educational context; this study extends that logic to category-level invoices in a Philippine private school.
+
+2.10 Ordinal Classification and Two-Stage Architectures
+
+A fundamental property of payment-delay targets is their inherent ordering, from on-time settlement through progressively later payment brackets. Frank and Hall [12] introduced a simple and influential approach to ordinal classification that decomposes a k-class ordinal problem into k-1 binary sub-problems: for the four payment brackets used in this study, three binary classifiers are trained to estimate P(target > on-time), P(target > 1–30 days), and P(target > 31–60 days), and the per-class probabilities are then recovered by differencing the cumulative estimates. Because each binary sub-problem preserves the ordering of the label space, the decomposition allows any probabilistic base classifier to exploit ranking information that a nominal multi-class formulation discards.
+
+Two-stage architectures approach the same label structure from a different angle: whereas the Frank–Hall scheme is a decomposed view of a single ordinal problem, a two-stage design is hierarchical. A first-stage binary classifier separates on-time from late invoices, directly addressing the dominant source of class imbalance, and a second-stage multi-class model, trained only on delinquent records, determines the severity of the delay. The hierarchy mirrors institutional decision-making (first, will this invoice be late; second, how late) and allows each stage to specialize in a better-balanced sub-problem. Architectures of this kind have proven effective in credit risk [27], medical diagnosis [28], and receivables management [36], but had not previously been benchmarked at scale for the IPPP.
+
+2.11 Survival Analysis in Accounts Receivable Prediction
+
+Survival analysis provides a statistical framework for modeling the time until an event occurs, here, the time until an invoice is fully paid. Its defining advantage over standard classification is its treatment of censoring: at any observation cutoff, some invoices remain unpaid, and their eventual payment delay is unknown rather than missing. A conventional late/not-late variable must either discard these records or mislabel them. In contrast, survival methods retain censored invoices and extract partial information from the fact that they survived unpaid until the cutoff. The Cox Proportional Hazards model [37] formalizes this by expressing each invoice's hazard rate, the instantaneous probability of payment at time t given non-payment up to t, as the baseline hazard multiplied by an exponential function of the invoice's covariates. Each invoice, therefore, receives a continuous risk profile (partial hazard, expected settlement time, survival probability at reference horizons) rather than a single binary flag, a conceptually richer representation of payment timing.
+
+Moore and van Vuuren [4] integrated survival analysis with machine learning in the MIPP framework, using time-to-payment modeling to inform invoice predictions. This study extends that work in a specific way: instead of using the survival model as the predictor, it uses Cox PH outputs (hazard rates, survival probabilities, expected settlement times) as engineered input features for downstream classifiers, and then experimentally measures their marginal value. Prior work in credit risk suggests such features help probabilistic models more than tree ensembles [28, 36], a hypothesis this study tests directly across feature regimes.
+
+2.12 Synthesis of Methods, Findings, and Gaps in Literature
+
+ML models outperform baseline statistical approaches in forecasting late payments and credit risk [7, 36]. Several gaps remain: (1) lack of granular student-product variables [3, 4, 5]; (2) limited application in private educational institutions [10, 31]; (3) few ordinal IPPP benchmarks; and (4) lack of two-stage architectures and systematic survival feature testing.
+
+Each of these gaps maps directly onto the research objectives stated in Section 1.4. Gap (1), the lack of granular student-product variables, is directly addressed by Objective (4), which evaluates how line-item features derived from category-level invoices influence payment timing relative to aggregate student-level variables. Gap (2), the limited application of invoice prediction in private educational institutions, is addressed by Objective (1), which conducts the benchmarking on six years of records from a Philippine private school, and by Objective (4)'s institution-specific feature set. Gap (3), the scarcity of ordinal IPPP benchmarks, and gap (4), the absence of two-stage architectures and systematic survival-feature testing, are addressed jointly by Objectives (1), (2), and (3): the 1,092-configuration benchmark includes three ordinal decompositions and six two-stage pipelines (Objective 2). It isolates the marginal contribution of survival-analysis-derived features across all model families (Objective 3). The synthesis of the literature thus leads directly to the methodology developed in Chapter 3.
+
+2.13 Comparative Analysis of Existing Technologies
+
+Before positioning this study's methodology, it is necessary to compare existing technologies for invoice payment prediction side by side. The studies reviewed differ in domain, feature granularity, algorithmic family, and evaluation protocol, differences easily lost in narrative form. A structured comparison serves three purposes: it reveals which methodological choices recur across unrelated domains, distinguishing genuine best practices from domain-specific conventions; it exposes evaluation gaps that limit the comparability of published results; and it establishes the baseline against which the present study's contribution can be judged. Table 2.2, presented over the next two pages, consolidates the eight studies most relevant to the IPPP, spanning the educational, corporate, and consumer credit domains.
+
+Four patterns emerge from Table 2.2. First, tree-based ensembles and boosting algorithms are the consistent performance leaders across every domain tested, displacing both classical statistical models and deep learning alternatives on tabular financial data. Second, reported performance clusters around 80–85% accuracy for binary or coarse multi-class formulations, suggesting a practical ceiling for aggregate-feature approaches. Third, every study operates on aggregate customer- or student-level features; no model receives receivables at the granularity of individual fee categories, despite evidence that fine-grained features improve prediction. Fourth, and most consequentially, none evaluates ordinal decompositions, hierarchical two-stage architectures, or survival-derived features against resampling strategies. The present study fills this gap precisely, benchmarking fifteen architectures, three ordinal and six two-stage designs, across seven balancing strategies and two feature regimes on category-level educational invoices.
+
+Table 2.2. Comparative analysis of existing invoice payment prediction and related studies.
+
+| Study | Year | Domain | Method | Features Used | Performance Metrics | Limitations |
+| --- | --- | --- | --- | --- | --- | --- |
+| Schoonbee et al. [5] | 2021 | Educational invoices (South Africa) | LR, RF, XGBoost, NN decision support | Student-level payment history, demographics | Accuracy ≈ 80–85% | Aggregate features; nominal targets |
+| Moore & van Vuuren [4] | 2020 | Customer invoices | Survival analysis + ML (MIPP) | Invoice history, customer attributes | Time-to-payment estimates | No ordinal brackets; no resampling study |
+| Mugorobin et al. [3] | 2020 | School tuition (Indonesia) | Rule-based estimation with classification | Tuition payment timeliness records | Accuracy on a small institutional sample | Heuristic; no ensemble benchmarking |
+| Martikainen [6] | 2023 | B2B sales invoices (Finland) | Statistical learning, logistic regression | Invoice and customer attributes | Moderate AUC discrimination | Few classifiers: imbalance, untreated |
+| Cheong [7] | 2022 | Corporate accounts receivable | Customer-level gradient boosting | Customer payment history, segmentation | Reduction in unnecessary interventions | Customer aggregation; no line-item detail |
+| Appel et al. [8] | 2021 | Corporate accounts receivable | Supervised ML on transaction histories | Transaction history, customer segmentation | Precision on overdue-account detection | Corporate context; binary target |
+| Thuy et al. [23] | 2025 | Student credit scoring (Vietnam) | ML vs. deep learning comparison | Academic, demographic, and financial features | ML ensembles are competitive with deep learning | Credit scoring, not invoice-level prediction |
+| Abbas & Hussein [9] | 2024 | Consumer loan default | XGBoost, LightGBM | Borrower financial attributes | Boosting outperforms statistical baselines | Default prediction; no payment delay granularity |
+
+2.14 Theoretical Framework
+
+Figure 2.1 presents the conceptual framework that integrates the four theoretical lenses guiding this study and traces how raw institutional data flow through preprocessing, predictive modeling, and decision support to inform receivables management.
+
+Figure 2.1: Conceptual Framework.
+
+First, Information Processing Theory (IPT) [38] provides the foundation for data flow and preprocessing [1, 2]. Second, the Predictive Analytics and Machine Learning Paradigm (PA-MLP) supports the modeling stage [1, 2]. Third, Decision Support Systems (DSS) Theory [39, 40] justifies the analysis and interface components. Finally, Receivables Management Theory (RMT) [14, 41, 42] grounds the study in its financial context.
+
+CHAPTER 3:
+METHODOLOGY
+
+3.1 Research Design
+
+This study employs a quantitative, experimental research design. The research paradigm is a controlled benchmarking study: fifteen machine learning architectures are compared under identical data, split, and evaluation conditions, with the manipulated factors being model family, hyperparameter configuration, class-balancing strategy, and feature regime, a factorial space of 1,092 configurations. Experimental comparison is the standard methodology for evaluating machine learning systems, as established by large-scale credit-scoring benchmarks such as Lessmann et al. [27].
+
+The data are observational institutional records rather than instruments administered to human subjects: the study draws on pseudonymized journal entries from a private school, so no surveys, interviews, or interventions on students were conducted. The design is therefore experimental with respect to model evaluation, not with respect to data collection. The data flow diagrams presented in Figures 3.1 through 3.5 illustrate the architecture of the developed system (its preprocessing, modeling, and analysis components) rather than the research design itself; the research design is the benchmarking protocol described in Section 3.6, which fixes the temporal train–test split, the evaluation metrics, and the experimental grid within which every architecture is assessed. The remainder of this chapter describes each component in the order data flows through the pipeline: data acquisition, granular feature engineering, survival analysis modeling, class balancing, and hierarchical ensemble classification.
+
+3.2 Data Acquisition and Preprocessing
+
+The primary dataset consists of 11,440 raw invoice records from a private school in Rizal, Philippines, spanning academic years 2019–2025 (with payment activity observed through March 31, 2026). The data originates from three Excel files manually exported from the school's internal enterprise resource planning (ERP) system. The revenues file contains itemized receivables: every billed amount with its due date, discounts, adjustments, and the dates and amounts of payments applied against it. The enrollees file records student enrollment per school year, including the selected installment plan, which allows enrollment streaks and plan-based features to be derived. The chart of accounts file maps every transaction category to its account classification and strategic business unit, enabling the category-level granularity central to this study. Each resulting record represents a discrete receivable item (e.g., Tuition, Miscellaneous Fee, E-Learning Platform) rather than an aggregate student-level balance.
+
+Data were obtained with written institutional approval (Appendix G). All student identifiers were pseudonymized using a deterministic, irreversible hash before any analysis, implemented via a dedicated pseudonymization utility in the project codebase, and the original data files were excluded from the project's version-controlled repository. From the 11,440 raw records, 6,527 labeled records were retained after filtering for sufficient payment history to compute the days-to-payment (DTP) behavioral features; records lacking observable payment histories cannot support the lagged features that the models require. The temporal train–test split is set at March 7, 2025: invoices due before this date form the training set, and invoices due on or after it form the test set.
+
+Initial preprocessing involved three steps. First, student identifiers were pseudonymized as described above. Second, payment dates were aligned with due dates to construct the target variable, Days to Payment (DTP), defined as the number of days between an invoice's due date and the date its balance was fully settled; negative or zero values indicate on-time settlement. Third, DTP was discretized into four ordinal brackets: Class 0 (On-Time, DTP <= 0), Class 1 (1–30 days late), Class 2 (31–60 days late), and Class 3 (61+ days late). Invoices still unpaid at the observation cutoff are flagged as censored and handled by the survival analysis described in Section 3.4.
+
+Figure 3.1 presents the entity-relationship diagram (ERD) of the institutional dataset. Three core entities (Transactions, Categories, and Enrollees) are linked via foreign keys, forming the basis for feature engineering. The Transactions table captures every discrete receivable item at the category level, the primary innovation of this study's data model compared to aggregate student-level approaches in prior work.
+
+Figure 3.1: Entity-relationship diagram (ERD) of the institutional dataset.
+
+The relationships visible in the ERD determine how the modeling dataset is assembled. Each transaction references a category via category_id, allowing every receivable line item to be typed (e.g., tuition, miscellaneous fees, course materials, other services). At the same time, the pseudonymized student identifier links transactions to enrollment records across school years. The due_date and amount_paid fields jointly define the target variable: the gap between the due date and the date the obligation is fully offset yields Days to Payment, from which the four ordinal payment brackets are derived. The Credit Sales Fact Table consolidates these joins into a single analysis-ready view per receivable.
+
+Figure 3.2 presents the Level-1 data flow diagram (DFD) of the pre-processing component, which transforms the three raw institutional exports into the analysis-ready credit sales dataset.
+
+Figure 3.2: Level-1 DFD of the Pre-Processing component.
+
+The diagram traces the main processing steps: the raw revenues, enrollees, and chart-of-accounts files are first validated and pseudonymized, then merged into category-level transactions; payment applications are temporally aligned against due dates to compute Days to Payment; and the engineered behavioral, financial, and temporal features described in Section 3.3 are appended before the labeled records are written to the modeling cache as two distinct data streams, an ML training data stream and a survival analysis data stream, forwarded to separate downstream processes. Each module is deterministic, so the same raw exports always reproduce the same modeling dataset, a property that supports the auditability objectives discussed in Section 3.7.
+
+After cleaning, the pipeline produces two distinct data streams. The first stream, referred to as the ML training data, contains only records with a censor indicator of 1 (i.e., the event was observed). Survival-specific columns are dropped from this stream before it is forwarded to the modeling component for balancing, partitioning, and classifier training. The second stream, referred to as survival analysis data, retains all records and all survival columns (time-to-event T and event indicator E). This stream is forwarded exclusively to the Cox Proportional Hazards tuning sub-process (7.5) and subsequently to the survival feature generation sub-process (8.5).
+
+Figure 3.3 presents the Level-2 DFD of Process 1.0 (Data Importation), detailing the four sub-processes that transform raw Excel files into typed, datetime-parsed records with lookup-corrected due dates.
+
+Figure 3.3: Level-2 DFD of Process 1.0, Data Importation.
+
+The diagram decomposes Process 1.0 into four sequential sub-processes. Sub-process 1.1 performs asynchronous parallel loading of the revenue and enrollee Excel files using base64 decoding and the Calamine Excel engine, reducing blocking during file reads. Sub-process 1.2 applies data-type conversion to ensure that numeric, categorical, and date fields conform to the types required by downstream feature engineering. Sub-process 1.3 handles datetime parsing, standardizing all date representations into a uniform format from which time differences can be reliably computed. Sub-process 1.4 performs lookup-based due date updates, resolving any date overrides that originate from institutional adjustments or payment plan renegotiations. The outputs of this process are two typed and datetime-normalized DataFrames, one for revenue records and one for enrollee records, forwarded to Process 2.0 (Time to Payment) and Process 3.0 (Student Information) for feature derivation.
+
+Figure 3.4 presents the Level-2 DFD of Process 5.0 (Data Cleaning), detailing the four sub-processes that build invoice records, engineer features, apply post-processing, and split the cleaned dataset into the ML training data and survival analysis data streams.
+
+Figure 3.4: Level-2 DFD of Process 5.0, Data Cleaning.
+
+The diagram decomposes Process 5.0 into four sequential sub-processes executed by the CreditSalesProcessor pipeline. Sub-process 5.1 (InvoiceBuilder) allocates every payment amount into one of eight aging brackets (paid before due, 1–30 days, 31–60 days, 61–90 days, 91–120 days, 121–150 days, 151–180 days, and 180-plus days) using sequential conditional bucketing based on elapsed days between the due date and each payment date; this step runs in parallel threads via a ThreadPool to contain processing time over the full 11,440-record dataset. Sub-process 5.2 (FeatureEngineer) derives the behavioral, financial, and temporal features described in Section 3.3, including the four DTP lag features, weighted and simple averages, cumulative balance fields, enrollment plan encodings, and temporal indicators. Sub-process 5.3 (InvoicePostProcessor) applies post-processing filters, including school year filtering, winsorization of outlier financial values, and removal of columns not required for modeling. Sub-process 5.4 performs the data stream split: records with a censor indicator of 1 have their survival-specific columns removed and are written to the ML training stream (df_data). In contrast, all records with survival columns intact are written to the survival analysis stream (df_data_surv). These two streams are the sole outputs of Process 5.0 and flow to different downstream processes.
+
+Table 3.1 presents the data dictionary for the Transactions table, detailing each attribute's format and role in the preprocessing pipeline.
+
+Table 3.1.  Entity data dictionary of the *Transactions* table.
+
+| Attribute Name | Format | Description |
+| --- | --- | --- |
+| transaction_entry_id | AutoNumber | Automatic numbering for a unique identifier |
+| entry_date | Date | The date the journal entry was entered |
+| due_date | Date | The date the specific product/service category is due to be paid |
+| school_year | smallInt(4) | The school year the transaction is for |
+| student_id_pseudonymized | mediumInt(6) | The identifier of the student the transaction is related to |
+| category_id | smallInt(4) | The category of the transaction |
+| amount_due | Float | The amount needed to be paid |
+| amount_paid | Float | The amount paid to offset the amount due |
+| account_name | Char(30) | The account the money was sent to (e.g., Cash on Hand, Bank Transfer, or GCash) |
+
+Among these fields, due_date and amount_paid are the most consequential: together, they are the source of the target variable, since Days to Payment is computed from the gap between an obligation's due date and the date it is fully offset. The category_id field is the link that enables granular line-item modeling, the central innovation of this study. At the same time, school_year and the pseudonymized student identifier allow behavioral features to be accumulated across a student's enrollment history.
+
+Table 3.2 presents the data dictionary for the Categories table, detailing each attribute's format and role in the preprocessing pipeline.
+
+Table 3.2.  Entity data dictionary of the *Categories* table.
+
+| Attribute Name | Format | Description |
+| --- | --- | --- |
+| category_id | smallInt(4) | Automatic numbering for a unique identifier |
+| category_name | Char(60) | The name of the category |
+| strategic_business_unit | Char(35) | The business unit the category is accounted in (e.g., Teaching, Goods, Other services, or Administrative) |
+
+Although structurally simple, this table is what gives the pipeline its granularity: category_name distinguishes tuition from miscellaneous and product-type charges, and strategic_business_unit groups categories into the operational units used for institutional reporting. Attaching these attributes to transactions allows the models to learn payment behavior by fee type rather than by aggregate balance.
+
+Table 3.3 presents the data dictionary for the Credit Sales Fact Table, the consolidated analysis-ready view produced by the preprocessing pipeline.
+
+Table 3.3.  Entity data dictionary of the *Credit Sales Fact Table (FT)*.
+
+| Attribute Name | Format | Description |
+| --- | --- | --- |
+| credit_entry_id | autoNumber | Automatic numbering for a unique identifier |
+| student_id_pseudonymized | mediumInt(6) | The pseudonymized identifier for the student number |
+| credit_sale_amount | Currency | The amount payable for the respective student ID |
+| due_date | Date | The date when the obligation is due to be paid |
+| school_year | smallInt(4) | The school year in which the credit sale occurred |
+| paid_before_due_date | Currency | The amount paid in advance before the due date |
+| paid_1_to_30_days |  | The amount paid after the due date is grouped into spans of [1 to 30], [31 to 60], etc., days. |
+| paid_31_to_60_days |  |  |
+| paid_61_to_90_days |  |  |
+| paid_91_to_120_days |  |  |
+| paid_121_to_150_days |  |  |
+| paid_151_to_180_days |  |  |
+| paid_180_above_days |  |  |
+| remaining_accounts_receivables |  | The amount of accounts receivable left that needs to be paid as of the time this fact table is created. |
+
+The fact table decomposes each receivable into payment-aging buckets (paid before the due date, 1–30 days, 31–60 days, and so on), from which the four ordinal payment brackets are labeled. The remaining_accounts_receivables field identifies invoices still unpaid at the observation cutoff; these censored records are exactly the cases handled by the survival analysis described in Section 3.4.
+
+3.3 Granular Feature Engineering
+
+The feature space comprises 40 variables across six categories, derived from institutional journal entries and engineered to capture granular payment behaviors:
+
+(a) Raw Financial: `gross_receivables`, `amount_discounted`, `adjustments`, `credit_sale_amount` (net receivable)
+
+(b) Days-to-Payment (DTP) Historical: `dtp_1` through `dtp_4` (most recent 4 invoices), `dtp_avg`, `dtp_wavg` (weighted 0.4,0.3,0.2,0.1), `dtp_2_trend`, `dtp_3_trend`, `days_since_last_payment`, `dtp_rolling_std`, `dtp_max`
+
+(c) Financial/Cumulative: `amount_due_cumsum`, `amount_paid_cumsum`, `opening_balance`, `opening_balance_flag`, `payment_ratio` (paid/due ratio)
+
+(d) Behavioral/Historical: `prev_bracket` (most recent payment bracket), `early_payer_flag` (binary), `on_time_streak` (consecutive on-time payments)
+
+(e) Payment Plan: One-hot encoded `plan_type_Plan-A` through `plan_type_Plan-E` and `plan_type_nan`, plus ordinal `plan_type_risk_score` (A=0→NaN=5)
+
+(f) Temporal: `due_month` (1-12), `due_quarter` (1-4)
+
+These features were generated by the `CreditSalesProcessor` pipeline, which transforms raw transactional data into analysis-ready inputs. All features were retained for modeling.
+
+3.4 Survival-Analysis-Derived Features
+
+Process 7.5 performs hyperparameter tuning for the Cox Proportional Hazards model (CoxnetSurvivalAnalysis, scikit-survival) using the survival analysis data stream produced by Process 5.0. A grid of 18 hyperparameter combinations is evaluated: six values of the regularisation strength alpha and three values of the elastic-net mixing parameter l1_ratio. For each combination, k-fold cross-validation is applied, and each fold is scored using Harrell’s concordance index (C-index). The combination that maximizes the mean C-index across folds is selected as the best set of hyperparameters. Following hyperparameter selection, nine optimal time points are derived from the observed event distribution using a slope-change algorithm applied to the Kaplan-Meier survival curve. These nine time points are stored alongside the best hyperparameters and are used by Process 8.5 to generate per-sample survival features.
+
+Process 8.5 generates survival-derived features that augment the original feature set before classifier training. Using the best hyperparameters obtained from Process 7.5, a CoxnetSurvivalAnalysis model is fitted on the training split of the survival analysis data. The fitted model is then applied to both training and test splits to compute, for each sample, the following features at each of the nine optimal time points: the survival probability S(t) and the cumulative hazard H(t). Additionally, a scalar risk score and the expected survival time E[T] are computed for each sample. These survival-derived features are concatenated with the original feature matrix to produce an enhanced dataset. Both the original and enhanced datasets are forwarded to Process 8.0 (Model Building), enabling a paired comparison between baseline and survival-augmented classification performance.
+
+3.5 Model Architectures
+
+The researchers benchmarked 15 models categorized into three families:
+
+BASE CLASSIFIERS (8.1). Six classifiers are trained independently on both the original and survival-enhanced feature sets: AdaBoost (AdaBoostClassifier), Random Forest (RandomForestClassifier), XGBoost (XGBClassifier), Decision Tree (DecisionTreeClassifier), Gaussian Naive Bayes (GaussianNB), and K-Nearest Neighbors (KNeighborsClassifier). Each classifier is trained under each of the five balancing strategies, yielding a full experimental matrix.
+
+ORDINAL CLASSIFIERS (8.2). Three ordinal classifiers are built using the Frank and Hall (2001) binary decomposition method: Ordinal AdaBoost, Ordinal Random Forest, and Ordinal XGBoost. For four payment outcome classes (0–3), the method trains K-1 = 3 binary classifiers: Classifier 0 learns P(y > 0): on-time vs any late; Classifier 1 learns P(y > 1): at most 30-day late vs 60-day or more late; Classifier 2 learns P(y > 2): at most 60-day late vs 90-day late. Class probabilities are recovered as differences: P(class = k) = P(y > k-1) - P(y > k), with boundary values P(y > -1) = 1 and P(y > K-1) = 0. Monotonicity is enforced by clipping negative differences to zero and re-normalizing the resulting distribution.
+
+TWO-STAGE ENSEMBLE CLASSIFIERS (8.3). Six two-stage ensemble classifiers are trained, each combining two tree-based estimators: XGBoost-XGBoost, XGBoost-Random Forest, Random Forest-Random Forest, XGBoost-AdaBoost, Random Forest-AdaBoost, and AdaBoost-XGBoost. Stage 1 is a binary classifier trained on the full dataset to predict P(late): the probability that a payment is late (any class other than on-time). Stage 2 is a multiclass classifier trained only on the late subset, predicting P(class = k | late) for the 30-day, 60-day, and 90-day late classes. Final class probabilities are computed via the chain rule: P(class = k, k > 0) = P(late) x P(class = k | late).
+
+ARCHITECTURAL RESTRICTION ON ORDINAL AND TWO-STAGE MODELS. The ordinal (8.2) and two-stage (8.3) classifiers are restricted to tree-based estimators (XGBoost, Random Forest, AdaBoost) because the training pipeline applies feature selection via mean decrease in impurity (MDI) using scikit-learn’s SelectFromModel. This requires each estimator to expose a feature_importances_ attribute, which is only available for tree-based models. K-Nearest Neighbors and Gaussian Naive Bayes do not expose this attribute and are therefore excluded from the ordinal and two-stage experimental conditions.
+
+Process 6.0 performs four sequential operations on the ML training data stream received from Process 5.0. First, ordinal labels are encoded: on-time, 30-day, 60-day, and 90-day payment outcomes are mapped to integer classes 0–3. Second, a temporal train/test split is applied by sorting records by the installment due date and assigning the earliest 80 percent to the training partition and the latest 20 percent to the test partition, thereby preventing data leakage from future records. Third, a user-selected balancing strategy is applied only to the training partition. Five strategies are supported: SMOTE, Borderline SMOTE, SMOTEENN, SMOTETomek, and the custom HybridBalance strategy; each strategy is treated as a separate experimental condition. Fourth, min-max normalization is applied to all numerical features. An optional linear discriminant analysis (LDA) projection may also be applied at this stage to reduce dimensionality before forwarding the prepared data to Process 7.0.
+
+Figure 3.5 presents the Level-1 DFD of the modeling component, covering class balancing, model training, and hyperparameter search across the three model families.
+
+Figure 3.5: Level-1 DFD of the Modeling component.
+
+The modeling component operates two concurrent training pipelines. The baseline pipeline trains all fifteen classifier architectures directly on the ML training data stream received from Process 5.0. The survival-augmented pipeline first routes the survival analysis data stream through Process 7.5 (Cox Survival Analysis Tuning), which identifies optimal hyperparameters and nine evaluation time points, and then through Process 8.5 (Survival Feature Generation), which appends 20 survival-derived features per sample to produce an enhanced dataset; the same fifteen architectures are then trained on this augmented feature set. Both pipelines share the same temporal split, balancing strategy, and hyperparameter grid, ensuring that any performance difference between the baseline and enhanced conditions is attributable solely to the survival-derived features. Evaluation metrics and feature importance scores from both pipelines are logged to the results database for aggregation in Process 12.0.
+
+Figure 3.6 presents the Level-2 DFD of Process 7.5 (Cox Survival Analysis Tuning), detailing the six sub-processes from hyperparameter grid initialization through optimal time-point derivation.
+
+Figure 3.6: Level-2 DFD of Process 7.5, Cox Survival Analysis Tuning.
+
+The diagram decomposes Process 7.5 into six sequential sub-processes executed by the CoxHyperparameterTuner. Sub-process 7.5.1 initializes the hyperparameter search grid: six values of the regularisation strength alpha (0.001, 0.01, 0.05, 0.1, 0.5, 1.0) are combined with three values of the elastic-net mixing parameter l1_ratio (0.5, 0.75, 1.0), yielding eighteen candidate configurations. Sub-process 7.5.2 partitions the training portion of the survival analysis stream into k folds for cross-validation. Sub-process 7.5.3 fits a CoxnetSurvivalAnalysis model (scikit-survival) on the training folds of each configuration. Sub-process 7.5.4 scores the fitted model on each held-out validation fold using Harrell’s concordance index (C-index), a rank-based measure of how well the model orders samples by risk. Sub-process 7.5.5 selects the configuration with the highest mean C-index across all folds as the best hyperparameter set; the full grid search results are also written to cox_tuning_report.xlsx for audit. Sub-process 7.5.6 derives nine optimal evaluation time points from the observed event distribution using a slope-change algorithm applied to the Kaplan-Meier survival curve; these time points represent periods of greatest informational density in the observed settlement distribution and are passed along with the best hyperparameters to Process 8.5.
+
+Figure 3.7 presents the Level-2 DFD for Process 8.5 (Survival Feature Generation), detailing the five sub-processes that produce per-sample features for survival probability, cumulative hazard, risk score, and expected survival time.
+
+Figure 3.7: Level-2 DFD of Process 8.5, Survival Feature Generation.
+
+The diagram decomposes Process 8.5 into five sequential sub-processes. Sub-process 8.5.1 fits a CoxnetSurvivalAnalysis model using the best hyperparameters from Process 7.5 exclusively on the training partition of the survival analysis stream, preventing data leakage from test-set survival patterns. Sub-process 8.5.2 applies the fitted model to both partitions and, at each of the nine optimal time points, computes the survival probability S(t): the estimated likelihood that an invoice remains unpaid beyond time t. Sub-process 8.5.3 computes the cumulative hazard H(t) at each of the nine time points: the accumulated probability of settlement up to and including time t. Sub-process 8.5.4 computes two scalar summaries per sample: the risk score, derived from the exponentiated log-hazard ratio, and the expected survival time E[T]; a safeguard clips the linear predictor to the range [-10, +10] before exponentiation to prevent numerical overflow. Sub-process 8.5.5 concatenates the original features with the 18 time-varying features (9 x S(t) + 9 x H(t)) and the two scalar features (risk score, E[T]) to produce the enhanced dataset alongside the unmodified baseline dataset; both datasets are forwarded to Process 8.0 (Model Building) to enable a direct paired comparison between baseline and survival-augmented classification performance.
+
+Figure 3.8 presents the Level-2 DFD of Process 8.0 (Model Building), showing the three sub-process categories: base classifier training (8.1), ordinal classifier training (8.2), and two-stage ensemble classifier training (8.3).
+
+Figure 3.8: Level-2 DFD of Process 8.0, Model Building.
+
+The diagram decomposes Process 8.0 into three concurrent sub-processes that collectively train fifteen classifier variants. Sub-process 8.1 trains six base classifiers (AdaBoost, Random Forest, XGBoost, Decision Tree, Gaussian Naive Bayes, and K-Nearest Neighbors) on both the baseline and enhanced feature sets. Sub-process 8.2 trains three ordinal classifiers using the Frank and Hall (2001) K-1 binary decomposition: for the four payment outcome classes, three binary classifiers are trained to estimate P(y > 0), P(y > 1), and P(y > 2) respectively; class probabilities are recovered as sequential differences and renormalized after clipping negative values to zero. Only tree-based estimators are used for ordinal classifiers because the feature selection step (Process 9.0) relies on mean decrease in impurity (MDI) importance scores, which require the estimator to expose a feature_importances_ attribute unavailable in K-Nearest Neighbors and Gaussian Naive Bayes. Sub-process 8.3 trains six two-stage ensemble classifiers: each pipeline first trains a binary Stage 1 model to classify an invoice as on-time versus late, then trains a multiclass Stage 2 model on the late-only subset to discriminate the 30-day, 60-day, and 90-day brackets; final class probabilities are computed as P(class k, k > 0) = P(late) x P(class k | late). All fifteen classifiers are trained in parallel using scikit-learn’s joblib backend (n_jobs=-1), and their evaluation metrics and feature importance scores are written to the results database for aggregation in Process 12.0.
+
+Grid search hyperparameter tuning was employed to identify the optimal model configurations. The specific parameter grids applied to each model type and family are presented in Tables 3.4, 3.5, and 3.6 found on the next pages, corresponding to the base, ordinal, and multi-step classifiers, respectively.
+
+The following table presents the hyperparameter grid searched for the base classifier configurations.
+
+Table 3.4.  Hyperparameters used (Base Models).
+
+| Model | Tuned Parameters | Fixed Parameters | Configs |
+| --- | --- | --- | --- |
+| AdaBoost | learning_rate:   {0.01, 0.1, 0.5, 1.0} n_estimators:   {50, 150} | algorithm: SAMME.R | 7 |
+| Decision Tree | max_depth:   {10, 20} min_samples_leaf: {1, 3, 5} | criterion: gini | 6 |
+| Gaussian Naive Bayes | var_smoothing:  {1e-9, 1e-8, 1e-7, 1e-6,    1e-5, 1e-4, 1e-3, 1e-2} | N/A | 8 |
+| KNN | n_neighbors:   {3, 5, 7} weights:    {uniform, distance} | metric: minkowski | 6 |
+| Random Forest | max_depth:   {10, 20, 30} min_samples_leaf: {1, 3, 5} n_estimators:   {100, 200, 300} | criterion: gini | 21 |
+| XGBoost | max_depth:               {3, 5, 6}  learning_rate:               {0.01, 0.05} n_estimators:               {300, 500} subsample:                {0.7, 0.8} colsample_bytree:       {0.7, 0.8} | min_child_weight: 3, reg_alpha: 0.0, reg_lambda: 1.0 | 11 |
+| Total |  |  | 59 |
+
+The ranges reflect three constraints. The computational budget capped each grid at roughly ten configurations per model so that the full 1,092-experiment benchmark remained tractable; the specific values follow prior benchmarking literature, which finds diminishing returns beyond moderate tree depths and ensemble sizes [27]; and the XGBoost grid was additionally shaped by GPU memory constraints, favoring moderate depth with subsampling over exhaustive expansion.
+
+The following table presents the hyperparameter grid searched for the ordinal classifier configurations.
+
+Table 3.5.  Hyperparameters used (Ordinal Models).
+
+| Model | Tuned Parameters | Fixed Parameters | Configs |
+| --- | --- | --- | --- |
+| Ordinal AdaBoost | learning_rate:   {0.01, 0.1, 0.5, 1.0} n_estimators:           {50, 150} | scale_pos_weight: false | 7 |
+| Ordinal Random Forest | max_depth:              {10, 20, 30}  min_samples_leaf:  {1, 3, 5} n_estimators:            {100, 200, 300} | scale_pos_weight: false | 17 |
+| Ordinal XGBoost | max_depth:               {3, 5, 6} learning_rate:            {0.01, 0.05} n_estimators:             {300, 500} subsample:                {0.7, 0.8} colsample_bytree:     {0.7, 0.8} | min_child_weight: 3, reg_alpha: 0.0, reg_lambda: 1.0, scale_pos_weight: true | 11 |
+| Total |  |  | 35 |
+
+The ordinal wrappers reuse the grids of their underlying base learners so that any performance difference is attributable to the Frank–Hall decomposition itself rather than to differential tuning effort. The scale_pos_weight flag  is the only ordinal-specific addition, compensating for the shifting class ratios within each binary sub-problem.
+
+The table below shows the hyperparameter grids for the two-stage model (binary first stage and multi-class second stage).
+
+Table 3.6. Hyperparameters used (Two-Stage Models).
+
+| Model | Stage 1 Parameters | Stage 2 Parameters | Configs |
+| --- | --- | --- | --- |
+|  | Tuned | Fixed | Tuned | Fixed |  |
+| Two-Stage XGB → XGB | max_depth:  {3} lr:  {0.01, 0.05} n_estimators: {300, 500} | subsample: 0.8 colsample:  0.8 mcw:           3 | max_depth: {3, 5} lr: {0.01, 0.05} n_estimators: {300, 500} | subsample: 0.8 colsample: 0.8 mcw: 3 | 12 |
+| Two-Stage XGB → RF | max_depth: {3} lr:  {0.01, 0.05} n_estimators: {300, 500} | subsample: 0.8 colsample:  0.8 mcw:           3 | max_depth: {10, 20} min_samples_leaf: {1, 3} n_estimators: {200, 300} | criterion: gini | 12 |
+| Two-Stage RF → RF | max_depth: {10, 20} min_samples_leaf: {1, 3} n_estimators: {200} | criterion: gini | max_depth: {10, 20} min_samples_leaf: {1, 3} n_estimators: {200, 300} | criterion: gini | 12 |
+| Two-Stage XGB → Ada | max_depth: {3, 5} lr: {0.01, 0.05} n_estimators: {300, 500} | subsample:0.8 colsample: 0.8 mcw:          3 | learning_rate: {0.01, 0.1} n_estimators: {50, 150} | algorithm: SAMME.R | 10 |
+| Two-Stage RF → Ada | max_depth: {10, 20} min_samples_leaf: {1, 3} n_estimators: {200, 300} | criterion: gini | learning_rate: {0.01, 0.1} n_estimators: {50, 150} | algorithm: SAMME.R | 10 |
+| Two-Stage Ada → XGB | learning_rate: {0.01, 0.1, 0.5} n_estimators: {50, 150} | algorithm: SAMME.R | max_depth: {3, 5} lr:  {0.01, 0.05} n_estimators: {300, 500} | subsample: 0.8 colsample: 0.8 mcw: 3 | 10 |
+| Total |  |  |  |  | 66 |
+
+Because each two-stage pipeline trains two models, the per-stage grids were deliberately kept compact to contain combinatorial growth; the tuned values focus on the parameters with the largest observed effects (depth, learning rate, ensemble size), while secondary regularization parameters were fixed at the values established in the base-model grids.
+
+These influence scores are then fed into a dedicated feature selection process in Module 9.0, where the most predictive variables are retained. Table 3.7 presents the feature importance method used for each model type.
+
+Table 3.7.  List of the feature importance methods used per model.
+
+| Model | Feature Importance Method |
+| --- | --- |
+| Decision Tree | Gini importance |
+| Random Forest | Mean decrease in impurity (MDI) or Permutation importance |
+| AdaBoost | Importance derived from the weighted sum of weak learners (decision stumps/trees). |
+| XGBoost | Multiple metrics: Gain (improvement in accuracy from splits), Cover (number of samples affected), and Frequency (split count). |
+| Gaussian Naive Bayes | Feature influence comes from likelihoods (mean and variance per class). |
+| KNN | Permutation importance |
+
+The methods differ because feature attribution must respect each model's internal structure: impurity-based measures suit tree learners; the gain/cover/frequency metrics decompose XGBoost's boosted splits; likelihood parameters expose Gaussian Naive Bayes' per-class evidence; and model-agnostic permutation importance covers learners such as KNN that lack intrinsic attribution. Normalizing these scores per experiment allows for comparison of importance rankings across model families in Chapter 4.
+
+3.6 Experimental Design and Evaluation
+
+The benchmark encompasses 1,092 unique configurations (15 models × 7 balancing strategies × ~10 parameter sets × 2 feature regimes). Models were evaluated using a temporal 70/30 train–test split, where the training set comprised invoices with due dates before March 7, 2025, and the test set included invoices due on or after that date. Given the extreme class imbalance (Class 0 dominates at ~76%), macro-averaged F1-score was selected as the primary performance metric, supplemented by Area Under the Receiver Operating Characteristic Curve (ROC-AUC) and confusion matrix analysis to assess per-class recall.
+
+The temporal split was deliberately chosen over random cross-validation: invoices are not exchangeable over time, and a random split would leak future payment behavior into the training set, inflating measured performance relative to deployment conditions. Training on all invoices due before March 7, 2025, and testing on those due afterward, reproduces the situation the school faces in production, predicts forthcoming invoices from historical behavior, and exposes the models to any distribution drift across school years. The class imbalance statistics underscore the choice of metric. With Class 0 at roughly 76% of records, raw accuracy is dominated by the majority class, while the minority classes that carry the greatest financial risk contribute the least to it. Macro-averaged F1 corrects this by weighting all four classes equally, ROC-AUC complements it with a threshold-independent view of separability, and confusion matrices retain the per-class recall that a finance office ultimately acts on.
+
+Figure 3.9 illustrates the distribution of the four payment brackets across the 6,527 training records used in this study.
+
+Figure 3.9: Distribution of payment statuses.
+
+The distribution is extremely imbalanced: roughly 76% of invoices fall into Class 0 (on-time), while the three late brackets share the remainder, with the severest brackets the rarest. Left untreated, this imbalance lets a classifier achieve high accuracy by always predicting the majority class while failing on the late invoices that matter operationally. It is this property that necessitates the resampling strategies evaluated in the benchmark (SMOTE [43], Borderline-SMOTE [44], SMOTE-Tomek [45], and threshold-based hybrid undersampling) and that motivates macro-averaged F1, which weights all four classes equally, as the primary evaluation metric, consistent with standard practice in imbalanced classification [46].
+
+The last module of the framework is the analysis phase, presented in Figure 3.10. After the benchmark completes, the analysis component aggregates the logged experiments for evaluation and comparison.
+
+Figure 3.10: Level-1 DFD of the Analysis component.
+
+The analysis component reads the per-experiment metrics, feature importance scores, and class mappings from the results database, ranks configurations by macro-F1 and ROC-AUC, and renders the comparative figures presented in Chapter 4. Keeping analysis decoupled from training means new experiments extend the same results store without rerunning prior configurations, and every figure in Chapter 4 is reproducible from the 1,092 logged experiments.
+
+3.7 Ethical Considerations
+
+Because the study processes sensitive student financial records and produces predictions about identifiable behavior, two ethical dimensions require explicit treatment: the privacy of the data used to train the models, and the manner in which the resulting predictions may be used.
+
+3.7.1 Data Privacy
+
+The dataset contains sensitive student financial records, and privacy was addressed before any analysis took place. All student identifiers were pseudonymized using a deterministic, irreversible hash implemented in a dedicated pseudonymization utility in the project codebase; no real names or student numbers appear in any processed file, and the mapping cannot be reversed from the published artifacts. Raw data files are never committed to version control; their exclusion is enforced through the repository's ignore rules, so the source records exist only within the institution's systems and the researchers' controlled working environment. These measures ensure the study complies with the Data Privacy Act of 2012 (Republic Act 10173) [47], which governs the processing of personal information in the Philippines and requires that such processing be limited to declared, legitimate purposes and accompanied by proportionate safeguards. Data access was granted under written institutional authorization, reproduced as Appendix G, which defines the scope of data access and the restrictions on its use. Finally, the predictive model outputs are intended solely for institutional receivables management; they are not designed or released for individual student profiling for any public purpose.
+
+3.7.2 Ethical Use of Predictions
+
+There is an inherent risk that machine-learning predictions of payment delinquency could be used to discriminate against students from families with poor payment histories, and the researchers explicitly acknowledge this risk. Three mitigations are recommended wherever the system is deployed. First, predictions should inform early outreach and support (earlier reminders, proactive restructuring of installment plans, or referrals to social welfare assistance) and should never result in punitive action against the student. Second, any intervention workflow built on the model must comply with Republic Act 11984 [11], which prohibits academic penalties, including examination denial, for outstanding balances; the system's outputs, therefore, cannot lawfully gate any academic activity. Third, the model should be audited periodically for demographic bias, comparing error rates across student segments, and retrained where disparities emerge. The study's framing is deliberately supportive rather than punitive: the goal is to enable schools to offer targeted payment assistance earlier, not to flag students for enforcement. This orientation is embedded in the recommendations of Chapter 5.
+

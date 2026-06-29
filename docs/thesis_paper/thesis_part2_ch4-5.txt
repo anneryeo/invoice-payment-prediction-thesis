@@ -1,0 +1,362 @@
+CHAPTER 4:
+RESULTS AND DISCUSSION
+
+The experimental results from 1,092 benchmark configurations reveal significant performance variances across model families, resampling strategies, and feature regimes. The macro-averaged F1 Score primarily ranks performance to account for the severe class imbalance.
+
+This chapter is organized around the four research questions posed in Section 1.3. Section 4.1 addresses RQ1 by comparing two-stage and ordinal ensemble architectures against single-stage base classifiers. Section 4.2 addresses RQ2, isolating the marginal contribution of survival-analysis-derived features. Section 4.3 addresses RQ3, evaluating seven class-balancing strategies across all model families. Section 4.4 examines the convergence of the two headline metrics and the resulting model selection criteria, and Section 4.5 addresses RQ4 by analyzing which granular features most consistently drive payment-bracket predictions. The chapter closes with a demonstration of the prototype system that operationalizes the best-performing model (Section 4.6) and an assessment of the pipeline's generalizability to public benchmark datasets (Section 4.7).
+
+4.1 RQ1: Performance of Ensemble Architectures vs. Base Classifiers
+
+Table 4.1 presents the peak macro-F1 and ROC-AUC scores for each model family under the enhanced feature regime, identifying the best individual model and the best resampling strategy within each family.
+
+Table 4.1. Peak performance per model family (Enhanced Feature Regime).
+
+| Family | Peak F1 | Peak ROC-AUC | Best Individual Model | Best Strategy |
+| --- | --- | --- | --- | --- |
+| Two-Stage | 0.6003 | 0.8919 | two_stage_xgb_ada | BORDERLINE_SMOTE |
+| Ordinal | 0.5621 | 0.8205 | ordinal_ada_boost | Hybrid (t=0.5) |
+| Base | 0.5589 | 0.8607 | Ada_boost | Hybrid (t=0.5) |
+
+The two-stage family leads on both headline metrics: its best configuration (two_stage_xgb_ada under Borderline-SMOTE) reaches a macro-F1 of 0.6003 and ROC-AUC of 0.8919, exceeding the best ordinal model by approximately 0.038 F1 and the best base classifier by approximately 0.041 F1. With respect to RQ1, this gap indicates that architectural decomposition, separating the on-time/late decision from delay-severity classification, yields a larger improvement than either exploiting class ordering alone (the ordinal family) or tuning strong single-stage learners. However, the modest margins also show that base ensembles remain competitive when paired with well-chosen resampling.
+
+Figure 4.1 visualizes the full F1 and AUC lift of ordinal and two-stage variants over their corresponding base classifiers under the enhanced feature regime, making both the gains and the exceptions visible at a glance.
+
+Figure 4.1: Ordinal & Two-Stage Variants vs. Base Classifiers (lift in F1 and AUC metrics).
+
+The two-stage ensemble family clearly dominates at the top of the overall performance ranking (Figure 4.1). The best configuration, a Two-Stage XGBoost-to-AdaBoost pipeline with SMOTE resampling, achieves a macro-F1 of 0.6003 and an ROC-AUC of 0.8819. However, performance is highly sensitive to the choice of second-stage classifier: two-stage pipelines that route into AdaBoost yield the largest gains, while those routing into XGBoost (TS XGB→XGB, TS Ada→XGB) underperform their base classifiers. This suggests that hierarchical decomposition is most effective when paired with a complementary learner in Stage 2, rather than being universally beneficial.
+
+Ordinal classifiers provide modest and inconsistent gains over standard base models, confirming that while exploiting class ordering is beneficial, it is secondary to the architectural decomposition afforded by well-configured multi-stage pipelines. Among ordinal models, Ordinal AdaBoost (F1 = 0.5621) under hybrid resampling was the strongest performer.
+
+4.2 RQ2: Impact of Survival-Analysis-Derived Features
+
+The inclusion of survival-derived features produced a differential impact highly dependent on the base learner's architecture:
+
+(a) Positive Lift: Distance-based (KNN) and probabilistic (Gaussian Naive Bayes) models showed the highest mean F1 lifts (+0.0050 to +0.0061). These learners lack internal mechanisms to capture non-linear temporal interactions, making pre-computed survival statistics, such as partial hazard and survival probabilities, highly informative.
+
+(b) Negligible-to-Negative Lift: High-capacity tree-based ensembles (Random Forest, XGBoost, AdaBoost) exhibited neutral or weakly negative results. These models can independently approximate survival patterns through complex branch splits and feature interactions, rendering the Cox PH-derived features redundant or, in cases of small class sizes, noisy.
+
+This finding suggests a conditional feature-engineering strategy: survival features should be prioritized for simpler, faster models, but may be omitted for high-capacity ensembles to reduce computational overhead. The magnitude of the contribution is quantified visually by comparing the baseline-regime distributions in Figure 4.4 against their enhanced-regime counterparts in Figure 4.2, and the feature importance analysis presented in Section 4.5 (Figures 4.5 and 4.6) confirms the relative weight of survival features across model types.
+
+4.3 RQ3: Effect of Class-Balancing Strategies on Model Performance
+
+Figure 4.2 presents macro-F1 distributions across all model types and balancing strategies under the enhanced feature regime.
+
+Figure 4.2: F1 Macro by Model & Balance Strategy (enhanced features).
+
+Borderline-SMOTE wins most consistently across model types, matching or exceeding vanilla SMOTE in nearly every column, while configurations without resampling trail for all but the strongest ensembles. The variance across strategies is itself informative: high-capacity ensembles are relatively robust to the choice of strategy, whereas KNN and Gaussian Naive Bayes swing substantially; strategy selection matters most for precisely the models least able to compensate internally.
+
+Figure 4.3 presents ROC-AUC distributions across all model types and balancing strategies under the enhanced feature regime.
+
+Figure 4.3: AUC Macro by Model & Balance Strategy (enhanced features).
+
+The AUC view largely mirrors the F1 ranking; the same two-stage configurations top both charts, with the best AUC of 0.882 achieved by the two-stage XGBoost-to-AdaBoost pipeline under Borderline-SMOTE, but the spread between strategies is narrower than under F1. This indicates that resampling primarily improves the placement of the decision threshold rather than the underlying separability of the classes.
+
+Figure 4.4 presents macro-F1 distributions by model and balancing strategy under the baseline feature regime, that is, without the five survival-analysis-derived features.
+
+Figure 4.4: F1 Macro by Model & Balance Strategy (baseline features).
+
+Comparing Figure 4.4 against Figure 4.2 quantifies the survival-feature contribution discussed in Section 4.2. The distributions shift upward modestly under the enhanced regime for distance-based and probabilistic models (mean F1 lifts of +0.0050 to +0.0061 for KNN and Gaussian Naive Bayes), while tree-based ensembles are essentially unchanged. The strategy rankings, however, are stable across the two regimes. Borderline-SMOTE leads in both cases, indicating that the resampling choice and the feature regime act as largely independent levers.
+
+Resampling is confirmed as the most critical preprocessing step. Borderline-SMOTE consistently outperforms or matches Vanilla SMOTE across most model–strategy combinations, with the peak F1 difference reaching approximately 0.022 for top-performing ensembles (e.g., TS XGB→Ada: 0.600 vs. 0.578 in Figure 4.2). Borderline-SMOTE also yields the highest observed ROC-AUC at 0.882 (TS XGB→Ada, Figure 4.3). Hybrid undersampling strategies offer a moderate but stable alternative, with mean F1 values clustering around 0.54–0.58; however, their variance across model types remains notable. Weaker classifiers like KNN and Gaussian NB still lag substantially under hybrid strategies, limiting the claim that they are uniformly reliable when the classifier is not pre-selected.
+
+The impact of different balancing strategies on model performance is visualized in Figure 4.2 and Figure 4.3, which show F1-score and ROC-AUC distributions across models and strategies using the enhanced feature set. Configurations without resampling tend to underperform resampled counterparts, particularly for weaker classifiers. However, certain ensemble models (e.g., Ordinal AdaBoost at 0.557 and TS RF→RF at 0.536) show competitive F1 scores even without resampling, suggesting that the magnitude of improvement is model-dependent. Baseline performance without feature engineering is shown in Figure 4.4 for comparison, where similar patterns hold but with generally lower absolute scores for base and ordinal models.
+
+4.4 Metric Convergence and Model Selection Criteria
+
+Analysis of the Spearman rank correlation between macro-F1 and ROC-AUC (rho = 0.732, p < 0.001) confirms a strong agreement between the two metrics. Models that excel at maximizing the harmonic mean of precision and recall also tend to provide superior class separation, validating macro-F1 as a reliable primary criterion for model selection in school finance applications.
+
+Figure 4.5, shown on the next page, presents ROC curves for the top-performing models, plotting the trade-off between true positive rate and false positive rate across classification thresholds.
+
+The curves separate cleanly from the diagonal chance line, with the two-stage XGBoost-to-AdaBoost configuration achieving the largest area under the curve (approximately 0.89). Its advantage is most pronounced in the low-false-positive region, which is the operationally relevant regime: a finance office acting on predictions wants high recall for late invoices while contacting as few on-time payers as possible.
+
+Figure 4.5: ROC Curves for Top Models.
+
+Figure 4.6 presents the confusion matrices of the top three models, detailing classification performance per payment bracket.
+
+Figure 4.6: Confusion Matrices for Top 3 Models.
+
+The matrices reveal a consistent class-level pattern: Class 0 (on-time) recall is uniformly high and Class 1 (1–30 days late) is recovered reasonably well, but Classes 2 and 3 remain difficult under every strategy, with a substantial share of 31–60 day invoices absorbed into neighboring brackets. The errors are predominantly ordinal-adjacent, misclassifications land one bracket away rather than at the opposite extreme, which moderates their operational cost, since an invoice flagged one bracket early still receives an intervention.
+
+The relationship between F1-score and ROC-AUC is further illustrated in Figure 4.5 (ROC Curves for Top Models), which shows the trade-off between true positive rate and false positive rate across various threshold settings. Confusion matrices for the top-performing models are presented in Figure 4.6 to detail classification performance per payment bracket.
+
+4.5 RQ4: Granular Feature Contribution
+
+Figures 4.7 and 4.8 present feature-importance scores aggregated across model types, revealing which variables most consistently drive payment-bracket predictions.
+
+Figure 4.7: Feature Importance across Model Types (1 of 2).
+
+Figure 4.7 covers the first half of the model types, in which the same small set of behavioral variable heads appears in every ranking. Figure 4.8 continues the ranking with the remaining model types, allowing the cross-family comparison discussed on the next page.
+
+Figure 4.8: Feature Importance across Model Types (2 of 2).
+
+Three features dominate across model families: prev_bracket, the payment bracket of the student's most recent invoice; dtp_wavg, the recency-weighted average of historical days-to-payment; and opening_balance_flag, indicating whether the student carried an unpaid balance into the period. All three are behavioral-historical features engineered at the granular, line-item level described in Chapter 3, confirming the study's central design rationale with respect to RQ4: a student's payment future is best predicted by a compact summary of their payment past, and that summary is only available when invoices are tracked at category-level granularity rather than as aggregate balances.
+
+The exploratory linear discriminant analysis corroborates this ranking from a different angle. A four-class LDA on the training set finds that the first discriminant axis (LD1) explains 79.5% of between-class separation variance, and the features loading most heavily on it are opening_balance_flag, the log-transformed opening_balance, prev_bracket, and dtp_wavg, essentially the same compact behavioral set identified by the supervised importances. When the analysis is restricted to the three delinquent classes, LD1 explains 95.9% of separation, indicating that delay severity behaves as a nearly one-dimensional behavioral construct. The agreement between this projection-based view and the supervised importance rankings strengthens confidence that these variables capture genuine structure rather than model-specific artifacts.
+
+4.6 Prototype Demonstration
+
+The benchmarking results are operationalized in a working prototype: a Dash (Python/Plotly) web application that serves as the study's delivery vehicle for institutional users. The prototype is best characterized as a Minimum Viable Product (MVP): a functional, working system that demonstrates the core workflow end-to-end, from raw data upload through model training to invoice-level prediction, while deferring selected non-core integrations to future development. An administrator interacts with five principal screens, described below.
+
+Figure 4.9: Multi-step initial setup wizard screen.
+
+The entry point is a multi-step Initial Setup Wizard that guides the administrator through uploading the two institutional source files (revenues and enrollees) and triggering the training pipeline, removing any need to interact with code or notebooks.
+
+Figure 4.10: Main KPI dashboard screen.
+
+Once training has been run, the KPI Dashboard loads live data from the results database on mount: four indicator cards report the best model's macro-F1, its ROC-AUC, the total number of logged experiments, and the name of the currently deployed model, alongside a payment-bracket distribution chart built from the processed invoice cache and a table of top models sorted by enhanced-regime F1. The screen gracefully falls back to an empty state when no training has been performed yet. For a school administrator, this view answers the first operational question: how reliable is the deployed model and what does the receivables mix look like, at a glance?
+
+Figure 4.11: Invoice prediction drilldown screen.
+
+The Invoice Prediction Drilldown is the screen where predictions become actionable. It loads the processed credit sales cache, runs the deployed inference pipeline's class and probability predictions across all invoice records, and displays a paginated table of invoice number, due date, amount, predicted payment bracket, prediction confidence, and the actual bracket where known. The administrator can filter the table by predicted bracket (isolating, for example, all invoices expected to fall 61 or more days late) and export the result to CSV for use in collection workflows; every prediction run is recorded in the audit log.
+
+Figure 4.12: Comparative model dashboard screen.
+
+The Comparative Model Dashboard provides the analytical depth behind the deployment choice, allowing filtering by model type and balance strategy and rendering ROC curves, confusion matrices, and F1/AUC comparison charts across all 1,092 experiment configurations.
+
+Figure 4.13: Audit logs screen.
+
+Two supporting screens round out the MVP. The Audit Logs screen lists all system events (predictions run, settings saved, models loaded) with timestamps, actions, and details, and refreshes automatically every 30 seconds; this provides the accountability trail required for responsible institutional use (Section 3.7).
+
+Figure 4.14: Settings screen.
+
+The Settings screen exposes the undersample threshold, the default balance strategy, and the late-invoice cutoff, persisting preferences to a configuration file and logging each change. All five screens are implemented and functional in the MVP. One integration is deliberately deferred: a compatibility adapter that would map external dataset schemas (such as public Kaggle invoice datasets with columns like invoice_date, due_date, amount, customer_id, and paid_date) to the input schema expected by the feature-engineering pipeline. At present, only the proprietary three-file institutional schema is supported; the adapter and additional data source integrations are planned for future development (Section 5.4).
+
+4.7 Benchmark Dataset Generalizability
+
+The pipeline as implemented is designed around a specific institutional schema: the three Excel exports (revenues, enrollees, and chart of accounts) described in Section 3.2. Its strong results, therefore, demonstrate effectiveness for the partner institution's data model but not yet generalizability beyond it. The natural validation step is to benchmark the pipeline against publicly available invoice and accounts receivable datasets, such as those published on Kaggle under searches for "B2B invoice payment prediction," "accounts receivable dataset," or "customer payment behavior." Doing so requires the compatibility adapter described in Section 4.6: a mapping layer that maps external columns to the schema expected by the feature-engineering pipeline and gracefully degrades when institution-specific variables (installment plan types, enrollment streaks, category-level fee structures) have no external equivalent. Because several of the study's strongest features are institution-specific, such benchmarking would also reveal how much of the measured performance stems from the granular school data model itself, which is informative in either direction. This evaluation is explicitly flagged as planned future work rather than a completed contribution of this study (Section 5.4).
+
+CHAPTER 5:
+CONCLUSION AND RECOMMENDATION
+
+5.1 Summary of Findings
+
+This study benchmarked 1,092 experimental configurations to address the Invoice Payment Prediction Problem (IPPP) within a private educational context. By evaluating fifteen machine learning architectures across multiple resampling and feature engineering regimes, four conclusions emerge:
+
+(1) Hierarchical architectures dominate: Two-stage ensemble classifiers, which separate the discrimination of on-time from late invoices before determining delay severity, consistently outperform single-stage and ordinal benchmarks. The two-stage_xgb_ada configuration represents the state of the art for this task (F1 = 0.6002).
+
+(2) Resampling is indispensable: Given the heavy concentration of on-time payments, synthetic oversampling via SMOTE or Borderline-SMOTE is necessary to achieve meaningful recall for late-payment brackets.
+
+(3) Ordinal structure yields modest utility: While exploiting the ordered nature of payment delay provides consistent gains under hybrid resampling, these improvements are marginal compared to the gains from multi-stage ensemble architectures.
+
+(4) Survival feature impact is model-specific: Survival-analysis-derived features provide significant informative lift for distance-based and probabilistic models but offer redundant signals for high-capacity tree ensembles that can independently model temporal interactions.
+
+5.2 Implications for Practice
+
+For private educational institutions, these findings provide a directly deployable framework to shift from reactive collections to proactive cash flow management. The recommended production pipeline is a Two-Stage XGBoost-to-AdaBoost architecture trained with SMOTE resampling. Institutional administrators can leverage model outputs to identify high-risk accounts at the start of billing cycles and prioritize tailored interventions (e.g., early reminders for Class 1 vs. installment restructuring for Class 3).
+
+5.3 Recommendation for Continuous Calibration
+
+To account for temporal drift in payment behaviors caused by shifting socioeconomic conditions or changes in institutional policies, the researchers recommend that schools re-fit the Cox PH model and retrain the downstream classifiers annually. This ensures that the survival probabilities and partial hazard features remain calibrated to the latest student cohorts.
+
+5.4 Future Directions
+
+Future research and development should proceed along six directions. First, explainable AI integration: a SHAP value layer over the deployed two-stage model would let administrators see why an individual invoice is flagged as high risk, increasing the administrative trust on which adoption depends. Second, time-varying covariates within the Cox model would allow hazard estimates to update as partial payments arrive during the term, rather than fixing survival features at invoice issuance. Third, multi-institution federated learning would improve model generalizability while preserving student data privacy, since schools could train shared models without exchanging raw records. Fourth, the Dash prototype should be extended beyond its MVP scope, most notably through the Kaggle dataset compatibility adapter described in Sections 4.6 and 4.7, a mapping layer that would translate external invoice schemas onto the input format expected by the feature engineering pipeline, together with additional data source integrations beyond the three-file institutional export. Fifth, and enabled by that adapter, the pipeline should be tested on publicly available accounts receivable and invoice datasets to establish generalizability beyond the partner institution. Finally, deployments should adopt the retraining cadence recommended in Section 5.3: an annual recalibration of the Cox PH model and downstream classifiers to ensure that survival features and decision thresholds continue to track each new cohort's payment behavior.
+
+5.5 Conclusion
+
+This study demonstrated that hierarchical ensemble decomposition is a viable architectural paradigm for the Invoice Payment Prediction Problem, outperforming both ordinal classifiers and single-stage baselines across most resampling and feature regimes tested. Across 1,092 controlled configurations, the two-stage XGBoost-to-AdaBoost pipeline established the performance ceiling at a macro-F1 of 0.6003 and ROC-AUC of 0.8919. The experiments further demonstrated two structural results: that granular, line-item behavioral features (a student's previous bracket, weighted payment history, and carried balance) are the dominant predictive signal, and that survival-analysis feature engineering has conditional rather than universal utility, helping probabilistic and distance-based learners while adding little to high-capacity tree ensembles.
+
+These numbers have a concrete operational meaning for the partner school, connecting back to the significance articulated in Section 1.5. A macro-F1 of 0.60 on a four-class, heavily imbalanced problem means that if one hundred invoices fall due next month, the model places roughly sixty of the eventually-late ones in their correct delay bracket, and the confusion analysis in Section 4.4 shows that most of its remaining errors land in adjacent brackets rather than at the opposite extreme. Measured against the status quo (no forward visibility into receivables at all), this allows the finance office to focus outreach on the highest-risk invoices before due dates lapse: earlier reminders, proactive restructuring offers, and social welfare referrals, in place of after-the-fact collection, which RA 11984 has rendered largely unenforceable. Prediction, in other words, converts bad-debt exposure into earlier and gentler intervention.
+
+Beyond the single institution, the contribution is methodological. The study leaves behind a replicable benchmarking framework: a factorial protocol across model families, balancing strategies, and feature regimes, with every experiment logged in a queryable results store, along with a working prototype that operationalizes the winning configuration. Any institution facing the IPPP, educational or otherwise, can rerun the same protocol on its own records and obtain a defensible, evidence-based model selection rather than an imported assumption about what works.
+
+Predictive receivables management, finally, should be read as an instrument of institutional responsibility rather than financial surveillance. A school that can see payment difficulty coming can keep its programs funded without leaning on enforcement mechanisms the law has rightly removed, and can direct assistance to the families who need it. At the same time, there is still time to help. In aligning financial sustainability with educational equity, this study argues that predictive analytics becomes part of responsible governance, and that the gap between what schools can know and what they currently act on is precisely where data science has the most to offer.
+
+APPENDICES
+
+APPENDIX A: Days Sales Outstanding per Plan Type (calendar year 2023)
+
+Appendix A presents the Days Sales Outstanding (DSO) per payment plan type for the calendar year 2023. DSO is computed as the average number of days between the invoice due date and full settlement, segmented by the student's chosen installment plan (A through E, or none).
+
+The figure shows the same plan-level ordering observed across all three reported years: longer credit windows correspond to higher DSO. A consolidated observation across Appendices A–C follows the final figure in Appendix C.
+
+APPENDIX B: Days Sales Outstanding per Plan Type (calendar year 2024)
+
+Appendix B presents the Days Sales Outstanding (DSO) per payment plan type for the calendar year 2024. DSO is computed as the average number of days between the invoice due date and full settlement, segmented by the student's chosen installment plan (A through E, or none).
+
+The figure shows the same plan-level ordering observed across all three reported years: longer credit windows correspond to higher DSO. A consolidated observation across Appendices A–C follows the final figure in Appendix C.
+
+APPENDIX C: Days Sales Outstanding per Plan Type (calendar year 2025)
+
+Appendix C presents the Days Sales Outstanding (DSO) per payment plan type for the calendar year 2025. DSO is computed as the average number of days between the invoice due date and full settlement, segmented by the student's chosen installment plan (A through E, or none).
+
+Across the three years presented in Appendices A through C, the plan types that extend the longest credit windows, the extended monthly installment arrangements, and invoices with no assigned plan, consistently exhibit the highest DSO, while Plan A (full upfront payment) settles fastest. The implication is that settlement speed tracks the length of the credit window a plan extends: the more payment is deferred, the longer receivables remain outstanding. This ordering is consistent with the ordinal plan-risk encoding used as a model feature (Section 3.3), and it explains why plan-type variables carry predictive signal in the payment-bracket models.
+
+APPENDIX D: Feature importance from the paper titled “A MACHINE-LEARNING APPROACH TOWARDS SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM”
+
+Appendix D reproduces the first set of feature-importance rankings reported by Schoonbee et al. [5], which is included as the principal point of comparison for the importance analysis in Section 4.5.
+
+Their top-ranked variables are aggregate, student-level payment history features, which are consistent with this study's finding that behavioral payment history dominates prediction, while lacking the category-level granularity and engineered survival features introduced here.
+
+APPENDIX E: Feature importance from the paper titled “A MACHINE-LEARNING APPROACH TOWARDS SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM”
+
+Appendix E reproduces the second set of feature importance rankings from Schoonbee et al. [5], complementing Appendix D.
+
+Together, Appendices D and E show that prior educational IPPP work concentrated its predictive signal on a small set of aggregate history variables, supporting this study's design decision to expand the feature space at the line-item level (Section 3.3).
+
+APPENDIX F: Correlation scores between features and the days to payment variable from the paper “A framework for modeling customer invoice payment prediction
+
+Appendix F reproduces the correlation scores between candidate features and the days-to-payment variable reported by Moore and van Vuuren [4].
+
+The strongest correlates in their framework are historical payment-delay aggregates, anticipating the dominance of dtp-derived features observed in this study's importance rankings (Figures 4.5 and 4.6).
+
+APPENDIX G: Institutional Communication and Authorization Letter
+
+This appendix contains the written authorization from the partner institution permitting the research team to access and process student financial records for this study, subject to the conditions described in Section 3.7.1. The letter is issued on the school's letterhead and signed by an authorized signatory, specifying the scope of data access granted, the restrictions on data use (research purposes only, mandatory pseudonymization, and no public release of raw records), and the date of authorization. This communication is distinct from any non-disclosure agreement: it constitutes the school's formal authorization to use its data for research.
+
+APPENDIX H: Dataset Description and Variable Dictionary
+
+The pseudonymized dataset comprises 11,440 raw invoice records exported from the partner institution's ERP system, of which 6,527 labeled records were retained for modeling after filtering for sufficient payment history. Records span academic years 2019–2025, with payment activity observed through March 31, 2026, and originate from three source tables: revenues (itemized receivables and payments), enrollees (per-year enrollment and installment plan), and the chart of accounts (category classifications). The table below lists every variable used in the machine learning pipeline, its category, type, description, and source.
+
+| Feature Name | Category | Type | Description | Source |
+| --- | --- | --- | --- | --- |
+| school_year | Identity (not a model input) | Categorical | Academic year of the invoice | Revenues |
+| student_id_pseudonymized | Identity (not a model input) | Integer | Anonymized student identifier | Revenues (pseudonymized) |
+| category_name | Identity (not a model input) | Categorical | Fee category (e.g., tuition, miscellaneous) | Chart of accounts |
+| gross_receivables | Raw financial | Numeric | Total billed amount before deductions | Revenues |
+| amount_discounted | Raw financial | Numeric | Discount applied to the invoice | Revenues |
+| adjustments | Raw financial | Numeric | Post-billing adjustments (credit or debit) | Revenues |
+| credit_sale_amount | Raw financial | Numeric | Net receivable after discount and adjustments | Derived |
+| due_date | Raw financial | Date | Contractual payment due date | Revenues |
+| date_fully_paid | Raw financial | Date | Date the invoice was fully settled (empty if unpaid) | Revenues |
+| dtp_1 | Days-to-payment history | Numeric | Days to full payment, most recent prior invoice | Derived |
+| dtp_2 | Days-to-payment history | Numeric | Days to full payment, 2nd most recent prior invoice | Derived |
+| dtp_3 | Days-to-payment history | Numeric | Days to full payment, 3rd most recent prior invoice | Derived |
+| dtp_4 | Days-to-payment history | Numeric | Days to full payment, 4th most recent prior invoice | Derived |
+| dtp_avg | Days-to-payment history | Numeric | Simple average of available DTP values | Derived |
+| dtp_wavg | Days-to-payment history | Numeric | Weighted average of DTP values (recent invoices weighted higher) | Derived |
+| dtp_2_trend | Days-to-payment history | Numeric | Slope of DTP across the 2 most recent invoices | Derived |
+| dtp_3_trend | Days-to-payment history | Numeric | Slope of DTP across the 3 most recent invoices | Derived |
+| days_since_last_payment | Days-to-payment history | Numeric | Calendar days since the student's last full payment | Derived |
+| dtp_rolling_std | Days-to-payment history | Numeric | Rolling standard deviation of recent DTP values | Derived |
+| dtp_max | Days-to-payment history | Numeric | Maximum DTP observed across recent invoices | Derived |
+| amount_due_cumsum | Financial / cumulative | Numeric | Cumulative total billed to the student to date | Derived |
+| amount_paid_cumsum | Financial / cumulative | Numeric | Cumulative total paid by the student to date | Derived |
+| opening_balance | Financial / cumulative | Numeric | Unpaid balance carried over from prior periods | Derived |
+| opening_balance_flag | Financial / cumulative | Binary | 1 if the current invoice has a non-zero opening balance | Derived |
+| payment_ratio | Financial / cumulative | Numeric | Ratio of cumulative paid to cumulative billed | Derived |
+| prev_bracket | Behavioral / historical | Ordinal | Payment bracket of the most recent prior invoice | Derived |
+| early_payer_flag | Behavioral / historical | Binary | 1 if the previous invoice was paid before the due date | Derived |
+| on_time_streak | Behavioral / historical | Integer | Consecutive on-time payments preceding the current invoice | Derived |
+| plan_type_Plan - A | Payment plan | Binary (one-hot) | Full payment up front | Enrollees |
+| plan_type_Plan - B | Payment plan | Binary (one-hot) | Installment plan with 3 payment periods | Enrollees |
+| plan_type_Plan - C | Payment plan | Binary (one-hot) | Installment plan with 6 payment periods | Enrollees |
+| plan_type_Plan - D | Payment plan | Binary (one-hot) | Monthly installment plan | Enrollees |
+| plan_type_Plan - E | Payment plan | Binary (one-hot) | Special COVID-era plan (one school year only) | Enrollees |
+| plan_type_nan | Payment plan | Binary (one-hot) | No plan assigned; student not enrolled | Enrollees |
+| plan_type_risk_score | Payment plan | Ordinal | Plan type encoded by associated payment risk (A=0 … none=5) | Derived |
+| due_month | Temporal | Integer (1–12) | Calendar month of the due date | Derived |
+| due_quarter | Temporal | Integer (1–4) | Fiscal quarter of the due date | Derived |
+| partial_hazard | Survival analysis | Numeric | Exponentiated linear predictor from the Cox PH model | Cox PH model |
+| log_partial_hazard | Survival analysis | Numeric | Natural log of the partial hazard | Cox PH model |
+| expected_survival_time | Survival analysis | Numeric | Expected days to full payment under the Cox model | Cox PH model |
+| survival_probability | Survival analysis | Numeric | Probability of remaining unpaid beyond a reference time point | Cox PH model |
+| cumulative_hazard | Survival analysis | Numeric | Cumulative hazard at the reference time point | Cox PH model |
+| dtp_bracket | Target variable | Ordinal (4 classes) | Payment bracket label: on-time, 1–30, 31–60, or 61+ days late | Derived |
+| censor | Target variable | Binary | 1 if the invoice was still unpaid at the observation cutoff | Derived |
+
+The raw data files underlying these variables are not publicly available due to the privacy constraints described in Section 3.7.1; access may be requested through institutional channels, subject to the authorization conditions documented in Appendix G.
+
+APPENDIX I: Curriculum Vitae of Rafael Joseph T. Beley
+
+APPENDIX J: Curriculum Vitae of Christine Julliane L. Reyes
+
+ 
+
+REFERENCES
+
+[1] L. Breiman. 2001. Random forests. Machine Learning 45, 1 (2001), 5-32. https://doi.org/10.1023/A:1010933404324
+
+[2] H. Wasserbacher and M. Spindler. 2022. Machine learning for financial forecasting, planning, and analysis: Recent developments and pitfalls. Digital Finance 4 (2022), 63-88. https://doi.org/10.1007/s42521-021-00046-2
+
+[3] K. Mugorobin, S. Kusrini, S. Rokhmah, and I. Muslibah. 2020. Estimation system for late payment of school tuition fees. International Journal of Computer and Information System 1, 1 (2020).
+
+[4] W. Moore and J. H. van Vuuren. 2020. A framework for modelling customer invoice payment predictions. Financial Analytics Journal 12, 4 (2020), 55-70. https://doi.org/10.1016/j.mlwa.2024.100578
+
+[5] L. Schoonbee, W. R. Moore, and J. H. van Vuuren. 2021. A machine-learning approach towards solving the invoice payment prediction problem. Journal of Computational Finance 14, 3 (2021), 101-118.
+
+[6] M. Martikainen. 2023. Predicting late payment of sales invoices with statistical learning methods. Lappeenranta-Lahti University of Technology LUT, School of Engineering Science: Computational Engineering.
+
+[7] M. Cheong. 2022. Customer level predictive modeling for accounts receivable to reduce intervention actions. Journal of Business Analytics 15, 3 (2022), 45-60.
+
+[8] A. P. Appel, G. L. Malfatti, R. Cunha, B. Lima, and R. de Paula. 2021. Predicting account receivables with machine learning. Journal of Financial Technology 10, 2 (2021), 88-102.
+
+[9] A. Abbas and A. Hussein. 2024. Data-driven loan default prediction: A machine learning approach. Systems 13, 7 (2024), 581. MDPI. https://doi.org/10.3390/systems13070581
+
+[10] A. M. Khedr and R. S. Sheeja. 2024. Enhancing supply chain management with deep learning and machine learning techniques: A review. Journal of Open Innovation: Technology, Market and Complexity (2024). https://doi.org/10.1016/j.joitmc.2024.100379
+
+[11] Republic of the Philippines. 2024. Republic Act No. 11984: An Act Providing for the Free College Entrance Examinations Act. (Also known as No Permit, No Exam Prohibition Act). Official Gazette of the Republic of the Philippines.
+
+[12] E. Frank and M. Hall. 2001. A simple approach to ordinal classification. In Proceedings of the 12th European Conference on Machine Learning (ECML 2001), Lecture Notes in Computer Science 2167, 145-156. Springer. https://doi.org/10.1007/3-540-44795-4_13
+
+[13] United Nations. 2015. Transforming our world: The 2030 agenda for sustainable development. United Nations General Assembly.
+
+[14] Y. Peng and G. Tian. 2021. Intelligent optimization model of enterprise financial account receivable management. International Journal of Management Science 18, 1 (2021), 112-128. https://doi.org/10.1155/2024/4961081
+
+[15] M. Ramkumar and R. Karthick. 2023. Finance forecasting using machine learning: A data-driven approach. International Journal of Data Science and Machine Learning 4, 2 (2023), 540-558.
+
+[16] Respicio & Co. Law. 2025. No permit, no exam policy for unpaid tuition in Philippine schools. Respicio.ph.
+
+[17] R. Mestry. 2020. The effective and efficient management of school fees. South African Journal of Education 40, 4 (2020).
+
+[18] I. Naicker. 2020. Responding to school funding challenges in no-fee and fee-paying schools: Lessons from South African principals. South African Journal of Education 40, 1 (2020).
+
+[19] Education Policy and Data Center. 2012. School fees in South Africa (Case study). EPDC.
+
+[20] MRI Software TPN Credit Bureau. 2024. The legal consequences of unpaid school fees in South Africa. MRI Software TPN.
+
+[21] The Associated Press. 2024. Parents in Africa struggle with unpredictable school fees that force children to drop out. Associated Press.
+
+[22] World Bank. 2024. Urgent education reform key to unlocking faster, more inclusive growth in Africa. World Bank.
+
+[23] N.T.H. Thuy, N.T.V. Ha, N.N. Trung, V.T.T. Binh, N.T. Hang, and V.T. Binh. 2025. Comparing the effectiveness of machine learning and deep learning models in student credit scoring: A case study in Vietnam. Risks 13, 5 (2025), 99. https://doi.org/10.3390/risks13050099
+
+[24] W.C. Carvajal, C.M. Baltonado, M.G. Gocela, L.J. Pajes, A.J. Soliman, H. Bankas, C.K.F. Lubon, and M.E. Albano. 2025. Level of financial literacy and debt management: Basis for personal financial management program. Psychology and Education: A Multidisciplinary Journal 41, 2 (2025), 206-215.
+
+[25] M.C.L. Mencias-Tabernilla. 2023. Exploring teachers' expenditure patterns and debt profile. PhilArchive.
+
+[26] Presidential Communications Office. 2024. PBBM signs "No Permit, No Exam Prohibition Act" allowing students with unpaid tuition fees to take exam. PCO.
+
+[27] S. Lessmann, B. Baesens, H. V. Seow, and L. C. Thomas. 2015. Benchmarking state-of-the-art classification algorithms for credit scoring: An update of research. European Journal of Operational Research 247, 1 (2015), 124-136. https://doi.org/10.1016/j.ejor.2015.05.030
+
+[28] B. Baesens, R. Setiono, C. Mues, and J. Vanthienen. 2003. Using neural network rule extraction and decision tables for credit-risk evaluation. Management Science 49, 3 (2003), 312-329.
+
+[29] K. Xu, Y. Wu, Z. Li, R. Zhang, and Z. Feng. 2024. Investigating financial risk behavior prediction using deep learning and big data. International Journal of Innovative Research in Engineering and Management 11, 3 (2024).
+
+[30] C. F. Tsai, C. W. Huang, and C. W. Chen. 2017. Credit rating by hybrid machine learning techniques. Applied Soft Computing 26 (2017), 170-182.
+
+[31] X.-S. Wei, Q. Cui, L. Yang, P. Wang, L. Liu, and J. Yang. 2022. RPC: A large-scale and fine-grained retail product checkout dataset. Science China Information Sciences 65, 197101 (2022).
+
+[32] H. Voghouei, M. A. Jamali, and S. B. Pormehr. 2020. The effect of political factors on financial development. IOSR Journal of Economics and Finance 11, 3 (2020), 41-55.
+
+[33] Varthana. 2023. 5 Ways to Improve School Fee Collections. Varthana School Finance.
+
+[34] Finalsite. 2023. 5 Ways to Increase Your School's Tuition Collection Rates. Finalsite Blog.
+
+[35] Frontline Collections. 2024. Debt Collection in the Education Sector: Tuition Fee Recovery Strategies. Frontline Collections.
+
+[36] J. Olamijuwon and S. J. C. Zouo. 2024. Machine learning in budget forecasting for corporate finance: A conceptual model for improving financial planning. Open Access Research Journal of Multidisciplinary Studies 8, 2 (2024).
+
+[37] D. R. Cox. 1972. Regression models and life-tables. Journal of the Royal Statistical Society. Series B (Methodological) 34, 2 (1972), 187-202.
+
+[38] I. Goldstein, A. Ozdenoren, and K. Yuan. 2013. Trading frenzies and their impact on real investment. Journal of Financial Economics 109, 2 (2013), 566-582.
+
+[39] FasterCapital. 2023. Decision Support Systems: Empowering Financial Decisions with AI-Driven Support Systems. FasterCapital.
+
+[40] Caine & Weiner. 2023. Accounts Receivable Management in Education: Key Aspects and Strategies. Caine & Weiner.
+
+[41] Higher Ed Dive. 2023. 3 Reasons Accounts Receivable Management in Higher Education Suffers -- and How to Fix It. Higher Ed Dive.
+
+[42] A. Caparros. 2023. Effects of Students Extracurricular Activities to Schools Internal Efficiency: Basis for School Improvement Management Plan. Psychology and Education: A Multidisciplinary Journal 7, 10 (2023), 1-1.
+
+[43] N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer. 2002. SMOTE: Synthetic minority over-sampling technique. Journal of Artificial Intelligence Research 16 (2002), 321-357. [https://doi.org/10.1613/jair.953](https://doi.org/10.1613/jair.953)
+
+[44] H. Han, W.-Y. Wang, and B.-H. Mao. 2005. Borderline-SMOTE: A new over-sampling method in imbalanced data sets learning. In Advances in Intelligent Computing (ICIC 2005), Lecture Notes in Computer Science 3644, 878-887. Springer. [https://doi.org/10.1007/11538059_91](https://doi.org/10.1007/11538059_91)
+
+[45] G. E. A. P. A. Batista, R. C. Prati, and M. C. Monard. 2004. A study of the behavior of several methods for balancing machine learning training data. ACM SIGKDD Explorations Newsletter 6, 1 (2004), 20-29. [https://doi.org/10.1145/1007730.1007735](https://doi.org/10.1145/1007730.1007735)
+
+[46] H. He and E. A. Garcia. 2009. Learning from imbalanced data. IEEE Transactions on Knowledge and Data Engineering 21, 9 (2009), 1263-1284. [https://doi.org/10.1109/TKDE.2008.239](https://doi.org/10.1109/TKDE.2008.239)
+
+[47] Republic of the Philippines. 2012. Republic Act No. 10173: Data Privacy Act of 2012. Official Gazette of the Republic of the Philippines.
+
+vi

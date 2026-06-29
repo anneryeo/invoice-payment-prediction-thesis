@@ -80,6 +80,7 @@ logs/
 ~$*.docx
 
 settings.json
+account_map.json
 data/training_cache/
 data/app_cache/
 *.pyc
