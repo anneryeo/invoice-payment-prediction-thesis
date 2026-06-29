@@ -9,6 +9,7 @@ import aiofiles
 from io import BytesIO
 
 from src.utils.pseudonymizer import Pseudonymizer
+from src.utils.data_loaders.read_settings_json import read_settings_json
 
 
 class Revenues:
@@ -18,6 +19,8 @@ class Revenues:
         self.root = root
         self.drop_columns = ['Level', 'PR#', 'Full Name', 'Prev PR#', 'Particulars',
                              'Check No.', 'ClaimStatus', 'Is Correct', 'Audit Notes']
+        settings_path = os.path.join(root, "settings.json") if root else "settings.json"
+        self.account_name_map = read_settings_json(settings_path).get("AccountNameMap", {})
 
     # Combine all xlsx files
     def _list_excel_files(self, directory):
@@ -151,32 +154,8 @@ class Revenues:
         return df_r.rename(columns=rename_map)
     
     def _remove_account_details(self, df_r):
-        account_name_map = {
-            'Cash on Hand': 'Cash',
-            'BDO Unibank - REDACTED': 'Bank',
-            'China Bank': 'Bank',
-            'BPI': 'Bank',
-            'PS Bank': 'Bank',
-            'Metro Bank': 'Bank',
-            'PC Bank': 'Bank',
-            'Union Bank': 'Bank',
-            'G-Cash - REDACTED': 'G-Cash',
-            'cheque': 'Bank',
-            'bank': 'Bank',
-            'PNB': 'Bank',
-            'China': 'Bank',
-            'BPI cheque': 'Bank',
-            'PNB ': 'Bank',
-            'Bank': 'Bank',
-            'Bank (Non-School)': 'Bank',
-            'Petty Cash Fund': 'Cash',
-            '    ': 'Not Applicable',
-            '': 'Not Applicable'
-        }
-
-        df_r['Account Name'] = df_r['Account Name'].replace(account_name_map)
+        df_r['Account Name'] = df_r['Account Name'].replace(self.account_name_map)
         df_r['Account Name'] = df_r['Account Name'].fillna('Not Applicable')
-
         return df_r
     
     def show_data(self):
