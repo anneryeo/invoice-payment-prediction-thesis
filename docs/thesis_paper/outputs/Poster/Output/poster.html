@@ -237,7 +237,7 @@
       <h1>SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM (IPPP):<br>A MULTI-STAGE APPROACH</h1>
       <div class="researchers">Rafael Joseph T. Beley &nbsp;&middot;&nbsp; Christine Julliane L. Reyes</div>
       <div class="dept">School of Information Technology, Mapúa University</div>
-      <div class="meta">Bachelor of Science in Data Science &nbsp;&mdash;&nbsp; June 2026</div>
+      <div class="meta">Bachelor of Science in Data Science &nbsp;&middot;&nbsp; June 2026</div>
     </div>
 
     <div class="header-logo-right">
@@ -256,7 +256,7 @@
         <div class="card-head">Introduction</div>
         <div class="card-body">
           <p>Unpaid tuition fees are a growing financial risk for Philippine private schools. Republic Act 11984 (No Permit, No Exam Prohibition Act) bars schools from withholding examination privileges for outstanding balances, eliminating the most direct enforcement mechanism and leaving institutions dependent on proactive cash-flow management.</p>
-          <p>At the partner institution (a private school in Montalban, Rizal), <span class="lead-stat">Bad Debts Expense rose from PHP 244,111 (2019) to PHP 469,102 (2025)</span>, with 27 students in arrears and Days Sales Outstanding (DSO) reaching 34 days &mdash; despite flexible installment plans.</p>
+          <p>At the partner institution (a private school in Montalban, Rizal), <span class="lead-stat">Bad Debts Expense rose from PHP 244,111 (2019) to PHP 469,102 (2025)</span>, with 27 students in arrears and Days Sales Outstanding (DSO) reaching 34 days, despite flexible installment plans.</p>
           <p>Machine learning is widely applied to credit scoring, default prediction, and receivables optimization, yet existing invoice payment prediction studies share three critical gaps: (1) they use <strong>aggregate student-level features</strong>, discarding line-item granularity; (2) they treat payment delay as a <strong>nominal</strong> problem, ignoring its ordinal structure; (3) they benchmark only <strong>5&ndash;8 classifiers</strong>, leaving ordinal decompositions, two-stage architectures, and survival-analysis features systematically untested.</p>
         </div>
       </div>
@@ -276,7 +276,7 @@
       <div class="card" style="flex:1;">
         <div class="card-head">Methodology</div>
         <div class="card-body">
-          <p>The pipeline follows seven sequential stages, each mapped to a concrete implementation component in the project codebase. Days to Payment (DTP) &mdash; the gap between due date and full settlement &mdash; is discretized into four ordinal brackets:</p>
+          <p>The pipeline follows seven sequential stages, each mapped to a concrete implementation component in the project codebase. Days to Payment (DTP), the gap between due date and full settlement, is discretized into four ordinal brackets:</p>
           <table class="poster-table">
             <tr><th class="num">Class</th><th>Label</th><th>DTP Range</th></tr>
             <tr><td class="num">0</td><td>On-Time</td><td>&le; 0 days</td></tr>
@@ -338,7 +338,7 @@
 
   <!-- ── STAGE 3: FEATURE ENGINEERING ── -->
   <rect x="30" y="270" width="460" height="86" rx="8" fill="#0e4d3a"/>
-  <text x="260" y="287" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">③ FEATURE ENGINEERING  (Baseline — 40 features)</text>
+  <text x="260" y="287" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">③ FEATURE ENGINEERING  (Baseline: 40 features)</text>
   <!-- 6 group chips -->
   <rect x="40" y="294" width="72" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
   <text x="76" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Raw Financial</text>
@@ -371,7 +371,7 @@
 
   <!-- ── STAGE 4: SURVIVAL ANALYSIS ── -->
   <rect x="30" y="376" width="460" height="76" rx="8" fill="#4a2070"/>
-  <text x="260" y="393" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">④ SURVIVAL ANALYSIS  (Enhanced — +5 features)</text>
+  <text x="260" y="393" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">④ SURVIVAL ANALYSIS  (Enhanced: +5 features)</text>
   <rect x="50" y="401" width="180" height="44" rx="5" fill="#5e2a8a" stroke="#a06cda" stroke-width="1"/>
   <text x="140" y="416" text-anchor="middle" font-size="9" fill="#e0ccff" font-weight="bold">Cox PH Model (lifelines)</text>
   <text x="140" y="429" text-anchor="middle" font-size="8" fill="#c0aaee">Fitted on censored train split</text>
@@ -483,7 +483,7 @@
         <div class="card-head">Results</div>
         <div class="card-body">
 
-          <div class="subhead">RQ1 &mdash; Two-Stage vs. Ordinal vs. Base Classifiers</div>
+          <div class="subhead">RQ1: Two-Stage vs. Ordinal vs. Base Classifiers</div>
           <table class="poster-table">
             <tr><th>Model Family</th><th class="num">Peak F1</th><th class="num">Peak AUC</th><th>Best Config</th></tr>
             <tr><td><strong>Two-Stage</strong></td><td class="num hl">0.6003</td><td class="num hl">0.8919</td><td>XGB&rarr;Ada + Borderline-SMOTE</td></tr>
@@ -495,26 +495,26 @@
           <img class="chart-img" src="assets/results_chart.png" alt="F1 Macro heatmap, model x balance strategy">
           <div class="chart-caption">Fig. Enhanced-feature Macro-F1 across all 15 architectures &times; 7 balance strategies</div>
 
-          <div class="subhead">RQ2 &mdash; Survival Feature Impact</div>
+          <div class="subhead">RQ2: Survival Feature Impact</div>
           <ul class="bullet-list">
-            <li><strong>Positive lift:</strong> KNN (+0.0061 F1) and Gaussian Naive Bayes (+0.0050 F1) &mdash; simpler models benefit from pre-computed temporal risk statistics.</li>
-            <li><strong>Negligible to negative:</strong> Random Forest, XGBoost, AdaBoost &mdash; high-capacity tree ensembles already approximate survival patterns, making Cox features redundant.</li>
+            <li><strong>Positive lift:</strong> KNN (+0.0061 F1) and Gaussian Naive Bayes (+0.0050 F1): simpler models benefit from pre-computed temporal risk statistics.</li>
+            <li><strong>Negligible to negative:</strong> Random Forest, XGBoost, AdaBoost: high-capacity tree ensembles already approximate survival patterns, making Cox features redundant.</li>
           </ul>
-          <p>Survival feature engineering has <strong>conditional, not universal</strong> utility &mdash; allocate effort based on the downstream learner's capacity.</p>
+          <p>Survival feature engineering has <strong>conditional, not universal</strong> utility: allocate effort based on the downstream learner's capacity.</p>
 
-          <div class="subhead">RQ3 &mdash; Class-Balancing Strategy</div>
+          <div class="subhead">RQ3: Class-Balancing Strategy</div>
           <ul class="bullet-list">
             <li><strong>Borderline-SMOTE</strong> consistently outperformed vanilla SMOTE and no-resampling baselines across all model families.</li>
-            <li>Resampling is <strong>essential for two-stage models</strong>: TS XGB&rarr;Ada rises from 0.538 (none) to <strong>0.600</strong> (Borderline-SMOTE) &mdash; a +0.062 swing.</li>
+            <li>Resampling is <strong>essential for two-stage models</strong>: TS XGB&rarr;Ada rises from 0.538 (none) to <strong>0.600</strong> (Borderline-SMOTE), a +0.062 swing.</li>
             <li><strong>Hybrid undersampling</strong> is a stable alternative: TS XGB&rarr;Ada @ Hybrid&nbsp;0.5 = 0.583, only 0.017 below Borderline-SMOTE.</li>
             <li>Weak learners (KNN, GNB) swing most with strategy choice; strong tree ensembles (RF, XGBoost, AdaBoost) stay comparatively robust.</li>
             <li>Spearman &rho; = 0.732 (F1 vs. AUC) confirms resampling mainly shifts <strong>threshold placement</strong>, not underlying class separability.</li>
           </ul>
 
-          <div class="subhead">RQ4 &mdash; Feature Importance (Granular vs. Aggregate)</div>
-          <p>The three most predictive features across all families &mdash; <strong>prev_bracket</strong> (most recent payment bracket), <strong>dtp_wavg</strong> (recency-weighted average DTP), and <strong>opening_balance_flag</strong> (carried unpaid balance) &mdash; are all <strong>behavioral-historical features only available at line-item granularity</strong>, confirming the study's design rationale. LDA corroborates: LD1 explains 79.5% of between-class separation, and 95.9% among delinquent classes alone.</p>
+          <div class="subhead">RQ4: Feature Importance (Granular vs. Aggregate)</div>
+          <p>The three most predictive features across all families are <strong>prev_bracket</strong> (most recent payment bracket), <strong>dtp_wavg</strong> (recency-weighted average DTP), and <strong>opening_balance_flag</strong> (carried unpaid balance), all <strong>behavioral-historical features only available at line-item granularity</strong>, confirming the study's design rationale. LDA corroborates: LD1 explains 79.5% of between-class separation, and 95.9% among delinquent classes alone.</p>
 
-          <div class="subhead">Prototype System &mdash; Dash (Python/Plotly) Web App</div>
+          <div class="subhead">Prototype System: Dash (Python/Plotly) Web App</div>
           <div class="chip-row">
             <div class="chip"><b>Setup Wizard</b>Upload source files, trigger the training pipeline.</div>
             <div class="chip"><b>KPI Dashboard</b>Live F1/AUC metrics, bracket distribution, top-model ranking.</div>
@@ -531,10 +531,10 @@
           <ol class="num-list">
             <li><strong>Hierarchical architectures dominate.</strong> Two-stage XGBoost&rarr;AdaBoost sets the performance ceiling (F1 = 0.6003, AUC = 0.8919).</li>
             <li><strong>Resampling is indispensable.</strong> With ~76% of invoices on-time, Borderline-SMOTE is essential for meaningful recall on the late-payment brackets carrying the greatest financial risk.</li>
-            <li><strong>Ordinal structure yields modest, consistent gains</strong> &mdash; less than full multi-stage decomposition delivers.</li>
+            <li><strong>Ordinal structure yields modest, consistent gains</strong>, though less than full multi-stage decomposition delivers.</li>
             <li><strong>Survival features are model-specific</strong>: they benefit probabilistic and distance-based learners but are redundant for high-capacity tree ensembles.</li>
           </ol>
-          <p>A macro-F1 of 0.60 on a four-class imbalanced problem means the model correctly brackets ~60 of every 100 eventually-late invoices, with most remaining errors landing in adjacent brackets. Against zero forward visibility today, this lets finance officers <strong>concentrate outreach on the highest-risk invoices before due dates lapse</strong> &mdash; earlier reminders, proactive installment restructuring, and social-welfare referrals in place of after-the-fact collection that RA 11984 has rendered largely unenforceable. The framework is directly transferable to any Philippine private school sharing the same installment-billing structure, and the open-sourced prototype operationalizes the winning configuration.</p>
+          <p>A macro-F1 of 0.60 on a four-class imbalanced problem means the model correctly brackets ~60 of every 100 eventually-late invoices, with most remaining errors landing in adjacent brackets. Against zero forward visibility today, this lets finance officers <strong>concentrate outreach on the highest-risk invoices before due dates lapse</strong>: earlier reminders, proactive installment restructuring, and social-welfare referrals in place of after-the-fact collection that RA 11984 has rendered largely unenforceable. The framework is directly transferable to any Philippine private school sharing the same installment-billing structure, and the open-sourced prototype operationalizes the winning configuration.</p>
         </div>
       </div>
 
