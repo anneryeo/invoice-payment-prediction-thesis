@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>IPPP Thesis Poster</title>
+<style>
+  @page { size: 841mm 1189mm; margin: 0; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 841mm;
+    height: 1189mm;
+    background: #e8ecf4;
+    font-family: "Segoe UI", Arial, Helvetica, sans-serif;
+    color: #1c2333;
+  }
+
+  :root {
+    --navy: #1a2e5a;
+    --navy-dark: #12213f;
+    --red: #da291c;
+    --card-bg: #ffffff;
+    --page-bg: #e8ecf4;
+    --muted: #48506b;
+  }
+
+  .page {
+    width: 841mm;
+    height: 1189mm;
+    position: relative;
+    background: var(--page-bg);
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ---------- HEADER ---------- */
+  .header {
+    display: grid;
+    grid-template-columns: 150mm 1fr 150mm;
+    align-items: center;
+    padding: 7mm 14mm;
+    background: #f4f6fb;
+    border-bottom: 2.2mm solid var(--navy);
+    column-gap: 8mm;
+  }
+  .header-logo-left {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2.4mm;
+  }
+  .header-logo-left img.icon { height: 38mm; width: auto; }
+  .header-logo-left img.wordmark { width: 84mm; height: auto; }
+
+  .header-center { text-align: center; padding: 0 6mm; }
+  .header-center h1 {
+    font-size: 15mm;
+    line-height: 1.13;
+    color: var(--navy);
+    font-weight: 800;
+    letter-spacing: 0.2mm;
+    margin-bottom: 4.5mm;
+  }
+  .header-center .researchers {
+    font-size: 8.6mm;
+    color: var(--red);
+    font-weight: 700;
+    margin-bottom: 3mm;
+  }
+  .header-center .dept {
+    font-size: 6.8mm;
+    color: var(--navy-dark);
+    font-weight: 600;
+    margin-bottom: 1.2mm;
+  }
+  .header-center .meta {
+    font-size: 6mm;
+    color: var(--muted);
+    font-weight: 400;
+  }
+
+  .header-logo-right {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2.5mm;
+  }
+  .header-logo-right img { height: 62mm; width: auto; }
+  .header-logo-right .soit-text {
+    font-size: 7.2mm;
+    font-weight: 800;
+    color: var(--navy);
+    line-height: 1.25;
+    text-align: center;
+    letter-spacing: 0.15mm;
+    max-width: 128mm;
+  }
+
+  /* ---------- BODY GRID ---------- */
+  .body-grid {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    column-gap: 10mm;
+    padding: 8mm 14mm 0 14mm;
+  }
+  .col { display: flex; flex-direction: column; gap: 6mm; }
+
+  /* ---------- CARDS ---------- */
+  .card { border-radius: 5mm; overflow: hidden; background: var(--card-bg);
+          box-shadow: 0 1mm 3mm rgba(20,30,60,0.12); }
+  .card-head {
+    background: var(--navy);
+    color: #fff;
+    font-size: 8mm;
+    font-weight: 800;
+    letter-spacing: 0.6mm;
+    text-align: center;
+    padding: 3.6mm 6mm;
+    text-transform: uppercase;
+  }
+  .card-body { padding: 5.5mm 8mm 6mm 8mm; font-size: 5.9mm; line-height: 1.32; color: #262c40; }
+  .card-body p { margin-bottom: 3mm; text-align: justify; }
+  .card-body p:last-child { margin-bottom: 0; }
+  .card-body strong { color: var(--red); }
+  .card-body .lead-stat { color: var(--navy); font-weight: 700; }
+
+  .subhead {
+    font-size: 6.6mm;
+    font-weight: 800;
+    color: var(--navy);
+    margin: 3.5mm 0 2mm 0;
+    padding-left: 3mm;
+    border-left: 1.6mm solid var(--red);
+  }
+  .subhead:first-child { margin-top: 0; }
+
+  ol.num-list, ul.bullet-list { padding-left: 6.5mm; margin-bottom: 2.5mm; }
+  ol.num-list li, ul.bullet-list li { margin-bottom: 2mm; text-align: justify; }
+  ol.num-list li:last-child, ul.bullet-list li:last-child { margin-bottom: 0; }
+  ul.bullet-list { list-style: disc; }
+
+  table.poster-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 5.3mm;
+    margin: 1.5mm 0 3mm 0;
+  }
+  table.poster-table th {
+    background: var(--navy);
+    color: #fff;
+    font-weight: 700;
+    padding: 2mm 2.6mm;
+    text-align: left;
+  }
+  table.poster-table td {
+    padding: 1.9mm 2.6mm;
+    border-bottom: 0.3mm solid #d8dceb;
+  }
+  table.poster-table tr:nth-child(even) td { background: #f3f5fb; }
+  table.poster-table td.num, table.poster-table th.num { text-align: center; white-space: nowrap; }
+  table.poster-table td.hl { color: var(--red); font-weight: 700; }
+
+  .flowchart-wrap { margin-top: 3.5mm; }
+  .flowchart-wrap svg { width: 100%; height: auto; display: block; }
+
+  .chart-img { width: 100%; height: auto; display: block; border-radius: 2.5mm; margin: 1.5mm 0 2.5mm 0; border: 0.3mm solid #d8dceb; }
+  .chart-caption { font-size: 4.6mm; color: var(--muted); text-align: center; margin-top: -1.5mm; margin-bottom: 3mm; font-style: italic; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 2.5mm; margin: 1.5mm 0 1mm 0; }
+  .chip {
+    flex: 1 1 42%;
+    background: #eef1fb;
+    border: 0.3mm solid #c7d0ec;
+    border-left: 1.6mm solid var(--navy);
+    border-radius: 2mm;
+    padding: 2mm 3mm;
+    font-size: 4.9mm;
+    line-height: 1.26;
+  }
+  .chip b { display: block; color: var(--navy); font-size: 5.3mm; margin-bottom: 0.6mm; }
+
+  /* Right column carries less fixed-image content than the left (flowchart-heavy)
+     column, so it runs a slightly more generous type scale to naturally reach the
+     same column height instead of being CSS-stretched into empty space. */
+  .col-right .card-body { font-size: 6.35mm; line-height: 1.44; }
+  .col-right table.poster-table { font-size: 5.7mm; }
+  .col-right table.poster-table th, .col-right table.poster-table td { padding: 2.6mm 3mm; }
+  .col-right .subhead { font-size: 7mm; margin: 5mm 0 2.6mm 0; }
+  .col-right .chip { font-size: 5.3mm; padding: 2.6mm 3.4mm; }
+  .col-right .chip b { font-size: 5.7mm; }
+  .col-right .chart-caption { font-size: 5mm; margin-bottom: 4mm; }
+
+  /* ---------- FOOTER ---------- */
+  .footer {
+    grid-column: 1 / -1;
+    margin: 6mm 14mm 7mm 14mm;
+    border-radius: 5mm;
+    background: var(--navy-dark);
+    color: #eef1fb;
+    padding: 5.5mm 12mm;
+  }
+  .footer-grid { display: grid; grid-template-columns: 1fr 1fr; column-gap: 14mm; }
+  .footer h2 {
+    font-size: 7mm;
+    font-weight: 800;
+    letter-spacing: 0.6mm;
+    color: #fff;
+    margin-bottom: 2.6mm;
+    text-transform: uppercase;
+  }
+  .footer p { font-size: 5.1mm; line-height: 1.32; color: #cfd6ec; text-align: justify; margin-bottom: 2mm; }
+  .footer .citation {
+    grid-column: 1 / -1;
+    margin-top: 3mm;
+    padding-top: 3mm;
+    border-top: 0.3mm solid #3a4570;
+    font-size: 4.4mm;
+    font-style: italic;
+    color: #9aa6cc;
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ================= HEADER ================= -->
+  <div class="header">
+    <div class="header-logo-left">
+      <img class="icon" src="../Poster Contents/mapua_logo_icon.png" alt="Mapúa University seal">
+      <img class="wordmark" src="../Poster Contents/mapua_logo_wordmark.png" alt="Mapúa University">
+    </div>
+
+    <div class="header-center">
+      <h1>SOLVING THE INVOICE PAYMENT PREDICTION PROBLEM (IPPP):<br>A MULTI-STAGE APPROACH</h1>
+      <div class="researchers">Rafael Joseph T. Beley &nbsp;&middot;&nbsp; Christine Julliane L. Reyes</div>
+      <div class="dept">School of Information Technology, Mapúa University</div>
+      <div class="meta">Bachelor of Science in Data Science &nbsp;&mdash;&nbsp; June 2026</div>
+    </div>
+
+    <div class="header-logo-right">
+      <img src="../Poster Contents/soit_logo.png" alt="School of Information Technology logo">
+      <div class="soit-text">SCHOOL OF INFORMATION TECHNOLOGY</div>
+    </div>
+  </div>
+
+  <!-- ================= BODY ================= -->
+  <div class="body-grid">
+
+    <!-- ============ LEFT COLUMN ============ -->
+    <div class="col">
+
+      <div class="card">
+        <div class="card-head">Introduction</div>
+        <div class="card-body">
+          <p>Unpaid tuition fees are a growing financial risk for Philippine private schools. Republic Act 11984 (No Permit, No Exam Prohibition Act) bars schools from withholding examination privileges for outstanding balances, eliminating the most direct enforcement mechanism and leaving institutions dependent on proactive cash-flow management.</p>
+          <p>At the partner institution (a private school in Montalban, Rizal), <span class="lead-stat">Bad Debts Expense rose from PHP 244,111 (2019) to PHP 469,102 (2025)</span>, with 27 students in arrears and Days Sales Outstanding (DSO) reaching 34 days &mdash; despite flexible installment plans.</p>
+          <p>Machine learning is widely applied to credit scoring, default prediction, and receivables optimization, yet existing invoice payment prediction studies share three critical gaps: (1) they use <strong>aggregate student-level features</strong>, discarding line-item granularity; (2) they treat payment delay as a <strong>nominal</strong> problem, ignoring its ordinal structure; (3) they benchmark only <strong>5&ndash;8 classifiers</strong>, leaving ordinal decompositions, two-stage architectures, and survival-analysis features systematically untested.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Objectives</div>
+        <div class="card-body">
+          <ol class="num-list">
+            <li>Conduct a <strong>large-scale benchmarking study</strong> across 1,092 experimental configurations to identify the optimal model&ndash;preprocessing combination.</li>
+            <li>Develop a <strong>two-stage ensemble architecture</strong> that first separates delinquent from on-time invoices, then classifies delay severity.</li>
+            <li>Evaluate the impact of <strong>survival-analysis-derived feature engineering</strong> (Cox Proportional Hazards) on classifier sensitivity and recall for late-payment brackets.</li>
+            <li>Provide an <strong>empirically grounded framework</strong> for private schools to transition from reactive collection practices to proactive receivables management.</li>
+          </ol>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1;">
+        <div class="card-head">Methodology</div>
+        <div class="card-body">
+          <p>The pipeline follows seven sequential stages, each mapped to a concrete implementation component in the project codebase. Days to Payment (DTP) &mdash; the gap between due date and full settlement &mdash; is discretized into four ordinal brackets:</p>
+          <table class="poster-table">
+            <tr><th class="num">Class</th><th>Label</th><th>DTP Range</th></tr>
+            <tr><td class="num">0</td><td>On-Time</td><td>&le; 0 days</td></tr>
+            <tr><td class="num">1</td><td>Slightly Late</td><td>1&ndash;30 days</td></tr>
+            <tr><td class="num">2</td><td>Moderately Late</td><td>31&ndash;60 days</td></tr>
+            <tr><td class="num">3</td><td>Severely Late</td><td>61+ days</td></tr>
+          </table>
+          <div class="flowchart-wrap">
+<svg viewBox="0 0 520 860" xmlns="http://www.w3.org/2000/svg" font-family="Arial, Helvetica, sans-serif">
+  <!-- Background -->
+  <rect width="520" height="860" fill="#f4f6fb" rx="10"/>
+
+  <!-- Title -->
+  <text x="260" y="34" text-anchor="middle" font-size="15" font-weight="bold" fill="#1a2e5a">IPPP Multi-Stage Pipeline</text>
+  <text x="260" y="52" text-anchor="middle" font-size="10.5" fill="#4a5a7a">1,092 experimental configurations</text>
+
+  <!-- ── STAGE 1: DATA ACQUISITION ── -->
+  <rect x="30" y="68" width="460" height="72" rx="8" fill="#1a2e5a"/>
+  <rect x="30" y="68" width="460" height="24" rx="8" fill="#1a2e5a"/>
+  <rect x="30" y="80" width="460" height="12" fill="#1a2e5a"/>
+  <text x="260" y="85" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">① DATA ACQUISITION</text>
+  <rect x="44" y="98" width="140" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="114" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Revenues File</text>
+  <text x="114" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Itemized receivables</text>
+  <rect x="194" y="98" width="140" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="264" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Enrollees File</text>
+  <text x="264" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Installment plans</text>
+  <rect x="344" y="98" width="132" height="34" rx="5" fill="#2d4a8a" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="410" y="112" text-anchor="middle" font-size="9.5" fill="#cce0ff">Chart of Accounts</text>
+  <text x="410" y="125" text-anchor="middle" font-size="8.5" fill="#99bbee">Category mapping</text>
+  <!-- arrow -->
+  <line x1="260" y1="140" x2="260" y2="158" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 2: PRE-PROCESSING ── -->
+  <rect x="30" y="160" width="460" height="90" rx="8" fill="#163a6a"/>
+  <text x="260" y="177" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">② PRE-PROCESSING</text>
+  <!-- sub-boxes -->
+  <rect x="44" y="184" width="96" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="92" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">Pseudonymization</text>
+  <text x="92" y="213" text-anchor="middle" font-size="8" fill="#99bbee">Hash student IDs</text>
+  <text x="92" y="225" text-anchor="middle" font-size="8" fill="#99bbee">exclude raw files</text>
+
+  <rect x="148" y="184" width="90" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="193" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">ERP Merge</text>
+  <text x="193" y="213" text-anchor="middle" font-size="8" fill="#99bbee">Join 3 source</text>
+  <text x="193" y="225" text-anchor="middle" font-size="8" fill="#99bbee">files → Fact Table</text>
+
+  <rect x="246" y="184" width="100" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="296" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">DTP Computation</text>
+  <text x="296" y="213" text-anchor="middle" font-size="8" fill="#99bbee">due date → payment</text>
+  <text x="296" y="225" text-anchor="middle" font-size="8" fill="#99bbee">date gap (days)</text>
+
+  <rect x="354" y="184" width="132" height="58" rx="4" fill="#1e4d8c" stroke="#4a7ec4" stroke-width="1"/>
+  <text x="420" y="200" text-anchor="middle" font-size="8.5" fill="#cce0ff" font-weight="bold">Target Discretization</text>
+  <text x="420" y="213" text-anchor="middle" font-size="8" fill="#99bbee">4 ordinal brackets</text>
+  <text x="420" y="225" text-anchor="middle" font-size="8" fill="#99bbee">≤0 / 1–30 / 31–60 / 61+</text>
+  <!-- arrow -->
+  <line x1="260" y1="250" x2="260" y2="268" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 3: FEATURE ENGINEERING ── -->
+  <rect x="30" y="270" width="460" height="86" rx="8" fill="#0e4d3a"/>
+  <text x="260" y="287" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">③ FEATURE ENGINEERING  (Baseline — 40 features)</text>
+  <!-- 6 group chips -->
+  <rect x="40" y="294" width="72" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="76" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Raw Financial</text>
+  <text x="76" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">4 features</text>
+
+  <rect x="118" y="294" width="80" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="158" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">DTP Historical</text>
+  <text x="158" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">11 features</text>
+
+  <rect x="204" y="294" width="88" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="248" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Financial / Cumul.</text>
+  <text x="248" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">5 features</text>
+
+  <rect x="298" y="294" width="80" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="338" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Behavioral</text>
+  <text x="338" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">3 features</text>
+
+  <rect x="384" y="294" width="52" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="410" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Plan Type</text>
+  <text x="410" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">13 feats</text>
+
+  <rect x="442" y="294" width="42" height="28" rx="4" fill="#155c46" stroke="#3dba8a" stroke-width="1"/>
+  <text x="463" y="305" text-anchor="middle" font-size="7.5" fill="#b0f0d8" font-weight="bold">Temporal</text>
+  <text x="463" y="316" text-anchor="middle" font-size="7" fill="#88ddb8">4 feats</text>
+
+  <!-- label row -->
+  <text x="260" y="347" text-anchor="middle" font-size="8" fill="#6adbb8" font-style="italic">All features engineered at line-item granularity (category-level, not aggregate student balances)</text>
+  <!-- arrow -->
+  <line x1="260" y1="356" x2="260" y2="374" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 4: SURVIVAL ANALYSIS ── -->
+  <rect x="30" y="376" width="460" height="76" rx="8" fill="#4a2070"/>
+  <text x="260" y="393" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">④ SURVIVAL ANALYSIS  (Enhanced — +5 features)</text>
+  <rect x="50" y="401" width="180" height="44" rx="5" fill="#5e2a8a" stroke="#a06cda" stroke-width="1"/>
+  <text x="140" y="416" text-anchor="middle" font-size="9" fill="#e0ccff" font-weight="bold">Cox PH Model (lifelines)</text>
+  <text x="140" y="429" text-anchor="middle" font-size="8" fill="#c0aaee">Fitted on censored train split</text>
+  <text x="140" y="441" text-anchor="middle" font-size="8" fill="#c0aaee">Event = full settlement</text>
+
+  <rect x="242" y="401" width="230" height="44" rx="5" fill="#5e2a8a" stroke="#a06cda" stroke-width="1"/>
+  <text x="357" y="414" text-anchor="middle" font-size="8.5" fill="#e0ccff" font-weight="bold">Derived Features</text>
+  <text x="357" y="426" text-anchor="middle" font-size="7.5" fill="#c0aaee">partial_hazard · log_partial_hazard</text>
+  <text x="357" y="438" text-anchor="middle" font-size="7.5" fill="#c0aaee">survival_prob · cumulative_hazard · expected_survival</text>
+  <!-- arrow -->
+  <line x1="260" y1="452" x2="260" y2="470" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 5: CLASS BALANCING ── -->
+  <rect x="30" y="472" width="460" height="76" rx="8" fill="#7a3010"/>
+  <text x="260" y="489" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑤ CLASS BALANCING  (7 strategies)</text>
+  <!-- chips -->
+  <rect x="42" y="497" width="62" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="73" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">None</text>
+  <text x="73" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">baseline</text>
+
+  <rect x="112" y="497" width="62" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="143" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">SMOTE</text>
+  <text x="143" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">oversample</text>
+
+  <rect x="182" y="497" width="82" height="44" rx="4" fill="#c04420" stroke="#f08050" stroke-width="1.5"/>
+  <text x="223" y="514" text-anchor="middle" font-size="8" fill="#ffffff" font-weight="bold">Borderline-SMOTE</text>
+  <text x="223" y="527" text-anchor="middle" font-size="7" fill="#ffddcc">★ best performer</text>
+  <text x="223" y="538" text-anchor="middle" font-size="7" fill="#ffddcc">focus on border pts</text>
+
+  <rect x="272" y="497" width="76" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="310" y="514" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">SMOTE+Tomek</text>
+  <text x="310" y="527" text-anchor="middle" font-size="7" fill="#ffcbaa">hybrid clean</text>
+
+  <rect x="356" y="497" width="126" height="44" rx="4" fill="#9a3e18" stroke="#f08050" stroke-width="1"/>
+  <text x="419" y="511" text-anchor="middle" font-size="8" fill="#ffe0cc" font-weight="bold">Hybrid Undersample</text>
+  <text x="419" y="524" text-anchor="middle" font-size="7.5" fill="#ffcbaa">@0.5 / @0.7 / @0.9</text>
+  <text x="419" y="536" text-anchor="middle" font-size="7" fill="#ffcbaa">3 ratio variants</text>
+  <!-- arrow -->
+  <line x1="260" y1="548" x2="260" y2="566" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 6: MODEL TRAINING ── -->
+  <rect x="30" y="568" width="460" height="110" rx="8" fill="#1a2e5a"/>
+  <text x="260" y="585" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑥ MODEL TRAINING &amp; BENCHMARKING  (1,092 configs)</text>
+  <!-- 3 family boxes -->
+  <rect x="42" y="593" width="130" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="107" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Base Classifiers</text>
+  <text x="107" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">AdaBoost · RF · XGBoost</text>
+  <text x="107" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">Decision Tree · GNB · KNN</text>
+  <text x="107" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">6 models</text>
+  <text x="107" y="662" text-anchor="middle" font-size="7" fill="#6090cc">single-stage, standard</text>
+
+  <rect x="181" y="593" width="158" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="260" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Two-Stage Ensembles</text>
+  <text x="260" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">Stage 1 Binary (on-time vs late)</text>
+  <text x="260" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">Stage 2 Multi-class (severity)</text>
+  <text x="260" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">6 pipelines</text>
+  <text x="260" y="662" text-anchor="middle" font-size="7" fill="#6090cc">XGB→Ada · RF→Ada · RF→RF …</text>
+
+  <rect x="348" y="593" width="134" height="78" rx="5" fill="#253e78" stroke="#5b7ec4" stroke-width="1"/>
+  <text x="415" y="608" text-anchor="middle" font-size="9" fill="#cce0ff" font-weight="bold">Ordinal Classifiers</text>
+  <text x="415" y="621" text-anchor="middle" font-size="7.5" fill="#99bbee">Frank &amp; Hall decomposition</text>
+  <text x="415" y="633" text-anchor="middle" font-size="7.5" fill="#99bbee">ordered-bracket structure</text>
+  <text x="415" y="645" text-anchor="middle" font-size="7.5" fill="#7aadee">3 models</text>
+  <text x="415" y="662" text-anchor="middle" font-size="7" fill="#6090cc">Ord-Ada · Ord-RF · Ord-XGB</text>
+  <!-- arrow -->
+  <line x1="260" y1="678" x2="260" y2="696" stroke="#1a2e5a" stroke-width="2.5" marker-end="url(#arr)"/>
+
+  <!-- ── STAGE 7: EVALUATION & DEPLOYMENT ── -->
+  <rect x="30" y="698" width="460" height="96" rx="8" fill="#1a3a1a"/>
+  <text x="260" y="715" text-anchor="middle" font-size="11" font-weight="bold" fill="#ffffff" letter-spacing="1">⑦ EVALUATION &amp; DEPLOYMENT</text>
+  <!-- eval box -->
+  <rect x="42" y="724" width="200" height="62" rx="5" fill="#254025" stroke="#4daa4d" stroke-width="1"/>
+  <text x="142" y="739" text-anchor="middle" font-size="9" fill="#b0ffb0" font-weight="bold">Evaluation Metrics</text>
+  <text x="142" y="752" text-anchor="middle" font-size="7.5" fill="#88dd88">Primary: Macro-F1</text>
+  <text x="142" y="764" text-anchor="middle" font-size="7.5" fill="#88dd88">Secondary: ROC-AUC · Confusion Matrix</text>
+  <text x="142" y="776" text-anchor="middle" font-size="7.5" fill="#88dd88">Spearman ρ (F1 vs AUC) = 0.732</text>
+
+  <!-- deploy box -->
+  <rect x="252" y="724" width="228" height="62" rx="5" fill="#254025" stroke="#4daa4d" stroke-width="1"/>
+  <text x="366" y="739" text-anchor="middle" font-size="9" fill="#b0ffb0" font-weight="bold">Dash Prototype (MVP)</text>
+  <text x="366" y="752" text-anchor="middle" font-size="7.5" fill="#88dd88">Setup Wizard · KPI Dashboard</text>
+  <text x="366" y="764" text-anchor="middle" font-size="7.5" fill="#88dd88">Prediction Drilldown · Model Compare</text>
+  <text x="366" y="776" text-anchor="middle" font-size="7.5" fill="#88dd88">Audit Logs · Settings</text>
+
+  <!-- Best result callout -->
+  <rect x="80" y="800" width="360" height="48" rx="8" fill="#c04420" stroke="#ff9966" stroke-width="1.5"/>
+  <text x="260" y="817" text-anchor="middle" font-size="10" font-weight="bold" fill="#ffffff">Best Configuration</text>
+  <text x="260" y="832" text-anchor="middle" font-size="9.5" fill="#ffe0cc">TS XGBoost→AdaBoost + Borderline-SMOTE</text>
+  <text x="260" y="844" text-anchor="middle" font-size="9" fill="#ffccaa">Macro-F1 = 0.6003  ·  ROC-AUC = 0.8919</text>
+
+  <!-- arrow marker -->
+  <defs>
+    <marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+      <path d="M0,0 L0,6 L8,3 z" fill="#1a2e5a"/>
+    </marker>
+  </defs>
+</svg>
+
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ============ RIGHT COLUMN ============ -->
+    <div class="col col-right">
+
+      <div class="card">
+        <div class="card-head">Results</div>
+        <div class="card-body">
+
+          <div class="subhead">RQ1 &mdash; Two-Stage vs. Ordinal vs. Base Classifiers</div>
+          <table class="poster-table">
+            <tr><th>Model Family</th><th class="num">Peak F1</th><th class="num">Peak AUC</th><th>Best Config</th></tr>
+            <tr><td><strong>Two-Stage</strong></td><td class="num hl">0.6003</td><td class="num hl">0.8919</td><td>XGB&rarr;Ada + Borderline-SMOTE</td></tr>
+            <tr><td>Ordinal</td><td class="num">0.5621</td><td class="num">0.8205</td><td>Ordinal AdaBoost + Hybrid@0.5</td></tr>
+            <tr><td>Base</td><td class="num">0.5589</td><td class="num">0.8607</td><td>XGBoost + Hybrid@0.5</td></tr>
+          </table>
+          <p>The two-stage XGBoost&rarr;AdaBoost pipeline <strong>outperformed the best ordinal model by +0.038 F1</strong> and the best base classifier by <strong>+0.041 F1</strong>. Gains are not universal across the two-stage family: hierarchical decomposition is most effective when Stage 2 pairs a high-capacity booster with a <strong>complementary, lower-variance learner</strong> (AdaBoost) rather than a second booster.</p>
+
+          <img class="chart-img" src="assets/results_chart.png" alt="F1 Macro heatmap, model x balance strategy">
+          <div class="chart-caption">Fig. Enhanced-feature Macro-F1 across all 15 architectures &times; 7 balance strategies</div>
+
+          <div class="subhead">RQ2 &mdash; Survival Feature Impact</div>
+          <ul class="bullet-list">
+            <li><strong>Positive lift:</strong> KNN (+0.0061 F1) and Gaussian Naive Bayes (+0.0050 F1) &mdash; simpler models benefit from pre-computed temporal risk statistics.</li>
+            <li><strong>Negligible to negative:</strong> Random Forest, XGBoost, AdaBoost &mdash; high-capacity tree ensembles already approximate survival patterns, making Cox features redundant.</li>
+          </ul>
+          <p>Survival feature engineering has <strong>conditional, not universal</strong> utility &mdash; allocate effort based on the downstream learner's capacity.</p>
+
+          <div class="subhead">RQ3 &mdash; Class-Balancing Strategy</div>
+          <ul class="bullet-list">
+            <li><strong>Borderline-SMOTE</strong> consistently outperformed vanilla SMOTE and no-resampling baselines across all model families.</li>
+            <li>Resampling is <strong>essential for two-stage models</strong>: TS XGB&rarr;Ada rises from 0.538 (none) to <strong>0.600</strong> (Borderline-SMOTE) &mdash; a +0.062 swing.</li>
+            <li><strong>Hybrid undersampling</strong> is a stable alternative: TS XGB&rarr;Ada @ Hybrid&nbsp;0.5 = 0.583, only 0.017 below Borderline-SMOTE.</li>
+            <li>Weak learners (KNN, GNB) swing most with strategy choice; strong tree ensembles (RF, XGBoost, AdaBoost) stay comparatively robust.</li>
+            <li>Spearman &rho; = 0.732 (F1 vs. AUC) confirms resampling mainly shifts <strong>threshold placement</strong>, not underlying class separability.</li>
+          </ul>
+
+          <div class="subhead">RQ4 &mdash; Feature Importance (Granular vs. Aggregate)</div>
+          <p>The three most predictive features across all families &mdash; <strong>prev_bracket</strong> (most recent payment bracket), <strong>dtp_wavg</strong> (recency-weighted average DTP), and <strong>opening_balance_flag</strong> (carried unpaid balance) &mdash; are all <strong>behavioral-historical features only available at line-item granularity</strong>, confirming the study's design rationale. LDA corroborates: LD1 explains 79.5% of between-class separation, and 95.9% among delinquent classes alone.</p>
+
+          <div class="subhead">Prototype System &mdash; Dash (Python/Plotly) Web App</div>
+          <div class="chip-row">
+            <div class="chip"><b>Setup Wizard</b>Upload source files, trigger the training pipeline.</div>
+            <div class="chip"><b>KPI Dashboard</b>Live F1/AUC metrics, bracket distribution, top-model ranking.</div>
+            <div class="chip"><b>Prediction Drilldown</b>Paginated predictions, confidence scores, CSV export.</div>
+            <div class="chip"><b>Model Dashboard</b>ROC curves, confusion matrices, F1/AUC across all 1,092 configs.</div>
+            <div class="chip" style="flex-basis:100%;"><b>Audit Logs</b>Timestamped record of every prediction run and settings change.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-head">Conclusion</div>
+        <div class="card-body">
+          <ol class="num-list">
+            <li><strong>Hierarchical architectures dominate.</strong> Two-stage XGBoost&rarr;AdaBoost sets the performance ceiling (F1 = 0.6003, AUC = 0.8919).</li>
+            <li><strong>Resampling is indispensable.</strong> With ~76% of invoices on-time, Borderline-SMOTE is essential for meaningful recall on the late-payment brackets carrying the greatest financial risk.</li>
+            <li><strong>Ordinal structure yields modest, consistent gains</strong> &mdash; less than full multi-stage decomposition delivers.</li>
+            <li><strong>Survival features are model-specific</strong>: they benefit probabilistic and distance-based learners but are redundant for high-capacity tree ensembles.</li>
+          </ol>
+          <p>A macro-F1 of 0.60 on a four-class imbalanced problem means the model correctly brackets ~60 of every 100 eventually-late invoices, with most remaining errors landing in adjacent brackets. Against zero forward visibility today, this lets finance officers <strong>concentrate outreach on the highest-risk invoices before due dates lapse</strong> &mdash; earlier reminders, proactive installment restructuring, and social-welfare referrals in place of after-the-fact collection that RA 11984 has rendered largely unenforceable. The framework is directly transferable to any Philippine private school sharing the same installment-billing structure, and the open-sourced prototype operationalizes the winning configuration.</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ================= FOOTER ================= -->
+  <div class="footer">
+    <div class="footer-grid">
+      <div>
+        <h2>Acknowledgements</h2>
+        <p>The researchers extend their heartfelt gratitude to their thesis adviser, Mr. Joel C. De Goma, and the panel members, for their guidance, invaluable feedback, and constructive evaluations throughout the study. Appreciation is also extended to the partner institution for granting access to the institutional dataset and for their continued support.</p>
+      </div>
+      <div>
+        <h2 style="visibility:hidden;">.</h2>
+        <p>The researchers also wish to acknowledge their families and loved ones, whose unwavering encouragement, patience, and understanding provided strength and inspiration throughout the research journey. Their sacrifices, moral support, and constant belief in the researchers' abilities made the completion of this study possible.</p>
+      </div>
+      <div class="citation">Beley, R. J. T. &amp; Reyes, C. J. L. (2026). Solving the Invoice Payment Prediction Problem (IPPP): A Multi-Stage Approach. Bachelor of Science in Data Science Thesis, School of Information Technology, Mapúa University.</div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
